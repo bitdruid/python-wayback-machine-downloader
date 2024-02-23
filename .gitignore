@@ -1,0 +1,8 @@
+.venv/
+.test/
+pywaybackup/__pycache__/
+waybackup_snapshots/
+dist/
+pywaybackup.egg-info/
+build/
+```
