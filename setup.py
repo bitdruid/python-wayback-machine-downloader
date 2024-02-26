@@ -31,5 +31,5 @@ setup(
     long_description_content_type='text/markdown',
     license='MIT',
     keywords='wayback machine internet archive',
-    url='https://github.com/bitdruid/waybackup',
+    url='https://github.com/bitdruid/python-wayback-machine-downloader',
 )

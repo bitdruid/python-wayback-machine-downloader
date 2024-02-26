@@ -1,12 +1,71 @@
 #import threading
 import requests
-import datetime
 import os
 import magic
 import threading
 import time
 import http.client
 from urllib.parse import urljoin
+from datetime import datetime, timezone
+
+
+
+
+# GET: store page to wayback machine and response with redirect to snapshot
+# POST: store page to wayback machine and response with wayback machine status-page
+# tag_jobid = '<script>spn.watchJob("spn2-%s", "/_static/",6000);</script>'
+# tag_result_timeout = '<p>The same snapshot had been made %s minutes ago. You can make new capture of this URL after 1 hour.</p>'
+# tag_result_success = ' A snapshot was captured. Visit page: <a href="%s">%s</a>'
+def save_page(url: str):
+    """
+    Saves a webpage to the Wayback Machine. 
+
+    Args:
+        url (str): The URL of the webpage to be saved.
+
+    Returns:
+        None: The function does not return any value. It only prints messages to the console.
+    """
+    print("\nSaving page to the Wayback Machine...")
+    connection = http.client.HTTPSConnection("web.archive.org")
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'
+    }
+    connection.request("GET", f"https://web.archive.org/save/{url}", headers=headers)
+    print("\n-----> Request sent")
+    response = connection.getresponse()
+    response_status = response.status
+
+    if response_status == 302:
+        location = response.getheader("Location")
+        print("\n-----> Response: 302 (redirect to snapshot)")
+        snapshot_timestamp = datetime.strptime(location.split('/web/')[1].split('/')[0], '%Y%m%d%H%M%S').strftime('%Y-%m-%d %H:%M:%S')
+        current_timestamp = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+        timestamp_difference = (datetime.strptime(current_timestamp, '%Y-%m-%d %H:%M:%S') - datetime.strptime(snapshot_timestamp, '%Y-%m-%d %H:%M:%S')).seconds / 60
+        timestamp_difference = int(round(timestamp_difference, 0))
+
+        if timestamp_difference < 1:
+            print("\n-----> New snapshot created")
+        elif timestamp_difference > 1:
+            print(f"\n-----> Snapshot already exists. (1 hour limit) - wait for {60 - timestamp_difference} minutes")
+            print(f"TIMESTAMP SNAPSHOT: {snapshot_timestamp}")
+            print(f"TIMESTAMP REQUEST : {current_timestamp}")
+            print(f"\nLAST SNAPSHOT BACK: {timestamp_difference} minutes")
+
+        print(f"\nURL: {location}")
+
+    elif response_status == 404:
+        print("\n-----> Response: 404 (not found)")
+        print(f"\nFAILED -> URL: {url}")
+    else:
+        print("\n-----> Response: unexpected")
+        print(f"\nFAILED -> URL: {url}")
+
+    connection.close()
+
+
+
+
 
 def print_result(result_list):
     print("")
@@ -16,11 +75,15 @@ def print_result(result_list):
         __import__('pprint').pprint(result_list)
         print(f"\n-----> {len(result_list)} snapshots listed")
 
+
+
+
+
 # create filelist
 def query_list(url: str, range: int, mode: str):
     print("\nQuerying snapshots...")
     if range:
-        range = datetime.datetime.now().year - range
+        range = datetime.now().year - range
         range = "&from=" + str(range)
     else:
         range = ""

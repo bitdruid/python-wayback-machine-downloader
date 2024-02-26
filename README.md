@@ -22,7 +22,7 @@ Internet-archive is a nice source for several OSINT-information. This script is 
 ### Manual
 
 1. Clone the repository <br>
-   ```git clone https://github.com/bitdruid/waybackup.git```
+   ```git clone https://github.com/bitdruid/python-wayback-machine-downloader.git```
 2. Install <br>
    ```pip install .```
    - in a virtual env or use `--break-system-package`
@@ -42,8 +42,9 @@ This script allows you to download content from the Wayback Machine (archive.org
 
 #### Mode Selection (Choose One)
 
-- `-c`, `--current`: Download the latest version of each file snapshot. This option is mutually exclusive with `-f/--full`.
-- `-f`, `--full`: Download snapshots of all timestamps. This option is mutually exclusive with `-c/--current`.
+- `-c`, `--current`: Download the latest version of each file snapshot.
+- `-f`, `--full`: Download snapshots of all timestamps.
+- `-s`, `--save`: Save a page to the Wayback Machine. (beta)
 
 #### Optional Arguments
 

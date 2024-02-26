@@ -12,6 +12,7 @@ def main():
     exclusive_required = required.add_mutually_exclusive_group(required=True)
     exclusive_required.add_argument('-c', '--current', action='store_true', help='Download the latest version of each file snapshot (opt range in y)')
     exclusive_required.add_argument('-f', '--full', action='store_true', help='Download snapshots of all timestamps (opt range in y)')
+    exclusive_required.add_argument('-s', '--save', action='store_true', help='Save a page to the wayback machine')
     optional = parser.add_argument_group('optional')
     optional.add_argument('-l', '--list', action='store_true', help='Only print snapshots (opt range in y)')
     optional.add_argument('-r', '--range', type=int, help='Range in years to search')
@@ -27,16 +28,20 @@ def main():
     if args.full:
         mode = "full"
 
-    if args.output is None:
-        args.output = os.path.join(os.getcwd(), "waybackup_snapshots")
-    cdxResult_list = archive.query_list(args.url, args.range, mode)
-    if args.list:
-        archive.print_result(cdxResult_list)
-    if not args.list:
-        archive.download_prepare_list(cdxResult_list, args.output, args.retry, args.worker, mode)
-        archive.remove_empty_folders(args.output)
-    # if args.detect_filetype:
-    #     archive.detect_filetype(args.output)
+    if args.save:
+        archive.save_page(args.url)
+    else:
+        if args.output is None:
+            args.output = os.path.join(os.getcwd(), "waybackup_snapshots")
+        cdxResult_list = archive.query_list(args.url, args.range, mode)
+        if args.list:
+            archive.print_result(cdxResult_list)
+        if not args.list and not args.save:
+            archive.download_prepare_list(cdxResult_list, args.output, args.retry, args.worker, mode)
+            archive.remove_empty_folders(args.output)
+        # if args.detect_filetype:
+        #     archive.detect_filetype(args.output)
+    print("")
 
 if __name__ == "__main__":
     main()
