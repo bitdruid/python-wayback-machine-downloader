@@ -81,26 +81,30 @@ def print_result(result_list):
 
 # create filelist
 def query_list(url: str, range: int, mode: str):
-    print("\nQuerying snapshots...")
-    if range:
-        range = datetime.now().year - range
-        range = "&from=" + str(range)
-    else:
-        range = ""
-    cdxQuery = f"https://web.archive.org/cdx/search/xd?output=json&url=*.{url}/*{range}&fl=timestamp,original&filter=!statuscode:200"
-    cdxResult = requests.get(cdxQuery)
-    if cdxResult.status_code != 200: print(f"\n-----> ERROR: could not query snapshots, status code: {cdxResult.status_code}"); exit()
-    cdxResult_json = cdxResult.json()[1:] # first line is fieldlist, so remove it [timestamp, original
-    cdxResult_list = [{"timestamp": snapshot[0], "url": snapshot[1]} for snapshot in cdxResult_json]
-    if mode == "current":
-        cdxResult_list = sorted(cdxResult_list, key=lambda k: k['timestamp'], reverse=True)
-        cdxResult_list_filtered = []
-        for snapshot in cdxResult_list:
-            if snapshot["url"] not in [snapshot["url"] for snapshot in cdxResult_list_filtered]:
-                cdxResult_list_filtered.append(snapshot)
-        cdxResult_list = cdxResult_list_filtered
-    print(f"\n-----> {len(cdxResult_list)} snapshots found")
-    return cdxResult_list
+    try:
+        print("\nQuerying snapshots...")
+        if range:
+            range = datetime.now().year - range
+            range = "&from=" + str(range)
+        else:
+            range = ""
+        cdxQuery = f"https://web.archive.org/cdx/search/xd?output=json&url=*.{url}/*{range}&fl=timestamp,original&filter=!statuscode:200"
+        cdxResult = requests.get(cdxQuery)
+        if cdxResult.status_code != 200: print(f"\n-----> ERROR: could not query snapshots, status code: {cdxResult.status_code}"); exit()
+        cdxResult_json = cdxResult.json()[1:] # first line is fieldlist, so remove it [timestamp, original
+        cdxResult_list = [{"timestamp": snapshot[0], "url": snapshot[1]} for snapshot in cdxResult_json]
+        if mode == "current":
+            cdxResult_list = sorted(cdxResult_list, key=lambda k: k['timestamp'], reverse=True)
+            cdxResult_list_filtered = []
+            for snapshot in cdxResult_list:
+                if snapshot["url"] not in [snapshot["url"] for snapshot in cdxResult_list_filtered]:
+                    cdxResult_list_filtered.append(snapshot)
+            cdxResult_list = cdxResult_list_filtered
+        print(f"\n-----> {len(cdxResult_list)} snapshots found")
+        return cdxResult_list
+    except requests.exceptions.ConnectionError as e:
+        print(f"\n-----> ERROR: could not query snapshots:\n{e}"); exit()
+
 
 
 
@@ -296,11 +300,18 @@ def download_url_entry(url, filename, filepath, connection, status_message):
                     f"           -> URL: {url}\n" + \
                     f"           -> FILE: {output}"
             return True
-        except http.client.HTTPException as e:
+        except ConnectionRefusedError as e:
+            status_message = f"{status_message}\n" + \
+                f"REFUSED  -> ({i+1}/{max_retries}), reconnect in {sleep_time} seconds...\n" + \
+                f"         -> {e}"
             print(status_message)
-            print(f"REFUSED -> ({i+1}/{max_retries}), reconnect in {sleep_time} seconds...")
-            print(f"        -> {e}")
             time.sleep(sleep_time)
+        except http.client.HTTPException as e:
+            status_message = f"{status_message}\n" + \
+                f"EXCEPTION -> ({i+1}/{max_retries}), append to failed_urls: {url}\n" + \
+                f"          -> {e}"
+            print(status_message)
+            return False
     print(f"FAILED  -> download, append to failed_urls: {url}")
     return False
 
