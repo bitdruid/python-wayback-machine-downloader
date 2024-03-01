@@ -19,25 +19,23 @@ def main():
     optional.add_argument('-o', '--output', type=str, help='Output folder')
     special = parser.add_argument_group('special')
     #special.add_argument('--detect-filetype', action='store_true', help='If a file has no extension, try to detect the filetype')
-    special.add_argument('--retry', nargs='?', const=True, type=int, metavar="X-TIMES", help='Retry failed downloads (opt tries as int, else infinite)')
+    special.add_argument('--retry', type=int, default=0, metavar="X-TIMES", help='Retry failed downloads (opt tries as int, else infinite)')
     special.add_argument('--worker', type=int, default=1, metavar="AMOUNT", help='Number of worker (simultaneous downloads)')
 
     args = parser.parse_args()
     if args.current:
         mode = "current"
-    if args.full:
-        mode = "full"
 
     if args.save:
         archive.save_page(args.url)
     else:
         if args.output is None:
             args.output = os.path.join(os.getcwd(), "waybackup_snapshots")
-        cdxResult_list = archive.query_list(args.url, args.range, mode)
+        snapshots = archive.query_list(args.url, args.range, mode)
         if args.list:
-            archive.print_result(cdxResult_list)
-        if not args.list and not args.save:
-            archive.download_prepare_list(cdxResult_list, args.output, args.retry, args.worker, mode)
+            archive.print_result(snapshots)
+        else:
+            archive.download_prepare_list(snapshots, args.output, args.retry, args.worker)
             archive.remove_empty_folders(args.output)
         # if args.detect_filetype:
         #     archive.detect_filetype(args.output)

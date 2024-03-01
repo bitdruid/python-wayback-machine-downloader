@@ -8,6 +8,8 @@ import http.client
 from urllib.parse import urljoin
 from datetime import datetime, timezone
 
+import pywaybackup.SnapshotCollection as sc
+
 
 
 
@@ -67,13 +69,13 @@ def save_page(url: str):
 
 
 
-def print_result(result_list):
+def print_result(snapshots):
     print("")
-    if not result_list:
+    if not snapshots:
         print("No snapshots found")
     else:
-        __import__('pprint').pprint(result_list)
-        print(f"\n-----> {len(result_list)} snapshots listed")
+        __import__('pprint').pprint(snapshots.CDX_RESULT_LIST)
+        print(f"\n-----> {snapshots.count_list()} snapshots listed")
 
 
 
@@ -91,52 +93,13 @@ def query_list(url: str, range: int, mode: str):
         cdxQuery = f"https://web.archive.org/cdx/search/xd?output=json&url=*.{url}/*{range}&fl=timestamp,original&filter=!statuscode:200"
         cdxResult = requests.get(cdxQuery)
         if cdxResult.status_code != 200: print(f"\n-----> ERROR: could not query snapshots, status code: {cdxResult.status_code}"); exit()
-        cdxResult_json = cdxResult.json()[1:] # first line is fieldlist, so remove it [timestamp, original
-        cdxResult_list = [{"timestamp": snapshot[0], "url": snapshot[1]} for snapshot in cdxResult_json]
-        if mode == "current":
-            cdxResult_list = sorted(cdxResult_list, key=lambda k: k['timestamp'], reverse=True)
-            cdxResult_list_filtered = []
-            for snapshot in cdxResult_list:
-                if snapshot["url"] not in [snapshot["url"] for snapshot in cdxResult_list_filtered]:
-                    cdxResult_list_filtered.append(snapshot)
-            cdxResult_list = cdxResult_list_filtered
-        print(f"\n-----> {len(cdxResult_list)} snapshots found")
-        return cdxResult_list
+        snapshots = sc.SnapshotCollection(cdxResult)
+        if mode == "current": snapshots.create_current()
+        print(f"\n-----> {snapshots.count_list()} snapshots found")
+        return snapshots
     except requests.exceptions.ConnectionError as e:
         print(f"\n-----> ERROR: could not query snapshots:\n{e}"); exit()
 
-
-
-
-
-
-def split_url(url):
-    """
-    Split url into domain, subdir and file.
-    If no file is present, the filename will be index.html
-    """
-    domain = url.split("//")[-1].split("/")[0]
-    subdir = "/".join(url.split("//")[-1].split("/")[1:-1])
-    filename = url.split("/")[-1] or "index.html"
-    return domain, subdir, filename
-
-def determine_url_filetype(url):
-    """
-    Determine filetype of the archive-url by looking at the file extension.
-    """
-    image = ["jpg", "jpeg", "png", "gif", "svg", "ico"]
-    css = ["css"]
-    js = ["js"]
-    file_extension = url.split(".")[-1]
-    if file_extension in image:
-        urltype = "im_"
-    elif file_extension in css:
-        urltype = "cs_"
-    elif file_extension in js:
-        urltype = "js_"
-    else:
-        urltype = "id_"
-    return urltype
 
 
 
@@ -175,92 +138,70 @@ def remove_empty_folders(path, remove_root=True):
 
 
 # example download: http://web.archive.org/web/20190815104545id_/https://www.google.com/
-# example url: https://www.google.com/
-# example timestamp: 20190815104545
-def download_prepare_list(cdxResult_list, output, retry, worker, mode):
+def download_prepare_list(snapshots, output, retry, worker):
     """
     Download a list of urls in format: [{"timestamp": "20190815104545", "url": "https://www.google.com/"}]
     """
     print("\nDownloading latest snapshots of each file...")
-    download_list = []
-    for snapshot in cdxResult_list:
-        timestamp, url = snapshot["timestamp"], snapshot["url"]
-        type = determine_url_filetype(url)
-        download_url = f"http://web.archive.org/web/{timestamp}{type}/{url}"
-        domain, subdir, filename = split_url(url)
-        if mode == "current": download_dir = os.path.join(output, domain, subdir)
-        if mode == "full": download_dir = os.path.join(output, domain, timestamp, subdir)
-        download_list.append({"url": download_url, "filename": filename, "filepath": download_dir})
+    snapshots.create_collection(output)
+    download_list = snapshots.CDX_RESULT_COLLECTION
     if worker > 1:
         print(f"\n-----> Simultaneous downloads: {worker}")
-        batch_size = len(download_list) // worker + 1
+        batch_size = snapshots.count_collection() // worker + 1
     else:
-        batch_size = len(download_list)
+        batch_size = snapshots.count_collection()
     batch_list = [download_list[i:i + batch_size] for i in range(0, len(download_list), batch_size)]
     threads = []
     worker = 0
     for batch in batch_list:
         worker += 1
-        thread = threading.Thread(target=download_url_list, args=(batch, worker, retry))
+        thread = threading.Thread(target=download_url_list, args=(snapshots, batch, worker, retry))
         threads.append(thread)
         thread.start()
     for thread in threads:
         thread.join()
+    failed_urls = len([url for url in snapshots.CDX_RESULT_COLLECTION if url["success"] == False])
+    if failed_urls: print(f"\n-----> Failed downloads: {len(failed_urls)}")
 
-def download_url_list(url_list, worker, retry):
+def download_url_list(snapshots, url_list, worker, retry, attempt=1, connection=None):
+    max_attempt = retry
     failed_urls = []
-    connection = http.client.HTTPSConnection("web.archive.org")
-    for url_entry in url_list:
-        status = f"\n-----> Snapshot [{url_list.index(url_entry) + 1}/{len(url_list)}] Worker: {worker}"
-        download_url, download_filename, download_filepath = url_entry["url"], url_entry["filename"], url_entry["filepath"]
-        download_status=download_url_entry(download_url, download_filename, download_filepath, connection, status)
-        if download_status != True: failed_urls.append({"url": download_url, "filename": download_filename, "filepath": download_filepath})
-    if retry:
-        download_retry(failed_urls, retry, connection)
-    connection.close()
+    if not connection:
+        connection = http.client.HTTPSConnection("web.archive.org")
+    if attempt > max_attempt: 
+        connection.close()
+        print(f"\n-----> Worker: {worker} - Failed downloads: {len(url_list)}")
+        return
+    else:
+        for url_entry in url_list:
+            status = f"\n-----> Attempt: [{attempt}/{max_attempt}] Snapshot [{url_list.index(url_entry) + 1}/{len(url_list)}] Worker: {worker}"
+            download_status=download_url_entry(url_entry, connection, status)
+            if download_status != True: failed_urls.append(url_entry); url_entry["retry"] += 1
+            if download_status == True: snapshots.set_value(url_entry["index"], "success", True)
+        attempt += 1
+    if failed_urls: download_url_list(snapshots, failed_urls, worker, retry, attempt, connection)
 
-def download_retry(failed_urls, retry, connection):
-    """
-    Retry failed downloads.
-    failed_urls: [{"url": download_url, "filename": download_filename, "filepath": download_filepath}]
-    retry: int or None
-    """
-    attempt = 1
-    max_attempt = retry if retry is not True else "no-limit"
-    while failed_urls and (attempt <= retry or retry is True):
-        print("\n-----> Retrying...")
-        retry_urls = []
-        for failed_entry in failed_urls:
-            status = f"\n-----> RETRY attempt: [{attempt}/{max_attempt}] Snapshot [{failed_urls.index(failed_entry) + 1}/{len(failed_urls)}]"
-            download_url, download_filename, download_filepath = failed_entry["url"], failed_entry["filename"], failed_entry["filepath"]
-            retry_status=download_url_entry(download_url, download_filename, download_filepath, connection, status)
-            if retry_status != bool(1):
-                retry_urls.append({"url": download_url, "filename": download_filename, "filepath": download_filepath})
-        failed_urls = retry_urls
-        print(f"\n-----> Fail downloads: {len(failed_urls)}")
-        if retry: attempt += 1
-
-def download_url_entry(url, filename, filepath, connection, status_message):
+def download_url_entry(download_entry, connection, status_message):
     """
     Download a single URL and save it to the specified filepath.
 
     Args:
-        url (str): The URL to download.
-        filename (str): The name of the file to save.
-        filepath (str): The path where the file will be saved.
+        download_url (str): The URL to download.
+        download_file (str): The name of the file to save.
         connection (http.client.HTTPConnection): The HTTP connection object.
-        status (str): The current status message.
+        status_message (str): The current status message.
 
     Returns:
         bool: True if the download is successful, False otherwise.
     """
-    output = os.path.join(filepath, filename)
+    download_url = download_entry["url"]
+    download_file = download_entry["file"]
     max_retries = 2
     sleep_time = 45
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'}
     for i in range(max_retries):
         try:
-            connection.request("GET", url, headers=headers)
+            connection.request("GET", download_url, headers=headers)
             response = connection.getresponse()
             response_data = response.read()
             response_status = response.status
@@ -268,7 +209,7 @@ def download_url_entry(url, filename, filepath, connection, status_message):
                 status_message = f"{status_message}\n" + \
                     f"REDIRECT   -> HTTP: {response.status}"
                 while response_status == 302:
-                    connection.request("GET", url, headers=headers)
+                    connection.request("GET", download_url, headers=headers)
                     response = connection.getresponse()
                     response_data = response.read()
                     response_status = response.status
@@ -276,29 +217,29 @@ def download_url_entry(url, filename, filepath, connection, status_message):
                     if location:
                         status_message = f"{status_message}\n" + \
                             f"           -> URL: {location}"
-                        location = urljoin(url, location)
-                        url = location
+                        location = urljoin(download_url, location)
+                        download_url = location
                     else:
                         break
             if response_status != 404:
-                os.makedirs(filepath, exist_ok=True)
-                with open(output, 'wb') as file:
+                os.makedirs(os.path.dirname(download_file), exist_ok=True)
+                with open(download_file, 'wb') as file:
                     file.write(response_data)
             if response_status == 200:
                 status_message = f"{status_message}\n" + \
                     f"SUCCESS    -> HTTP: {response.status}\n" + \
-                    f"           -> URL: {url}\n" + \
-                    f"           -> FILE: {output}"
-                print(status_message)
+                    f"           -> URL: {download_url}\n" + \
+                    f"           -> FILE: {download_file}"
             elif response_status == 404:
                 status_message = f"{status_message}\n" + \
                     f"NOT FOUND  -> HTTP: {response.status}\n" + \
-                    f"           -> URL: {url}"
+                    f"           -> URL: {download_url}"
             else:
                 status_message = f"{status_message}\n" + \
                     f"UNEXPECTED -> HTTP: {response.status}\n" + \
-                    f"           -> URL: {url}\n" + \
-                    f"           -> FILE: {output}"
+                    f"           -> URL: {download_url}\n" + \
+                    f"           -> FILE: {download_file}"
+            print(status_message)
             return True
         except ConnectionRefusedError as e:
             status_message = f"{status_message}\n" + \
@@ -308,11 +249,11 @@ def download_url_entry(url, filename, filepath, connection, status_message):
             time.sleep(sleep_time)
         except http.client.HTTPException as e:
             status_message = f"{status_message}\n" + \
-                f"EXCEPTION -> ({i+1}/{max_retries}), append to failed_urls: {url}\n" + \
+                f"EXCEPTION -> ({i+1}/{max_retries}), append to failed_urls: {download_url}\n" + \
                 f"          -> {e}"
             print(status_message)
             return False
-    print(f"FAILED  -> download, append to failed_urls: {url}")
+    print(f"FAILED  -> download, append to failed_urls: {download_url}")
     return False
 
 
