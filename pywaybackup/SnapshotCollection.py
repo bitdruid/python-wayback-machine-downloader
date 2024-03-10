@@ -3,67 +3,65 @@ import os
 
 class SnapshotCollection:
 
-    CDX_RESULT_JSON = []
-    CDX_RESULT_LIST = []
-    CDX_RESULT_COLLECTION = []
+    CDX_JSON = []
+    CDX_LIST = []
+
+    SNAPSHOT_COLLECTION = []
 
     MODE_CURRENT = 0
 
-    def __init__(self, cdxResult=None, cdxCollection=None):
-        if cdxResult:
-            self.CDX_RESULT_JSON = cdxResult.json()[1:]
-            self.CDX_RESULT_LIST = [{"timestamp": snapshot[0], "url": snapshot[1]} for snapshot in self.CDX_RESULT_JSON]
-            self.CDX_RESULT_LIST = sorted(self.CDX_RESULT_LIST, key=lambda k: k['timestamp'], reverse=True)
-        if cdxCollection:
-            self.CDX_RESULT_COLLECTION = cdxCollection
+    def __init__(self):
+        pass
+
+    def create_full(self, cdxResult):
+        self.CDX_JSON = cdxResult.json()[1:]
+        self.CDX_LIST = [{"id": i, "timestamp": snapshot[0], "url": snapshot[1]} for i, snapshot in enumerate(self.CDX_JSON)]
+        self.CDX_LIST = sorted(self.CDX_LIST, key=lambda k: k['timestamp'], reverse=True)
 
     def create_current(self):
         self.MODE_CURRENT = 1
-        self.CDX_RESULT_LIST = sorted(self.CDX_RESULT_LIST, key=lambda k: k['timestamp'], reverse=True)
+        self.CDX_LIST = sorted(self.CDX_LIST, key=lambda k: k['timestamp'], reverse=True)
         cdxResult_list_filtered = []
-        for snapshot in self.CDX_RESULT_LIST:
-            if snapshot["url"] not in [snapshot["url"] for snapshot in cdxResult_list_filtered]:
+        url_set = set()
+        for snapshot in self.CDX_LIST:
+            if snapshot["url"] not in url_set:
                 cdxResult_list_filtered.append(snapshot)
-        self.CDX_RESULT_LIST = cdxResult_list_filtered
+                url_set.add(snapshot["url"])
+        self.CDX_LIST = cdxResult_list_filtered
 
-    def create_collection(self, output):
-        for snapshot in self.CDX_RESULT_LIST:
-            timestamp, url = snapshot["timestamp"], snapshot["url"]
-            url_type = self.__get_url_filetype(url)
-            download_url = f"http://web.archive.org/web/{timestamp}{url_type}/{url}"
-            domain, subdir, filename = self.__split_url(url)
-            if self.MODE_CURRENT: download_dir = os.path.join(output, domain, subdir)
-            else: download_dir = os.path.join(output, domain, timestamp, subdir)
-            download_file = os.path.join(download_dir, filename)
-            self.CDX_RESULT_COLLECTION.append(
-                {
-                    "index": self.CDX_RESULT_LIST.index(snapshot),
-                    "url": download_url, 
-                    "file": str(download_file),
-                    "success": False,
-                    "retry": 0
-                }
-            )
+    def create_entry(self, cdx_entry: dict, output: str) -> dict:
+        timestamp, url = cdx_entry["timestamp"], cdx_entry["url"]
+        url_type = self.__get_url_filetype(url)
+        download_url = f"http://web.archive.org/web/{timestamp}{url_type}/{url}"
+        domain, subdir, filename = self.__split_url(url)
+        if self.MODE_CURRENT: download_dir = os.path.join(output, domain, subdir)
+        else: download_dir = os.path.join(output, domain, timestamp, subdir)
+        download_file = os.path.join(download_dir, filename)
+        cdx_entry = {
+                "id": cdx_entry["id"],
+                "url": download_url, 
+                "file": download_file,
+                "timestamp": timestamp,
+                "origin_url": url,
+                "success": False,
+                "retry": 0
+            }
+        return cdx_entry
 
     def count_list(self):
-        return len(self.CDX_RESULT_LIST)
+        return len(self.CDX_LIST)
     
-    def count_collection(self):
-        return len(self.CDX_RESULT_COLLECTION)
+    def snapshot_collection_write(self, query_entry: dict):
+        if query_entry["id"] not in self.SNAPSHOT_COLLECTION:
+            self.SNAPSHOT_COLLECTION.append(query_entry)
     
-    def set_value(self, index: int, key: str, value: str):
-        """
-        Set a value in the collection
+    def snapshot_collection_update(self, id: int, key: str, value: str):
+        index = next((index for (index, d) in enumerate(self.SNAPSHOT_COLLECTION) if d["id"] == id), None)
+        if index is not None:
+            self.SNAPSHOT_COLLECTION[index][key] = value
 
-        Args:
-            index (int): Index of the snapshot
-            key (str): Key of the value
-            value (str): Value to set
-        """
-        self.CDX_RESULT_COLLECTION[index][key] = value
-    
     def __get_url_filetype(self, url):
-        file_extension = url.split(".")[-1]
+        file_extension = os.path.splitext(url)[1][1:]
         urltype_mapping = {
             "jpg": "im_",
             "jpeg": "im_",
@@ -80,6 +78,6 @@ class SnapshotCollection:
     def __split_url(self, url):
         parsed_url = urlparse(url)
         domain = parsed_url.netloc
-        subdir = parsed_url.path.strip("/")
+        subdir = parsed_url.path.strip("/").rsplit("/", 1)[0]
         filename = parsed_url.path.split("/")[-1] or "index.html"
         return domain, subdir, filename
