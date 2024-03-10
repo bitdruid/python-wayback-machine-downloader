@@ -1,7 +1,6 @@
 #import threading
 import requests
 import os
-import magic
 import gzip
 import threading
 import time
@@ -267,22 +266,3 @@ def download(download_entry, connection, status_message):
             return False
     v.write(f"FAILED  -> download, append to failed_urls: {download_url}")
     return False
-
-
-# scan output folder and guess mimetype for each file
-# if add file extension if not present
-# def detect_filetype(filepath):
-#     v.write(f"\nDetecting filetypes...")
-#     path = Path(filepath)
-#     if not path.is_dir():
-#         v.write(f"\n-----> ERROR: {filepath} is not a directory"); return
-#     for file_path in path.rglob("*"):
-#         if file_path.is_file():
-#             file_extension = file_path.suffix
-#             if not file_extension:
-#                 mime_type = magic.from_file(str(file_path), mime=True)
-#                 file_extension = mime_type.split("/")[-1]
-#                 new_file_path = file_path.with_suffix('.' + file_extension)
-#                 file_path.rename(new_file_path)
-#                 v.write(f"NO EXT -> {file_path}")
-#                 v.write(f"   NEW -> {new_file_path}")

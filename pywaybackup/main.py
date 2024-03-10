@@ -22,7 +22,6 @@ def main():
     optional.add_argument('-o', '--output', type=str, help='Output folder')
     optional.add_argument('-v', '--verbosity', type=str, default="standard", choices=["standard", "progress", "json"], help='Verbosity level')
     special = parser.add_argument_group('special')
-    #special.add_argument('--detect-filetype', action='store_true', help='If a file has no extension, try to detect the filetype')
     special.add_argument('--retry', type=int, default=0, metavar="X-TIMES", help='Retry failed downloads (opt tries as int, else infinite)')
     special.add_argument('--worker', type=int, default=1, metavar="AMOUNT", help='Number of worker (simultaneous downloads)')
 
@@ -46,8 +45,6 @@ def main():
         else:
             archive.download_list(snapshots, args.output, args.retry, args.worker)            
             archive.remove_empty_folders(args.output)
-        # if args.detect_filetype:
-        #     archive.detect_filetype(args.output)
     v.close()
 
 if __name__ == "__main__":
