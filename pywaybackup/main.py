@@ -18,6 +18,7 @@ def main():
     exclusive_required.add_argument('-s', '--save', action='store_true', help='Save a page to the wayback machine')
     optional = parser.add_argument_group('optional')
     optional.add_argument('-l', '--list', action='store_true', help='Only print snapshots (opt range in y)')
+    optional.add_argument('-e', '--explicit', action='store_true', help='Search only for the explicit given url')
     optional.add_argument('-r', '--range', type=int, help='Range in years to search')
     optional.add_argument('-o', '--output', type=str, help='Output folder')
     optional.add_argument('-v', '--verbosity', type=str, default="standard", choices=["standard", "progress", "json"], help='Verbosity level')
@@ -39,7 +40,7 @@ def main():
     else:
         if args.output is None:
             args.output = os.path.join(os.getcwd(), "waybackup_snapshots")
-        archive.query_list(snapshots, args.url, args.range, mode)
+        archive.query_list(snapshots, args.url, args.range, args.explicit, mode)
         if args.list:
             archive.print_list(snapshots)
         else:

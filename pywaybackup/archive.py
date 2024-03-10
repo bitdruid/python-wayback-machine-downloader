@@ -83,7 +83,7 @@ def print_list(snapshots):
 
 
 # create filelist
-def query_list(snapshots: sc.SnapshotCollection, url: str, range: int, mode: str):
+def query_list(snapshots: sc.SnapshotCollection, url: str, range: int, explicit: bool, mode: str):
     try:
         v.write("\nQuerying snapshots...")
         if range:
@@ -91,9 +91,9 @@ def query_list(snapshots: sc.SnapshotCollection, url: str, range: int, mode: str
             range = "&from=" + str(range)
         else:
             range = ""
-        cdxQuery = f"https://web.archive.org/cdx/search/xd?output=json&url=*.{url}/*{range}&fl=timestamp,original&filter=!statuscode:200"
+        cdx_url = f"*.{url}/*" if not explicit else f"{url}"
+        cdxQuery = f"https://web.archive.org/cdx/search/xd?output=json&url={cdx_url}{range}&fl=timestamp,original&filter=!statuscode:200"
         cdxResult = requests.get(cdxQuery)
-        if cdxResult.status_code != 200: v.write(f"\n-----> ERROR: could not query snapshots, status code: {cdxResult.status_code}"); exit()
         snapshots.create_full(cdxResult)
         if mode == "current": snapshots.create_current()
         v.write(f"\n-----> {snapshots.count_list()} snapshots found")
@@ -142,6 +142,9 @@ def download_list(snapshots, output, retry, worker):
     """
     Download a list of urls in format: [{"timestamp": "20190815104545", "url": "https://www.google.com/"}]
     """
+    if snapshots.count_list() == 0: 
+        v.write("\nNo snapshots found to download")
+        return
     v.write("\nDownloading latest snapshots of each file...", progress=0)
     download_list = snapshots.CDX_LIST
     if worker > 1:

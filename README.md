@@ -49,6 +49,7 @@ This script allows you to download content from the Wayback Machine (archive.org
 #### Optional Arguments
 
 - `-l`, `--list`: Only print the snapshots available within the specified range. Does not download the snapshots.
+- `-e`, `--explicit`: Only download the explicit given url. No wildcard subdomains or paths.
 - `-r RANGE`, `--range RANGE`: Specify the range in years for which to search and download snapshots.
 - `-o OUTPUT`, `--output OUTPUT`: The folder where downloaded files will be saved.
 
