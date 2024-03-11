@@ -83,14 +83,15 @@ def print_list(snapshots):
 
 
 # create filelist
-def query_list(snapshots: sc.SnapshotCollection, url: str, range: int, explicit: bool, mode: str):
+# timestamp format yyyyMMddhhmmss
+def query_list(snapshots: sc.SnapshotCollection, url: str, range: int, start: int, end: int, explicit: bool, mode: str):
     try:
         v.write("\nQuerying snapshots...")
-        if range:
-            range = datetime.now().year - range
-            range = "&from=" + str(range)
-        else:
-            range = ""
+        range = ""
+        if not range:
+            if start: range = range + f"&from={start}"
+            if end: range = range + f"&to={end}"
+        else: range = "&from=" + str(datetime.now().year - range)
         cdx_url = f"*.{url}/*" if not explicit else f"{url}"
         cdxQuery = f"https://web.archive.org/cdx/search/xd?output=json&url={cdx_url}{range}&fl=timestamp,original&filter=!statuscode:200"
         cdxResult = requests.get(cdxQuery)

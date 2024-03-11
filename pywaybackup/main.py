@@ -19,10 +19,12 @@ def main():
     optional = parser.add_argument_group('optional')
     optional.add_argument('-l', '--list', action='store_true', help='Only print snapshots (opt range in y)')
     optional.add_argument('-e', '--explicit', action='store_true', help='Search only for the explicit given url')
-    optional.add_argument('-r', '--range', type=int, help='Range in years to search')
     optional.add_argument('-o', '--output', type=str, help='Output folder')
-    optional.add_argument('-v', '--verbosity', type=str, default="standard", choices=["standard", "progress", "json"], help='Verbosity level')
+    optional.add_argument('-r', '--range', type=int, help='Range in years to search')
+    optional.add_argument('--start', type=int, help='Start timestamp format: YYYYMMDDhhmmss')
+    optional.add_argument('--end', type=int, help='End timestamp format: YYYYMMDDhhmmss')
     special = parser.add_argument_group('special')
+    special.add_argument('--verbosity', type=str, default="standard", choices=["standard", "progress", "json"], help='Verbosity level')
     special.add_argument('--retry', type=int, default=0, metavar="X-TIMES", help='Retry failed downloads (opt tries as int, else infinite)')
     special.add_argument('--worker', type=int, default=1, metavar="AMOUNT", help='Number of worker (simultaneous downloads)')
 
@@ -40,7 +42,7 @@ def main():
     else:
         if args.output is None:
             args.output = os.path.join(os.getcwd(), "waybackup_snapshots")
-        archive.query_list(snapshots, args.url, args.range, args.explicit, mode)
+        archive.query_list(snapshots, args.url, args.range, args.start, args.end, args.explicit, mode)
         if args.list:
             archive.print_list(snapshots)
         else:

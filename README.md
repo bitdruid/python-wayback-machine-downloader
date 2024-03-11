@@ -34,7 +34,7 @@ This script allows you to download content from the Wayback Machine (archive.org
 ### Arguments
 
 - `-h`, `--help`: Show the help message and exit.
-- `-v`, `--version`: Show the script's version.
+- `-a`, `--about`: Show information about the script and exit.
 
 #### Required Arguments
 
@@ -50,8 +50,14 @@ This script allows you to download content from the Wayback Machine (archive.org
 
 - `-l`, `--list`: Only print the snapshots available within the specified range. Does not download the snapshots.
 - `-e`, `--explicit`: Only download the explicit given url. No wildcard subdomains or paths.
-- `-r RANGE`, `--range RANGE`: Specify the range in years for which to search and download snapshots.
 - `-o OUTPUT`, `--output OUTPUT`: The folder where downloaded files will be saved.
+
+- **Range Selection:**<br>
+Specify the range in years or a specific timestamp either start, end or both. If you specify the `range` argument, the `start` and `end` arguments will be ignored. Format for timestamps: YYYYMMDDhhmmss. You can only give a year or increase specificity by going through the timestamp starting on the left.<br>
+(year 2019, year+month 201901, year+month+day 20190101, year+month+day+hour 2019010112)
+   - `-r RANGE`, `--range RANGE`: Specify the range in years for which to search and download snapshots.
+   - `--start`: Timestamp to start searching.
+   - `--end`: Timestamp to end searching.
 
 #### Additional
 

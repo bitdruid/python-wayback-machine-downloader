@@ -15,7 +15,7 @@ class SnapshotCollection:
 
     def create_full(self, cdxResult):
         self.CDX_JSON = cdxResult.json()[1:]
-        self.CDX_LIST = [{"id": i, "timestamp": snapshot[0], "url": snapshot[1]} for i, snapshot in enumerate(self.CDX_JSON)]
+        self.CDX_LIST = [{"timestamp": snapshot[0], "url": snapshot[1]} for i, snapshot in enumerate(self.CDX_JSON)]
         self.CDX_LIST = sorted(self.CDX_LIST, key=lambda k: k['timestamp'], reverse=True)
 
     def create_current(self):
@@ -38,7 +38,7 @@ class SnapshotCollection:
         else: download_dir = os.path.join(output, domain, timestamp, subdir)
         download_file = os.path.join(download_dir, filename)
         cdx_entry = {
-                "id": cdx_entry["id"],
+                "id": len(self.SNAPSHOT_COLLECTION),
                 "url": download_url, 
                 "file": download_file,
                 "timestamp": timestamp,
