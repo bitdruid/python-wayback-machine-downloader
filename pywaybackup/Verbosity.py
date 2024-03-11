@@ -1,6 +1,5 @@
 import tqdm
 import json
-import time
 import pywaybackup.SnapshotCollection as sc
 
 class Verbosity:
@@ -23,15 +22,22 @@ class Verbosity:
 
     @classmethod
     def close(cls):
+        if cls.mode == "progress":
+            cls.pbar.close()
+        if cls.mode == "progress" or cls.mode == "standard":
+            successed = len([snapshot for snapshot in cls.snapshots.SNAPSHOT_COLLECTION if snapshot["success"]])
+            failed = len([snapshot for snapshot in cls.snapshots.SNAPSHOT_COLLECTION if not snapshot["success"]])
+            print(f"\nSuccessed downloads: {successed}")
+            print(f"Failed downloads: {failed}")
+            print("")
         if cls.mode == "json":
             print(json.dumps(cls.snapshots.SNAPSHOT_COLLECTION, indent=4, sort_keys=True))
-        elif cls.mode == "standard":
-            print("")
 
     @classmethod
     def write(cls, message: str = None, progress: int = None):
         if cls.mode == "progress":
             if progress == 0:
+                print("")
                 maxval = cls.snapshots.count_list()
                 cls.pbar = tqdm.tqdm(total=maxval, desc="Downloading", unit=" snapshot", ascii="░▒█")
             elif progress == 1:

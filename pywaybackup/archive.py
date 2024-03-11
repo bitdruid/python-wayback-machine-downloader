@@ -105,48 +105,15 @@ def query_list(snapshots: sc.SnapshotCollection, url: str, range: int, start: in
 
 
 
-
-def remove_empty_folders(path, remove_root=True):
-    v.write("")
-    v.write("Removing empty output folders...")
-    count = 0
-    if not os.path.isdir(path):
-        return
-    # remove empty subfolders
-    for root, dirs, files in os.walk(path, topdown=False):
-        for dir in dirs:
-            dir_path = os.path.join(root, dir)
-            if not os.listdir(dir_path):
-                try:
-                    os.rmdir(dir_path)
-                    v.write(f"-----> {dir_path}")
-                    count += 1
-                except OSError as e:
-                    v.write(f"Error removing {dir_path}: {e}")
-    # remove empty root folder
-    if remove_root and not os.listdir(path):
-        try:
-            os.rmdir(path)
-            v.write(f"-----> {path}")
-            count += 1
-        except OSError as e:
-            v.write(f"Error removing {path}: {e}")
-    if count == 0:
-        v.write("No empty folders found")
-
-
-
-
-
 # example download: http://web.archive.org/web/20190815104545id_/https://www.google.com/
 def download_list(snapshots, output, retry, worker):
     """
     Download a list of urls in format: [{"timestamp": "20190815104545", "url": "https://www.google.com/"}]
     """
     if snapshots.count_list() == 0: 
-        v.write("\nNo snapshots found to download")
+        v.write("\n-----> Nothing to download");
         return
-    v.write("\nDownloading latest snapshots of each file...", progress=0)
+    v.write("\nDownloading snapshots...", progress=0)
     download_list = snapshots.CDX_LIST
     if worker > 1:
         v.write(f"\n-----> Simultaneous downloads: {worker}")
@@ -163,8 +130,6 @@ def download_list(snapshots, output, retry, worker):
         thread.start()
     for thread in threads:
         thread.join()
-    failed_urls = len([url for url in snapshots.SNAPSHOT_COLLECTION if not url["success"]])
-    if failed_urls: v.write(f"\n-----> Failed downloads: {failed_urls}")
 
 def download_loop(snapshots, cdx_list, output, worker, retry, attempt=1, connection=None):
     """
@@ -270,3 +235,31 @@ def download(download_entry, connection, status_message):
             return False
     v.write(f"FAILED  -> download, append to failed_urls: {download_url}")
     return False
+
+
+
+
+
+def remove_empty_folders(path, remove_root=True):
+    count = 0
+    if not os.path.isdir(path):
+        return
+    # remove empty subfolders
+    for root, dirs, files in os.walk(path, topdown=False):
+        for dir in dirs:
+            dir_path = os.path.join(root, dir)
+            if not os.listdir(dir_path):
+                try:
+                    os.rmdir(dir_path)
+                    v.write(f"-----> {dir_path}")
+                    count += 1
+                except OSError as e:
+                    v.write(f"Error removing {dir_path}: {e}")
+    # remove empty root folder
+    if remove_root and not os.listdir(path):
+        try:
+            os.rmdir(path)
+            v.write(f"-----> {path}")
+            count += 1
+        except OSError as e:
+            v.write(f"Error removing {path}: {e}")
