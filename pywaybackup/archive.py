@@ -109,7 +109,7 @@ def query_list(snapshots: sc.SnapshotCollection, url: str, range: int, start: in
 
 
 # example download: http://web.archive.org/web/20190815104545id_/https://www.google.com/
-def download_list(snapshots, output, retry, worker):
+def download_list(snapshots, output, retry, redirect, harvest, worker):
     """
     Download a list of urls in format: [{"timestamp": "20190815104545", "url": "https://www.google.com/"}]
     """
@@ -128,13 +128,13 @@ def download_list(snapshots, output, retry, worker):
     worker = 0
     for batch in batch_list:
         worker += 1
-        thread = threading.Thread(target=download_loop, args=(snapshots, batch, output, worker, retry))
+        thread = threading.Thread(target=download_loop, args=(snapshots, batch, output, worker, retry, redirect, harvest))
         threads.append(thread)
         thread.start()
     for thread in threads:
         thread.join()
 
-def download_loop(snapshots, cdx_list, output, worker, retry, attempt=1, connection=None):
+def download_loop(snapshots, cdx_list, output, worker, retry, redirect, harvest, attempt=1, connection=None):
     """
     Download a list of URLs in a recursive loop. If a download fails, the function will retry the download.
     The "snapshot_collection" dictionary will be updated with the download status and file information.
@@ -153,7 +153,7 @@ def download_loop(snapshots, cdx_list, output, worker, retry, attempt=1, connect
             status = f"\n-----> Attempt: [{attempt}/{max_attempt}] Snapshot [{cdx_list.index(cdx_entry)+1}/{len(cdx_list)}] - Worker: {worker}"
             download_entry = snapshots.create_entry(cdx_entry, output)
             snapshots.snapshot_collection_write(download_entry)
-            download_status=download(download_entry, connection, status)
+            download_status=download(download_entry, connection, status, redirect)
             if not download_status:
                 snapshots.snapshot_collection_update(download_entry["id"], "success", False)
                 snapshots.snapshot_collection_update(download_entry["id"], "file", None)
@@ -162,12 +162,12 @@ def download_loop(snapshots, cdx_list, output, worker, retry, attempt=1, connect
             if download_status:
                 snapshots.snapshot_collection_update(download_entry["id"], "success", True)
                 snapshots.snapshot_collection_update(download_entry["id"], "file", download_entry["file"])
-                harvest_resources(download_entry, connection, output)
+                if harvest: harvest_resources(download_entry, connection, output)
                 v.write(progress=1)
         attempt += 1
-    if failed_urls: download_loop(snapshots, failed_urls, output, worker, retry, attempt, connection)
+    if failed_urls: download_loop(snapshots, failed_urls, output, worker, retry, redirect, harvest, attempt, connection)
 
-def download(download_entry, connection, status_message):
+def download(download_entry, connection, status_message, redirect=False):
     """
     Download a single URL and save it to the specified filepath.
     If there is a redirect, the function will follow the redirect and update the download URL.
@@ -185,22 +185,23 @@ def download(download_entry, connection, status_message):
             response = connection.getresponse()
             response_data = response.read()
             response_status = response.status
-            if response_status == 302:
-                status_message = f"{status_message}\n" + \
-                    f"REDIRECT   -> HTTP: {response.status}"
-                while response_status == 302:
-                    connection.request("GET", download_url, headers=headers)
-                    response = connection.getresponse()
-                    response_data = response.read()
-                    response_status = response.status
-                    location = response.getheader("Location")
-                    if location:
-                        status_message = f"{status_message}\n" + \
-                            f"           -> URL: {location}"
-                        location = urljoin(download_url, location)
-                        download_url = location
-                    else:
-                        break
+            if redirect:
+                if response_status == 302:
+                    status_message = f"{status_message}\n" + \
+                        f"REDIRECT   -> HTTP: {response.status}"
+                    while response_status == 302:
+                        connection.request("GET", download_url, headers=headers)
+                        response = connection.getresponse()
+                        response_data = response.read()
+                        response_status = response.status
+                        location = response.getheader("Location")
+                        if location:
+                            status_message = f"{status_message}\n" + \
+                                f"           -> URL: {location}"
+                            location = urljoin(download_url, location)
+                            download_url = location
+                        else:
+                            break
             if response_status != 404:
                 os.makedirs(os.path.dirname(download_file), exist_ok=True)
                 with open(download_file, 'wb') as file:

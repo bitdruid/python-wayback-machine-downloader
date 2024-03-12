@@ -61,6 +61,8 @@ Specify the range in years or a specific timestamp either start, end or both. If
 
 #### Additional
 
+- `--redirect`: Follow redirects of snapshots. Default is False. If a source has not statuscode 200, archive.org will redirect to the closest snapshot. So when setting this to `true`, parts of a timestamp-folder may not truly belong to the given timestamp.
+- `--harvest`: The downloaded files are scanned for locations on the same domain. These locations (mostly resources) are then tried to be accessed within the same timestamp. Setting this to `true` may result in identical files in different timestamps but you may get a more complete snapshot of the website.
 - `--verbosity [LEVEL]`: Set the verbosity: json (print json response), progress (show progress bar) or standard (default).
 - `--retry [RETRY_FAILED]`: Retry failed downloads. You can specify the number of retry attempts as an integer.
 - `--worker [AMOUNT]`: The number of worker to use for downloading (simultaneous downloads). Default is 1. Beware: Using too many worker will lead into refused connections from the Wayback Machine. Duration about 1.5 minutes.
@@ -82,9 +84,17 @@ Download all snapshots sorted per timestamp with a specified range and save to a
 List available snapshots per timestamp without downloading:<br>
 `waybackup -u http://example.com -f -l`
 
+#### Snapshot specificity
+
+Download only true timestamps, no redirect and no harvesting of resources:<br>
+`waybackup -u http://example.com -f`
+
+Download everything possible, follow redirect and search for missing resources, resulting in identical files in different timestamps:<br>
+`waybackup -u http://example.com -f --redirect --harvest`
+
 ## Info
 
-The script automatically follows redirects of snapshots.
+You may also use `harvest` without `redirect` to only search for missing resources - resulting in some kind of "in between" - missing mixed up timestamps but may contain more resources.
 
 ## Contributing
 
