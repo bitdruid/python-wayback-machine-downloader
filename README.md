@@ -2,7 +2,7 @@
 
 [![PyPI](https://img.shields.io/pypi/v/pywaybackup)](https://pypi.org/project/pywaybackup/)
 [![PyPI - Downloads](https://img.shields.io/pypi/dm/pywaybackup)](https://pypi.org/project/pywaybackup/)
-![Release](https://img.shields.io/badge/Release-alpha-red)
+![Release](https://img.shields.io/badge/Release-beta-orange)
 ![Python Version](https://img.shields.io/badge/Python-3.6-blue)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -61,6 +61,8 @@ Specify the range in years or a specific timestamp either start, end or both. If
 
 #### Additional
 
+- `--redirect`: Follow redirects of snapshots. Default is False. If a source has not statuscode 200, archive.org will redirect to the closest snapshot. So when setting this to `true`, parts of a timestamp-folder may not truly belong to the given timestamp.
+<!-- - `--harvest`: The downloaded files are scanned for locations on the same domain. These locations (mostly resources) are then tried to be accessed within the same timestamp. Setting this to `true` may result in identical files in different timestamps but you may get a more complete snapshot of the website. -->
 - `--verbosity [LEVEL]`: Set the verbosity: json (print json response), progress (show progress bar) or standard (default).
 - `--retry [RETRY_FAILED]`: Retry failed downloads. You can specify the number of retry attempts as an integer.
 - `--worker [AMOUNT]`: The number of worker to use for downloading (simultaneous downloads). Default is 1. Beware: Using too many worker will lead into refused connections from the Wayback Machine. Duration about 1.5 minutes.
@@ -73,18 +75,14 @@ Download latest snapshot of all files:<br>
 Download latest snapshot of all files with retries:<br>
 `waybackup -u http://example.com -c --retry 3`
 
-Download all snapshots sorted per timestamp with a specified range:<br>
-`waybackup -u http://example.com -f -r 5`
+Download all snapshots sorted per timestamp with a specified range and follow redirects:<br>
+`waybackup -u http://example.com -f -r 5 --redirect`
 
 Download all snapshots sorted per timestamp with a specified range and save to a specified folder with 3 worker:<br>
 `waybackup -u http://example.com -f -r 5 -o /home/user/Downloads/snapshots --worker 3`
 
 List available snapshots per timestamp without downloading:<br>
 `waybackup -u http://example.com -f -l`
-
-## Info
-
-The script automatically follows redirects of snapshots.
 
 ## Contributing
 
