@@ -33,7 +33,7 @@ class SnapshotCollection:
         timestamp, url = cdx_entry["timestamp"], cdx_entry["url"]
         url_type = self.__get_url_filetype(url)
         download_url = f"http://web.archive.org/web/{timestamp}{url_type}/{url}"
-        domain, subdir, filename = self.__split_url(url)
+        domain, subdir, filename = self.split_url(url)
         if self.MODE_CURRENT: download_dir = os.path.join(output, domain, subdir)
         else: download_dir = os.path.join(output, domain, timestamp, subdir)
         download_file = os.path.join(download_dir, filename)
@@ -47,6 +47,11 @@ class SnapshotCollection:
                 "retry": 0
             }
         return cdx_entry
+
+    @classmethod    
+    def create_archive_url(cls, timestamp: str, url: str) -> str:
+        url_type = cls.__get_url_filetype(url)
+        return f"http://web.archive.org/web/{timestamp}{url_type}/{url}"
 
     def count_list(self):
         return len(self.CDX_LIST)
@@ -74,8 +79,9 @@ class SnapshotCollection:
         }
         urltype = urltype_mapping.get(file_extension, "id_")
         return urltype
-    
-    def __split_url(self, url):
+
+    @staticmethod    
+    def split_url(url):
         parsed_url = urlparse(url)
         domain = parsed_url.netloc
         subdir = parsed_url.path.strip("/").rsplit("/", 1)[0]

@@ -24,6 +24,7 @@ def main():
     optional.add_argument('--start', type=int, help='Start timestamp format: YYYYMMDDhhmmss')
     optional.add_argument('--end', type=int, help='End timestamp format: YYYYMMDDhhmmss')
     special = parser.add_argument_group('special')
+    special.add_argument('--harvest', action='store_true', help='Harvest location tags from snapshots and try to get as much as possible')
     special.add_argument('--verbosity', type=str, default="standard", choices=["standard", "progress", "json"], help='Verbosity level')
     special.add_argument('--retry', type=int, default=0, metavar="X-TIMES", help='Retry failed downloads (opt tries as int, else infinite)')
     special.add_argument('--worker', type=int, default=1, metavar="AMOUNT", help='Number of worker (simultaneous downloads)')

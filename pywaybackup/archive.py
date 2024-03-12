@@ -9,6 +9,7 @@ from urllib.parse import urljoin
 from datetime import datetime, timezone
 
 import pywaybackup.SnapshotCollection as sc
+
 from pywaybackup.Verbosity import Verbosity as v
 
 
@@ -94,7 +95,8 @@ def query_list(snapshots: sc.SnapshotCollection, url: str, range: int, start: in
             if end: range = range + f"&to={end}"
         else: range = "&from=" + str(datetime.now().year - range)
         cdx_url = f"*.{url}/*" if not explicit else f"{url}"
-        cdxQuery = f"https://web.archive.org/cdx/search/xd?output=json&url={cdx_url}{range}&fl=timestamp,original&filter=!statuscode:200"
+        cdxQuery = f"https://web.archive.org/cdx/search/xd?output=json&url={cdx_url}{range}&fl=timestamp,original,statuscode&filter!=statuscode:200"
+        print(cdxQuery)
         cdxResult = requests.get(cdxQuery)
         snapshots.create_full(cdxResult)
         if mode == "current": snapshots.create_current()
@@ -266,12 +268,12 @@ def harvest_resources(download_entry, connection, output):
                         location_list.append(urljoin(snapshot_origin_url, tag["src"]))               
             location_list = list(set(location_list))
         for entry in location_list:
-            filename = os.path.join(os.path.dirname(snapshot_file), entry.split(snapshot_origin_url)[1].lstrip("/"), os.path.basename(entry))
+            domain, subdir, filename = sc.SnapshotCollection.split_url(entry)
+            filename = os.path.join(os.path.dirname(snapshot_file), subdir, filename)
             download({ "url": f"http://web.archive.org/web/{snapshot_timestamp}id_/{entry}", "file": filename }, connection, "")
-
-
-
                 
+
+
 
 def remove_empty_folders(path, remove_root=True):
     count = 0
