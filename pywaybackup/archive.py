@@ -96,7 +96,6 @@ def query_list(snapshots: sc.SnapshotCollection, url: str, range: int, start: in
         else: range = "&from=" + str(datetime.now().year - range)
         cdx_url = f"*.{url}/*" if not explicit else f"{url}"
         cdxQuery = f"https://web.archive.org/cdx/search/xd?output=json&url={cdx_url}{range}&fl=timestamp,original,statuscode&filter!=statuscode:200"
-        print(cdxQuery)
         cdxResult = requests.get(cdxQuery)
         snapshots.create_full(cdxResult)
         if mode == "current": snapshots.create_current()
@@ -109,7 +108,7 @@ def query_list(snapshots: sc.SnapshotCollection, url: str, range: int, start: in
 
 
 # example download: http://web.archive.org/web/20190815104545id_/https://www.google.com/
-def download_list(snapshots, output, retry, redirect, harvest, worker):
+def download_list(snapshots, output, retry, redirect, worker):
     """
     Download a list of urls in format: [{"timestamp": "20190815104545", "url": "https://www.google.com/"}]
     """
@@ -128,13 +127,13 @@ def download_list(snapshots, output, retry, redirect, harvest, worker):
     worker = 0
     for batch in batch_list:
         worker += 1
-        thread = threading.Thread(target=download_loop, args=(snapshots, batch, output, worker, retry, redirect, harvest))
+        thread = threading.Thread(target=download_loop, args=(snapshots, batch, output, worker, retry, redirect))
         threads.append(thread)
         thread.start()
     for thread in threads:
         thread.join()
 
-def download_loop(snapshots, cdx_list, output, worker, retry, redirect, harvest, attempt=1, connection=None):
+def download_loop(snapshots, cdx_list, output, worker, retry, redirect, attempt=1, connection=None):
     """
     Download a list of URLs in a recursive loop. If a download fails, the function will retry the download.
     The "snapshot_collection" dictionary will be updated with the download status and file information.
@@ -156,16 +155,16 @@ def download_loop(snapshots, cdx_list, output, worker, retry, redirect, harvest,
             download_status=download(download_entry, connection, status, redirect)
             if not download_status:
                 snapshots.snapshot_collection_update(download_entry["id"], "success", False)
-                snapshots.snapshot_collection_update(download_entry["id"], "file", None)
+                snapshots.snapshot_collection_update(download_entry["id"], "file", "")
                 snapshots.snapshot_collection_update(download_entry["id"], "retry", attempt)
                 failed_urls.append(cdx_entry);
             if download_status:
                 snapshots.snapshot_collection_update(download_entry["id"], "success", True)
                 snapshots.snapshot_collection_update(download_entry["id"], "file", download_entry["file"])
-                if harvest: harvest_resources(download_entry, connection, output)
+                # if harvest: harvest_resources(download_entry, connection, output, redirect)
                 v.write(progress=1)
         attempt += 1
-    if failed_urls: download_loop(snapshots, failed_urls, output, worker, retry, redirect, harvest, attempt, connection)
+    if failed_urls: download_loop(snapshots, failed_urls, output, worker, retry, redirect, attempt, connection)
 
 def download(download_entry, connection, status_message, redirect=False):
     """
@@ -202,7 +201,7 @@ def download(download_entry, connection, status_message, redirect=False):
                             download_url = location
                         else:
                             break
-            if response_status != 404:
+            if response_status == 200:
                 os.makedirs(os.path.dirname(download_file), exist_ok=True)
                 with open(download_file, 'wb') as file:
                     if response.getheader('Content-Encoding') == 'gzip':
@@ -210,11 +209,13 @@ def download(download_entry, connection, status_message, redirect=False):
                         file.write(response_data)
                     else:
                         file.write(response_data)
-            if response_status == 200:
-                status_message = f"{status_message}\n" + \
-                    f"SUCCESS    -> HTTP: {response.status}\n" + \
-                    f"           -> URL: {download_url}\n" + \
-                    f"           -> FILE: {download_file}"
+                if os.path.isfile(download_file):
+                    status_message = f"{status_message}\n" + \
+                        f"SUCCESS    -> HTTP: {response.status}\n" + \
+                        f"           -> URL: {download_url}\n" + \
+                        f"           -> FILE: {download_file}"
+                v.write(status_message)
+                return True
             elif response_status == 404:
                 status_message = f"{status_message}\n" + \
                     f"NOT FOUND  -> HTTP: {response.status}\n" + \
@@ -222,10 +223,9 @@ def download(download_entry, connection, status_message, redirect=False):
             else:
                 status_message = f"{status_message}\n" + \
                     f"UNEXPECTED -> HTTP: {response.status}\n" + \
-                    f"           -> URL: {download_url}\n" + \
-                    f"           -> FILE: {download_file}"
+                    f"           -> URL: {download_url}\n"
             v.write(status_message)
-            return True
+            return False
         except ConnectionRefusedError as e:
             status_message = f"{status_message}\n" + \
                 f"REFUSED  -> ({i+1}/{max_retries}), reconnect in {sleep_time} seconds...\n" + \
@@ -245,33 +245,34 @@ def download(download_entry, connection, status_message, redirect=False):
 
 
 
-def harvest_resources(download_entry, connection, output):
-    """
-    Soup search the snapshot page for locations of the same domain and try to download a snapshot.
-    """
-    from bs4 import BeautifulSoup
-    print(output)
-    v.write("\nHarvesting resources...", progress=0)
-    snapshot_origin_url = download_entry["origin_url"]
-    snapshot_file = download_entry["file"]
-    snapshot_timestamp = download_entry["timestamp"]
-    if snapshot_file:
-        location_list = []
-        with open(snapshot_file, "rb") as file:
-            # find all href and src tags and if they are from the same domain add them to the list
-            soup = BeautifulSoup(file, "html.parser")
-            for tag in soup.find_all(["a", "link", "script", "img"]):
-                if tag.has_attr("href"):
-                    if tag["href"].startswith("http") and not tag["href"].startswith("//"):
-                        location_list.append(urljoin(snapshot_origin_url, tag["href"]))
-                if tag.has_attr("src"):
-                    if tag["src"].startswith("http") and not tag["src"].startswith("//"):
-                        location_list.append(urljoin(snapshot_origin_url, tag["src"]))               
-            location_list = list(set(location_list))
-        for entry in location_list:
-            domain, subdir, filename = sc.SnapshotCollection.split_url(entry)
-            filename = os.path.join(os.path.dirname(snapshot_file), subdir, filename)
-            download({ "url": f"http://web.archive.org/web/{snapshot_timestamp}id_/{entry}", "file": filename }, connection, "")
+# def harvest_resources(download_entry, connection, output, redirect):
+#     """
+#     Soup search the snapshot page for locations of the same domain and try to download a snapshot.
+#     """
+#     from bs4 import BeautifulSoup
+#     snapshot_origin_domain = sc.SnapshotCollection.split_url(download_entry["origin_url"])[0]
+#     snapshot_origin_url = download_entry["origin_url"]
+#     snapshot_file = download_entry["file"]
+#     snapshot_timestamp = download_entry["timestamp"]
+#     if snapshot_file:
+#         location_list = []
+#         with open(snapshot_file, "rb") as file:
+#             # find all href and src tags and if they are from the same domain add them to the list
+#             soup = BeautifulSoup(file, "html.parser")
+#             for tag in soup.find_all(["a", "link", "script", "img"]):
+#                 if tag.has_attr("href"):
+#                     if not tag["href"].startswith("http") and not tag["href"].startswith("//"):
+#                         location_list.append(urljoin(snapshot_origin_url, tag["href"]))
+#                 if tag.has_attr("src"):
+#                     if not tag["src"].startswith("http") and not tag["src"].startswith("//"):
+#                         location_list.append(urljoin(snapshot_origin_url, tag["src"]))
+#             location_list = list(set(location_list))
+#         for entry in location_list:
+#             v.write("Harvesting resources...", progress=0)
+#             domain, subdir, filename = sc.SnapshotCollection.split_url(entry)
+#             if domain != snapshot_origin_domain: continue
+#             filename = os.path.join(os.path.dirname(snapshot_file), subdir, filename)
+#             download({ "url": sc.SnapshotCollection.create_archive_url(snapshot_timestamp, entry), "file": filename }, connection, "", redirect)
                 
 
 

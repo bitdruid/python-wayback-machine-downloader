@@ -31,15 +31,13 @@ class SnapshotCollection:
 
     def create_entry(self, cdx_entry: dict, output: str) -> dict:
         timestamp, url = cdx_entry["timestamp"], cdx_entry["url"]
-        url_type = self.__get_url_filetype(url)
-        download_url = f"http://web.archive.org/web/{timestamp}{url_type}/{url}"
         domain, subdir, filename = self.split_url(url)
         if self.MODE_CURRENT: download_dir = os.path.join(output, domain, subdir)
         else: download_dir = os.path.join(output, domain, timestamp, subdir)
         download_file = os.path.join(download_dir, filename)
         cdx_entry = {
                 "id": len(self.SNAPSHOT_COLLECTION),
-                "url": download_url, 
+                "url": self.create_archive_url(timestamp, url),
                 "file": download_file,
                 "timestamp": timestamp,
                 "origin_url": url,
@@ -65,7 +63,8 @@ class SnapshotCollection:
         if index is not None:
             self.SNAPSHOT_COLLECTION[index][key] = value
 
-    def __get_url_filetype(self, url):
+    @classmethod
+    def get_url_filetype(cls, url):
         file_extension = os.path.splitext(url)[1][1:]
         urltype_mapping = {
             "jpg": "im_",
