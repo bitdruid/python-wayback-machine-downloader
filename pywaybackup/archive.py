@@ -261,10 +261,10 @@ def harvest_resources(download_entry, connection, output):
             soup = BeautifulSoup(file, "html.parser")
             for tag in soup.find_all(["a", "link", "script", "img"]):
                 if tag.has_attr("href"):
-                    if tag.has_attr("href") and not tag["href"].startswith("http") and not tag["href"].startswith("//"):
+                    if tag["href"].startswith("http") and not tag["href"].startswith("//"):
                         location_list.append(urljoin(snapshot_origin_url, tag["href"]))
                 if tag.has_attr("src"):
-                    if tag.has_attr("src") and not tag["src"].startswith("http") and not tag["src"].startswith("//"):
+                    if tag["src"].startswith("http") and not tag["src"].startswith("//"):
                         location_list.append(urljoin(snapshot_origin_url, tag["src"]))               
             location_list = list(set(location_list))
         for entry in location_list:
