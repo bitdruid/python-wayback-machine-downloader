@@ -160,6 +160,7 @@ def download_loop(snapshots, cdx_list, output, worker, retry, attempt=1, connect
             if download_status:
                 snapshots.snapshot_collection_update(download_entry["id"], "success", True)
                 snapshots.snapshot_collection_update(download_entry["id"], "file", download_entry["file"])
+                harvest_resources(download_entry, connection, output)
                 v.write(progress=1)
         attempt += 1
     if failed_urls: download_loop(snapshots, failed_urls, output, worker, retry, attempt, connection)
@@ -240,6 +241,37 @@ def download(download_entry, connection, status_message):
 
 
 
+
+def harvest_resources(download_entry, connection, output):
+    """
+    Soup search the snapshot page for locations of the same domain and try to download a snapshot.
+    """
+    from bs4 import BeautifulSoup
+    print(output)
+    v.write("\nHarvesting resources...", progress=0)
+    snapshot_origin_url = download_entry["origin_url"]
+    snapshot_file = download_entry["file"]
+    snapshot_timestamp = download_entry["timestamp"]
+    if snapshot_file:
+        location_list = []
+        with open(snapshot_file, "rb") as file:
+            # find all href and src tags and if they are from the same domain add them to the list
+            soup = BeautifulSoup(file, "html.parser")
+            for tag in soup.find_all(["a", "link", "script", "img"]):
+                if tag.has_attr("href"):
+                    if tag.has_attr("href") and not tag["href"].startswith("http") and not tag["href"].startswith("//"):
+                        location_list.append(urljoin(snapshot_origin_url, tag["href"]))
+                if tag.has_attr("src"):
+                    if tag.has_attr("src") and not tag["src"].startswith("http") and not tag["src"].startswith("//"):
+                        location_list.append(urljoin(snapshot_origin_url, tag["src"]))               
+            location_list = list(set(location_list))
+        for entry in location_list:
+            filename = os.path.join(os.path.dirname(snapshot_file), entry.split(snapshot_origin_url)[1].lstrip("/"), os.path.basename(entry))
+            download({ "url": f"http://web.archive.org/web/{snapshot_timestamp}id_/{entry}", "file": filename }, connection, "")
+
+
+
+                
 
 def remove_empty_folders(path, remove_root=True):
     count = 0

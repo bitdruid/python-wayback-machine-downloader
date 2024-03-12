@@ -69,8 +69,8 @@ class SnapshotCollection:
             "gif": "im_",
             "svg": "im_",
             "ico": "im_",
-            "css": "cs_",
-            "js": "js_"
+            "css": "cs_"
+            #"js": "js_"
         }
         urltype = urltype_mapping.get(file_extension, "id_")
         return urltype
