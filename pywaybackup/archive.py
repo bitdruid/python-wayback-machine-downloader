@@ -72,11 +72,12 @@ def save_page(url: str):
 
 def print_list(snapshots):
     v.write("")
-    if not snapshots:
-        v.write("No snapshots found")
+    count = snapshots.count_list()
+    if count == 0:
+        v.write("\nNo snapshots found")
     else:
         __import__('pprint').pprint(snapshots.CDX_LIST)
-        v.write(f"\n-----> {snapshots.count_list()} snapshots listed")
+        v.write(f"\n-----> {count} snapshots listed")
 
 
 
@@ -111,7 +112,7 @@ def download_list(snapshots, output, retry, worker):
     Download a list of urls in format: [{"timestamp": "20190815104545", "url": "https://www.google.com/"}]
     """
     if snapshots.count_list() == 0: 
-        v.write("\n-----> Nothing to download");
+        v.write("\nNothing to download");
         return
     v.write("\nDownloading snapshots...", progress=0)
     download_list = snapshots.CDX_LIST
