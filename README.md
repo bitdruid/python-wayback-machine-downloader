@@ -31,6 +31,10 @@ Internet-archive is a nice source for several OSINT-information. This script is 
 
 This script allows you to download content from the Wayback Machine (archive.org). You can use it to download either the latest version or all versions of web page snapshots within a specified range.
 
+## Info
+
+- The script will only request status code 200 snapshots (for now) - but this can differ from the status code when downloading the file.
+
 ### Arguments
 
 - `-h`, `--help`: Show the help message and exit.
@@ -42,8 +46,8 @@ This script allows you to download content from the Wayback Machine (archive.org
 
 #### Mode Selection (Choose One)
 
-- `-c`, `--current`: Download the latest version of each file snapshot.
-- `-f`, `--full`: Download snapshots of all timestamps.
+- `-c`, `--current`: Download the latest version of each file snapshot. You will get a rebuild of the current website with all available files.
+- `-f`, `--full`: Download snapshots of all timestamps. You will get a folder per timestamp with the files available at that time.
 - `-s`, `--save`: Save a page to the Wayback Machine. (beta)
 
 #### Optional Arguments

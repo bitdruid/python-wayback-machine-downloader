@@ -1,6 +1,6 @@
 import tqdm
 import json
-import pywaybackup.SnapshotCollection as sc
+from pywaybackup.SnapshotCollection import SnapshotCollection as sc
 
 class Verbosity:
 
@@ -10,8 +10,7 @@ class Verbosity:
     pbar = None
 
     @classmethod
-    def open(cls, args: list, snapshots: sc.SnapshotCollection):
-        cls.snapshots = snapshots
+    def open(cls, args: list):
         cls.args = args
         if cls.args == "progress":
             cls.mode = "progress"
@@ -25,20 +24,20 @@ class Verbosity:
         if cls.mode == "progress":
             cls.pbar.close()
         if cls.mode == "progress" or cls.mode == "standard":
-            successed = len([snapshot for snapshot in cls.snapshots.SNAPSHOT_COLLECTION if snapshot["success"]])
-            failed = len([snapshot for snapshot in cls.snapshots.SNAPSHOT_COLLECTION if not snapshot["success"]])
-            print(f"\nSuccessed downloads: {successed}")
-            print(f"Failed downloads: {failed}")
+            successed = len([snapshot for snapshot in sc.SNAPSHOT_COLLECTION if snapshot["file"]])
+            failed = len([snapshot for snapshot in sc.SNAPSHOT_COLLECTION if not snapshot["file"]])
+            print(f"\nFiles downloaded: {successed}")
+            print(f"Files missing: {failed}")
             print("")
         if cls.mode == "json":
-            print(json.dumps(cls.snapshots.SNAPSHOT_COLLECTION, indent=4, sort_keys=True))
+            print(json.dumps(sc.SNAPSHOT_COLLECTION, indent=4, sort_keys=True))
 
     @classmethod
     def write(cls, message: str = None, progress: int = None):
         if cls.mode == "progress":
             if progress == 0:
                 print("")
-                maxval = cls.snapshots.count_list()
+                maxval = sc.count_list()
                 cls.pbar = tqdm.tqdm(total=maxval, desc="Downloading", unit=" snapshot", ascii="░▒█")
             elif progress == 1:
                 cls.pbar.update(1)
