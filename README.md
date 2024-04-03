@@ -31,9 +31,7 @@ Internet-archive is a nice source for several OSINT-information. This script is 
 
 This script allows you to download content from the Wayback Machine (archive.org). You can use it to download either the latest version or all versions of web page snapshots within a specified range.
 
-## Info
-
-- The script will only request status code 200 snapshots (for now) - but this can differ from the status code when downloading the file.
+<!-- ## Info -->
 
 ### Arguments
 
@@ -65,8 +63,7 @@ Specify the range in years or a specific timestamp either start, end or both. If
 
 #### Additional
 
-- `--redirect`: Follow redirects of snapshots. Default is False. If a source has not statuscode 200, archive.org will redirect to the closest snapshot. So when setting this to `true`, parts of a timestamp-folder may not truly belong to the given timestamp.
-<!-- - `--harvest`: The downloaded files are scanned for locations on the same domain. These locations (mostly resources) are then tried to be accessed within the same timestamp. Setting this to `true` may result in identical files in different timestamps but you may get a more complete snapshot of the website. -->
+- `--no-redirect`: Do not follow redirects of snapshots. Archive.org sometimes redirects to a different snapshot for several reasons. Downloading redirects may lead to timestamp-folders which contain some files with a different timestamp. This does not matter if you only want to download the latest version (`-c`).
 - `--verbosity [LEVEL]`: Set the verbosity: json (print json response), progress (show progress bar) or standard (default).
 - `--retry [RETRY_FAILED]`: Retry failed downloads. You can specify the number of retry attempts as an integer.
 - `--worker [AMOUNT]`: The number of worker to use for downloading (simultaneous downloads). Default is 1. Beware: Using too many worker will lead into refused connections from the Wayback Machine. Duration about 1.5 minutes.

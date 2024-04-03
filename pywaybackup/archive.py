@@ -95,7 +95,7 @@ def query_list(url: str, range: int, start: int, end: int, explicit: bool, mode:
         else: 
             query_range = "&from=" + str(datetime.now().year - range)
         cdx_url = f"*.{url}/*" if not explicit else f"{url}"
-        cdxQuery = f"https://web.archive.org/cdx/search/xd?output=json&url={cdx_url}{query_range}&fl=timestamp,original,statuscode&filter!=statuscode:200"
+        cdxQuery = f"https://web.archive.org/cdx/search/xd?output=json&url={cdx_url}{query_range}&fl=timestamp,original,statuscode,mimetype,digest&filter!=statuscode:200"
         cdxResult = requests.get(cdxQuery)
         sc.create_list_full(cdxResult)
         sc.create_list_current() if mode == "current" else None
@@ -108,7 +108,7 @@ def query_list(url: str, range: int, start: int, end: int, explicit: bool, mode:
 
 
 # example download: http://web.archive.org/web/20190815104545id_/https://www.google.com/
-def download_list(output, retry, redirect, worker):
+def download_list(output, retry, no_redirect, worker):
     """
     Download a list of urls in format: [{"timestamp": "20190815104545", "url": "https://www.google.com/"}]
     """
@@ -127,13 +127,13 @@ def download_list(output, retry, redirect, worker):
     worker = 0
     for batch in batch_list:
         worker += 1
-        thread = threading.Thread(target=download_loop, args=(batch, output, worker, retry, redirect))
+        thread = threading.Thread(target=download_loop, args=(batch, output, worker, retry, no_redirect))
         threads.append(thread)
         thread.start()
     for thread in threads:
         thread.join()
 
-def download_loop(snapshot_batch, output, worker, retry, redirect, attempt=1, connection=None):
+def download_loop(snapshot_batch, output, worker, retry, no_redirect, attempt=1, connection=None):
     """
     Download a list of URLs in a recursive loop. If a download fails, the function will retry the download.
     The "snapshot_collection" dictionary will be updated with the download status and file information.
@@ -149,9 +149,8 @@ def download_loop(snapshot_batch, output, worker, retry, redirect, attempt=1, co
         return
     for snapshot in snapshot_batch:
         status = f"\n-----> Attempt: [{attempt}/{max_attempt}] Snapshot [{snapshot_batch.index(snapshot)+1}/{len(snapshot_batch)}] - Worker: {worker}"
-        download_status = download(output, snapshot, connection, status, redirect)
+        download_status = download(output, snapshot, connection, status, no_redirect)
         if not download_status:
-            if retry > 0: sc.snapshot_entry_modify(snapshot, "retry", attempt)
             failed_urls.append(snapshot)
         if download_status:
             v.write(progress=1)
@@ -160,9 +159,9 @@ def download_loop(snapshot_batch, output, worker, retry, redirect, attempt=1, co
         if not attempt > max_attempt: 
             v.write(f"\n-----> Worker: {worker} - Retry Timeout: 10 seconds")
             time.sleep(15)
-        download_loop(failed_urls, output, worker, retry, redirect, attempt, connection)
+        download_loop(failed_urls, output, worker, retry, no_redirect, attempt, connection)
 
-def download(output, snapshot_entry, connection, status_message, redirect=False):
+def download(output, snapshot_entry, connection, status_message, no_redirect=False):
     """
     Download a single URL and save it to the specified filepath.
     If there is a redirect, the function will follow the redirect and update the download URL.
@@ -180,9 +179,8 @@ def download(output, snapshot_entry, connection, status_message, redirect=False)
             response_data = response.read()
             response_status = response.status
             response_status_message = parse_response_code(response_status)
-            sc.snapshot_entry_modify(snapshot_entry, "http_code", response_status)
-            sc.snapshot_entry_modify(snapshot_entry, "http_message", response_status_message)
-            if redirect:
+            sc.snapshot_entry_modify(snapshot_entry, "response", response_status)
+            if not no_redirect:
                 if response_status == 302:
                     status_message = f"{status_message}\n" + \
                         f"REDIRECT   -> HTTP: {response.status}"
@@ -242,20 +240,20 @@ def download(output, snapshot_entry, connection, status_message, redirect=False)
     v.write(f"FAILED  -> download, append to failed_urls: {download_url}")
     return False
 
+RESPONSE_CODE_DICT = {
+    200: "OK",
+    301: "Moved Permanently",
+    302: "Found (redirect)",
+    400: "Bad Request",
+    403: "Forbidden",
+    404: "Not Found",
+    500: "Internal Server Error",
+    503: "Service Unavailable"
+}
 def parse_response_code(response_code: int):
     """
     Parse the response code of the Wayback Machine and return a human-readable message.
     """
-    response_code_dict = {
-        200: "OK",
-        301: "Moved Permanently",
-        302: "Found (redirect)",
-        400: "Bad Request",
-        403: "Forbidden",
-        404: "Not Found",
-        500: "Internal Server Error",
-        503: "Service Unavailable"
-    }
-    if response_code in response_code_dict:
-        return response_code_dict[response_code]
+    if response_code in RESPONSE_CODE_DICT:
+        return RESPONSE_CODE_DICT[response_code]
     return "Unknown response code"

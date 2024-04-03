@@ -9,7 +9,7 @@ class SnapshotCollection:
 
     @classmethod
     def create_list_full(cls, cdxResult):
-        cls.CDX_LIST = sorted([{"timestamp": snapshot[0], "url": snapshot[1]} for i, snapshot in enumerate(cdxResult.json()[1:])], key=lambda k: k['timestamp'], reverse=True)
+        cls.CDX_LIST = sorted([{"timestamp": snapshot[0], "url": snapshot[1], "status": snapshot[2], "mimetype": snapshot[3], "digest": snapshot[4]} for i, snapshot in enumerate(cdxResult.json()[1:])], key=lambda k: k['timestamp'], reverse=True)
 
     @classmethod
     def create_list_current(cls):
@@ -38,9 +38,7 @@ class SnapshotCollection:
                 "url_origin": url,
                 "file": False,
                 "redirect": False,
-                "http_code": False,
-                "http_message": False,
-                "retry": False
+                "response": False
             }
             cls.SNAPSHOT_COLLECTION.append(collection_entry)
     
@@ -80,8 +78,8 @@ class SnapshotCollection:
         """
         Extract the timestamp from a wayback machine URL.
         """
-        import re
-        timestamp = re.search(r'web.archive.org/web/(\d+)/', url).group(1)
+        timestamp = url.split("web.archive.org/web/")[1].split("/")[0]
+        timestamp = ''.join([char for char in timestamp if char.isdigit()])
         return timestamp
 
     @classmethod

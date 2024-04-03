@@ -23,7 +23,7 @@ def main():
         if args.list:
             archive.print_list()
         else:
-            archive.download_list(args.output, args.retry, args.redirect, args.worker)            
+            archive.download_list(args.output, args.retry, args.no_redirect, args.worker)            
             #archive.remove_empty_folders(args.output)
     v.close()
 
