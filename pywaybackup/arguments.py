@@ -22,6 +22,7 @@ def parse():
     optional.add_argument('--end', type=int, help='End timestamp format: YYYYMMDDhhmmss')
 
     special = parser.add_argument_group('special')
+    special.add_argument('--csv', action='store_true', help='Save a csv file with the list of snapshots inside the output folder')
     special.add_argument('--no-redirect', action='store_true', help='Do not follow redirects by archive.org')
     special.add_argument('--verbosity', type=str, default="standard", choices=["standard", "progress", "json"], help='Verbosity level')
     special.add_argument('--retry', type=int, default=0, metavar="X-TIMES", help='Retry failed downloads (opt tries as int, else infinite)')

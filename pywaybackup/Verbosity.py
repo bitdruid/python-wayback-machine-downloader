@@ -4,7 +4,6 @@ from pywaybackup.SnapshotCollection import SnapshotCollection as sc
 
 class Verbosity:
 
-    snapshots = None
     mode = None
     args = None
     pbar = None
@@ -22,10 +21,10 @@ class Verbosity:
     @classmethod
     def close(cls):
         if cls.mode == "progress":
-            cls.pbar.close()
+            if cls.pbar is not None: cls.pbar.close()
         if cls.mode == "progress" or cls.mode == "standard":
-            successed = len([snapshot for snapshot in sc.SNAPSHOT_COLLECTION if snapshot["file"]])
-            failed = len([snapshot for snapshot in sc.SNAPSHOT_COLLECTION if not snapshot["file"]])
+            successed = len([snapshot for snapshot in sc.SNAPSHOT_COLLECTION if "file" in snapshot and snapshot["file"]])
+            failed = len([snapshot for snapshot in sc.SNAPSHOT_COLLECTION if "file" in snapshot and not snapshot["file"]])
             print(f"\nFiles downloaded: {successed}")
             print(f"Files missing: {failed}")
             print("")
@@ -39,7 +38,7 @@ class Verbosity:
                 print("")
                 maxval = sc.count_list()
                 cls.pbar = tqdm.tqdm(total=maxval, desc="Downloading", unit=" snapshot", ascii="░▒█")
-            elif progress == 1:
+            elif cls.pbar is not None and progress == 1:
                 cls.pbar.update(1)
                 cls.pbar.refresh()
         elif cls.mode == "json":

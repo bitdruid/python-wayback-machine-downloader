@@ -63,10 +63,11 @@ Specify the range in years or a specific timestamp either start, end or both. If
 
 #### Additional
 
+- `--csv`: Save a csv file with the list of snapshots inside the output folder.
 - `--no-redirect`: Do not follow redirects of snapshots. Archive.org sometimes redirects to a different snapshot for several reasons. Downloading redirects may lead to timestamp-folders which contain some files with a different timestamp. This does not matter if you only want to download the latest version (`-c`).
 - `--verbosity [LEVEL]`: Set the verbosity: json (print json response), progress (show progress bar) or standard (default).
 - `--retry [RETRY_FAILED]`: Retry failed downloads. You can specify the number of retry attempts as an integer.
-- `--worker [AMOUNT]`: The number of worker to use for downloading (simultaneous downloads). Default is 1. Beware: Using too many worker will lead into refused connections from the Wayback Machine. Duration about 1.5 minutes.
+- `--worker [AMOUNT]`: The number of worker to use for downloading (simultaneous downloads). Default is 1. A safe spot is about 10 workers. Beware: Using too many worker will lead into refused connections from the Wayback Machine. Duration about 1.5 minutes.
 
 ### Examples
 

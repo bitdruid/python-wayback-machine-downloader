@@ -76,7 +76,7 @@ def print_list():
     if count == 0:
         v.write("\nNo snapshots found")
     else:
-        __import__('pprint').pprint(sc.CDX_LIST)
+        __import__('pprint').pprint(sc.SNAPSHOT_COLLECTION)
         v.write(f"\n-----> {count} snapshots listed")
 
 
@@ -95,10 +95,9 @@ def query_list(url: str, range: int, start: int, end: int, explicit: bool, mode:
         else: 
             query_range = "&from=" + str(datetime.now().year - range)
         cdx_url = f"*.{url}/*" if not explicit else f"{url}"
-        cdxQuery = f"https://web.archive.org/cdx/search/xd?output=json&url={cdx_url}{query_range}&fl=timestamp,original,statuscode,mimetype,digest&filter!=statuscode:200"
+        cdxQuery = f"https://web.archive.org/cdx/search/xd?output=json&url={cdx_url}{query_range}&fl=timestamp,digest,mimetype,statuscode,original&filter!=statuscode:200"
         cdxResult = requests.get(cdxQuery)
-        sc.create_list_full(cdxResult)
-        sc.create_list_current() if mode == "current" else None
+        sc.create_list(cdxResult, mode)
         v.write(f"\n-----> {sc.count_list()} snapshots found")
     except requests.exceptions.ConnectionError as e:
         v.write(f"\n-----> ERROR: could not query snapshots:\n{e}"); exit()
@@ -195,7 +194,6 @@ def download(output, snapshot_entry, connection, status_message, no_redirect=Fal
                                 f"           -> URL: {location}"
                             location = urljoin(download_url, location)
                             download_url = location
-                            sc.snapshot_entry_modify(snapshot_entry, "redirect", True)
                             sc.snapshot_entry_modify(snapshot_entry, "redirect_timestamp", sc.url_get_timestamp(location))
                             sc.snapshot_entry_modify(snapshot_entry, "redirect_url", location)
                         else:
@@ -257,3 +255,17 @@ def parse_response_code(response_code: int):
     if response_code in RESPONSE_CODE_DICT:
         return RESPONSE_CODE_DICT[response_code]
     return "Unknown response code"
+
+def save_csv(output: str):
+    """
+    Write a CSV file with the list of snapshots.
+    """
+    import csv
+    if sc.count_list() > 0:
+        v.write("\nSaving CSV file...")
+        os.makedirs(os.path.abspath(output), exist_ok=True)
+        with open(os.path.join(output, "waybackup.csv"), mode='w') as file:
+            row = csv.DictWriter(file, sc.SNAPSHOT_COLLECTION[0].keys())
+            row.writeheader()
+            for snapshot in sc.SNAPSHOT_COLLECTION:
+                row.writerow(snapshot)

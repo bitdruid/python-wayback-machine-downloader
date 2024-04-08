@@ -3,44 +3,54 @@ import os
 
 class SnapshotCollection:
 
-    CDX_LIST = []
     SNAPSHOT_COLLECTION = []
     MODE_CURRENT = 0
 
     @classmethod
-    def create_list_full(cls, cdxResult):
-        cls.CDX_LIST = sorted([{"timestamp": snapshot[0], "url": snapshot[1], "status": snapshot[2], "mimetype": snapshot[3], "digest": snapshot[4]} for i, snapshot in enumerate(cdxResult.json()[1:])], key=lambda k: k['timestamp'], reverse=True)
+    def create_list(cls, cdxResult, mode):
+        """
+        Create the snapshot collection list from a cdx result.
 
-    @classmethod
-    def create_list_current(cls):
-        cls.MODE_CURRENT = 1
-        cdxResult_list_filtered = []
-        url_set = set()
-        for snapshot in cls.CDX_LIST:
-            if snapshot["url"] not in url_set:
-                cdxResult_list_filtered.append(snapshot)
-                url_set.add(snapshot["url"])
-        cls.CDX_LIST = cdxResult_list_filtered
-
+        - mode `full`: All snapshots are included.
+        - mode `current`: Only the latest snapshot of each file is included.
+        """
+        # creates a list of dictionaries for each snapshot entry
+        cls.SNAPSHOT_COLLECTION = sorted([{"timestamp": snapshot[0], "digest": snapshot[1], "mimetype": snapshot[2], "status": snapshot[3], "url": snapshot[4]} for snapshot in cdxResult.json()[1:]], key=lambda k: k['timestamp'], reverse=True)
+        if mode == "current": 
+            cls.MODE_CURRENT = 1
+            cdxResult_list_filtered = []
+            url_set = set()
+            # filters the list to only include the latest snapshot of each file
+            for snapshot in cls.SNAPSHOT_COLLECTION:
+                if snapshot["url"] not in url_set:
+                    cdxResult_list_filtered.append(snapshot)
+                    url_set.add(snapshot["url"])
+            cls.SNAPSHOT_COLLECTION = cdxResult_list_filtered
+        # writes the index for each snapshot entry
+        cls.SNAPSHOT_COLLECTION = [{"id": idx, **entry} for idx, entry in enumerate(cls.SNAPSHOT_COLLECTION)]
+    
     @classmethod
     def count_list(cls):
-        return len(cls.CDX_LIST)
+        return len(cls.SNAPSHOT_COLLECTION)
 
     @classmethod
     def create_collection(cls):
-        for cdx_entry in cls.CDX_LIST:
+        new_collection = []
+        for cdx_entry in cls.SNAPSHOT_COLLECTION:
             timestamp, url = cdx_entry["timestamp"], cdx_entry["url"]
             url_archive = f"http://web.archive.org/web/{timestamp}{cls._url_get_filetype(url)}/{url}"
             collection_entry = {
-                "id": len(cls.SNAPSHOT_COLLECTION),
+                "id": cls.SNAPSHOT_COLLECTION.index(cdx_entry),
                 "timestamp": timestamp,
                 "url_archive": url_archive,
                 "url_origin": url,
-                "file": False,
-                "redirect": False,
-                "response": False
+                "redirect_url": False,
+                "redirect_timestamp": False,
+                "response": False,
+                "file": False
             }
-            cls.SNAPSHOT_COLLECTION.append(collection_entry)
+            new_collection.append(collection_entry)
+        cls.SNAPSHOT_COLLECTION = new_collection
     
     @classmethod
     def snapshot_entry_create_output(cls, collection_entry: dict, output: str) -> str:
@@ -60,7 +70,7 @@ class SnapshotCollection:
             download_dir = os.path.join(output, domain, subdir)
         else:
             download_dir = os.path.join(output, domain, timestamp, subdir)
-        download_file = os.path.join(download_dir, filename)
+        download_file = os.path.abspath(os.path.join(download_dir, filename))
         return download_file
 
     @classmethod
