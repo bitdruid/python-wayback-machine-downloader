@@ -256,15 +256,15 @@ def parse_response_code(response_code: int):
         return RESPONSE_CODE_DICT[response_code]
     return "Unknown response code"
 
-def save_csv(output: str):
+def save_csv(csv_path: str):
     """
     Write a CSV file with the list of snapshots.
     """
     import csv
     if sc.count_list() > 0:
         v.write("\nSaving CSV file...")
-        os.makedirs(os.path.abspath(output), exist_ok=True)
-        with open(os.path.join(output, "waybackup.csv"), mode='w') as file:
+        os.makedirs(os.path.abspath(csv_path), exist_ok=True)
+        with open(os.path.join(csv_path, "waybackup.csv"), mode='w') as file:
             row = csv.DictWriter(file, sc.SNAPSHOT_COLLECTION[0].keys())
             row.writeheader()
             for snapshot in sc.SNAPSHOT_COLLECTION:
