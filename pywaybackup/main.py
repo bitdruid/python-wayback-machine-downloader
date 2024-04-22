@@ -15,7 +15,7 @@ def main():
 
     if args.output is None:
         args.output = os.path.join(os.getcwd(), "waybackup_snapshots")
-    if args.csv is True:
+    if args.csv == "":
         args.csv = args.output
 
     if args.save:
@@ -25,9 +25,9 @@ def main():
         if args.list:
             archive.print_list()
         else:
-            archive.download_list(args.output, args.retry, args.no_redirect, args.worker)
+            archive.download_list(args.output, args.retry, args.no_redirect, args.workers)
         if args.csv:
-            archive.save_csv(args.csv)
+            archive.save_csv(args.csv, args.url)
     v.close()
 
 if __name__ == "__main__":

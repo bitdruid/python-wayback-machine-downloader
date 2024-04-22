@@ -107,7 +107,7 @@ def query_list(url: str, range: int, start: int, end: int, explicit: bool, mode:
 
 
 # example download: http://web.archive.org/web/20190815104545id_/https://www.google.com/
-def download_list(output, retry, no_redirect, worker):
+def download_list(output, retry, no_redirect, workers):
     """
     Download a list of urls in format: [{"timestamp": "20190815104545", "url": "https://www.google.com/"}]
     """
@@ -115,9 +115,9 @@ def download_list(output, retry, no_redirect, worker):
         v.write("\nNothing to download");
         return
     v.write("\nDownloading snapshots...", progress=0)
-    if worker > 1:
-        v.write(f"\n-----> Simultaneous downloads: {worker}")
-        batch_size = sc.count_list() // worker + 1
+    if workers > 1:
+        v.write(f"\n-----> Simultaneous downloads: {workers}")
+        batch_size = sc.count_list() // workers + 1
     else:
         batch_size = sc.count_list()
     sc.create_collection()
@@ -126,7 +126,7 @@ def download_list(output, retry, no_redirect, worker):
     worker = 0
     for batch in batch_list:
         worker += 1
-        thread = threading.Thread(target=download_loop, args=(batch, output, worker, retry, no_redirect))
+        thread = threading.Thread(target=download_loop, args=(batch, output, workers, retry, no_redirect))
         threads.append(thread)
         thread.start()
     for thread in threads:
@@ -256,15 +256,18 @@ def parse_response_code(response_code: int):
         return RESPONSE_CODE_DICT[response_code]
     return "Unknown response code"
 
-def save_csv(csv_path: str):
+def save_csv(csv_path: str, url: str):
     """
     Write a CSV file with the list of snapshots.
     """
     import csv
+    disallowed = ['<', '>', ':', '"', '/', '\\', '|', '?', '*']
+    for char in disallowed:
+        url = url.replace(char, '.')
     if sc.count_list() > 0:
         v.write("\nSaving CSV file...")
         os.makedirs(os.path.abspath(csv_path), exist_ok=True)
-        with open(os.path.join(csv_path, "waybackup.csv"), mode='w') as file:
+        with open(os.path.join(csv_path, f"waybackup_{url}.csv"), mode='w') as file:
             row = csv.DictWriter(file, sc.SNAPSHOT_COLLECTION[0].keys())
             row.writeheader()
             for snapshot in sc.SNAPSHOT_COLLECTION:
