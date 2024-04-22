@@ -15,7 +15,7 @@ def main():
 
     if args.output is None:
         args.output = os.path.join(os.getcwd(), "waybackup_snapshots")
-    if args.csv == "":
+    if args.csv is True:
         args.csv = args.output
 
     if args.save:
