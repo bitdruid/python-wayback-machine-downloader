@@ -89,6 +89,46 @@ Download all snapshots and output a json response:<br>
 List available snapshots per timestamp without downloading and save a csv file to home folder:<br>
 `waybackup -u http://example.com -f -l --csv /home/user/Downloads`
 
+### Json Response
+
+For download queries:
+
+```
+[
+   {
+      "file": "/your/path/waybackup_snapshots/example.com/yyyymmddhhmmss/index.html",
+      "id": 1,
+      "redirect_timestamp": "yyyymmddhhmmss",
+      "redirect_url": "http://web.archive.org/web/yyyymmddhhmmssid_/http://example.com/",
+      "response": 200,
+      "timestamp": "yyyymmddhhmmss",
+      "url_archive": "http://web.archive.org/web/yyyymmddhhmmssid_/http://example.com/",
+      "url_origin": "http://example.com/"
+   },
+    ...
+]
+```
+
+For list queries:
+
+```
+[
+   {
+      "digest": "DIGESTOFSNAPSHOT",
+      "id": 1,
+      "mimetype": "text/html",
+      "status": "200",
+      "timestamp": "yyyymmddhhmmss",
+      "url": "http://example.com/"
+   },
+   ...
+]
+```
+
+## CSV Output
+
+The csv contains the json response in a table format.
+
 ## Contributing
 
 I'm always happy for some feature requests to improve the usability of this script.
