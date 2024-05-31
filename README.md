@@ -48,7 +48,7 @@ This script allows you to download content from the Wayback Machine (archive.org
 #### Optional Arguments
 
 - `-l`, `--list`: Only print the snapshots available within the specified range. Does not download the snapshots.
-- `-e`, `--explicit`: Only download the explicit given url. No wildcard subdomains or paths.
+- `-e`, `--explicit`: Only download the explicit given url. No wildcard subdomains or paths. Use e.g. to get root-only snapshots.
 - `-o`, `--output`: The folder where downloaded files will be saved.
 
 - **Range Selection:**<br>
@@ -71,8 +71,8 @@ Specify the range in years or a specific timestamp either start, end or both. If
 Download latest snapshot of all files:<br>
 `waybackup -u http://example.com -c`
 
-Download latest snapshot of all files with retries:<br>
-`waybackup -u http://example.com -c --retry 3`
+Download latest snapshot of a specific file:<br>
+`waybackup -u http://example.com/subdir/file.html -c`
 
 Download all snapshots sorted per timestamp with a specified range and do not follow redirects:<br>
 `waybackup -u http://example.com -f -r 5 --no-redirect`
@@ -88,6 +88,44 @@ Download all snapshots and output a json response:<br>
 
 List available snapshots per timestamp without downloading and save a csv file to home folder:<br>
 `waybackup -u http://example.com -f -l --csv /home/user/Downloads`
+
+## Output path structure
+
+The output path is currently structured as follows by an example for the query:<br>
+`http://example.com/subdir1/subdir2/assets/`:
+<br><br>
+For the current version (`-c`):
+- The requested path will only include all files/folders starting from your query-path.
+```
+your/path/waybackup_snapshots/
+└── the_root_of_your_query/ (example.com/)
+    └── subdir1/
+        └── subdir2/
+            └── assets/
+                ├── image.jpg
+                ├── style.css
+                ...
+```
+For all versions (`-f`):
+- Will currently create a folder named as the root of your query. Inside this folder, you will find all timestamps and per timestamp the path you requested.
+```
+your/path/waybackup_snapshots/
+└── the_root_of_your_query/ (example.com/)
+    ├── yyyymmddhhmmss/
+    │   ├── subidr1/
+    │   │   └── subdir2/
+    │   │       └── assets/
+    │   │           ├── image.jpg
+    │   │           └── style.css
+    ├── yyyymmddhhmmss/
+    │   ├── subdir1/
+    │   │   └── subdir2/
+    │   │       └── assets/
+    │   │           ├── image.jpg
+    │   │           └── style.css
+    ...
+```
+
 
 ### Json Response
 

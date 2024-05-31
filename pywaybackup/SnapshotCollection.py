@@ -36,11 +36,11 @@ class SnapshotCollection:
     @classmethod
     def create_collection(cls):
         new_collection = []
-        for cdx_entry in cls.SNAPSHOT_COLLECTION:
+        for idx, cdx_entry in enumerate(cls.SNAPSHOT_COLLECTION):
             timestamp, url = cdx_entry["timestamp"], cdx_entry["url"]
             url_archive = f"http://web.archive.org/web/{timestamp}{cls._url_get_filetype(url)}/{url}"
             collection_entry = {
-                "id": cls.SNAPSHOT_COLLECTION.index(cdx_entry),
+                "id": idx,
                 "timestamp": timestamp,
                 "url_archive": url_archive,
                 "url_origin": url,
@@ -65,7 +65,7 @@ class SnapshotCollection:
         - download_file: The output path for the snapshot entry (str) with filename.
         """
         timestamp, url = collection_entry["timestamp"], collection_entry["url_origin"]
-        domain, subdir, filename = cls._url_split(url)
+        domain, subdir, filename = cls.url_split(url, index=True)
         if cls.MODE_CURRENT:
             download_dir = os.path.join(output, domain, subdir)
         else:
@@ -109,12 +109,17 @@ class SnapshotCollection:
         return urltype
 
     @classmethod
-    def _url_split(cls, url):
+    def url_split(cls, url, index=False):
         """
         Split a URL into domain, subdir and filename.
         """
+        if not urlparse(url).scheme:
+            url = "http://" + url
         parsed_url = urlparse(url)
-        domain = parsed_url.netloc
-        subdir = parsed_url.path.strip("/").rsplit("/", 1)[0]
-        filename = parsed_url.path.split("/")[-1] or "index.html"
+        domain = parsed_url.netloc.split("@")[-1].split(":")[0] # split mailto: and port
+        filename = parsed_url.path.split("/")[-1]
+        if index is True and filename == "":
+            filename = "index.html"
+        subdir = parsed_url.path.strip("/").replace(filename, "").strip("/")
+        filename = filename.replace("%20", " ") # replace url encoded spaces
         return domain, subdir, filename

@@ -89,12 +89,25 @@ def query_list(url: str, range: int, start: int, end: int, explicit: bool, mode:
     try:
         v.write("\nQuerying snapshots...")
         query_range = ""
+        
         if not range:
             if start: query_range = query_range + f"&from={start}"
             if end: query_range = query_range + f"&to={end}"
         else: 
             query_range = "&from=" + str(datetime.now().year - range)
-        cdx_url = f"*.{url}/*" if not explicit else f"{url}"
+
+        # parse user input url and create according cdx url
+        domain, subdir, filename = sc.url_split(url)
+        if domain and not subdir and not filename:
+            cdx_url = f"*.{domain}/*" if not explicit else f"{domain}"
+        if domain and subdir and not filename:
+            cdx_url = f"{domain}/{subdir}/*"
+        if domain and subdir and filename:
+            cdx_url = f"{domain}/{subdir}/{filename}/*"
+        if domain and not subdir and filename:
+            cdx_url = f"{domain}/{filename}/*"
+
+        print(f"---> {cdx_url}")
         cdxQuery = f"https://web.archive.org/cdx/search/xd?output=json&url={cdx_url}{query_range}&fl=timestamp,digest,mimetype,statuscode,original&filter!=statuscode:200"
         cdxResult = requests.get(cdxQuery)
         sc.create_list(cdxResult, mode)
@@ -121,6 +134,7 @@ def download_list(output, retry, no_redirect, workers):
     else:
         batch_size = sc.count_list()
     sc.create_collection()
+    v.write("\n-----> Snapshots prepared")
     batch_list = [sc.SNAPSHOT_COLLECTION[i:i + batch_size] for i in range(0, len(sc.SNAPSHOT_COLLECTION), batch_size)]    
     threads = []
     worker = 0
