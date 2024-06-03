@@ -14,6 +14,7 @@ from pywaybackup.Verbosity import Verbosity as v
 
 
 
+
 # GET: store page to wayback machine and response with redirect to snapshot
 # POST: store page to wayback machine and response with wayback machine status-page
 # tag_jobid = '<script>spn.watchJob("spn2-%s", "/_static/",6000);</script>'
@@ -65,7 +66,6 @@ def save_page(url: str):
         v.write(f"\nFAILED -> URL: {url}")
 
     connection.close()
-
 
 
 
@@ -146,6 +146,10 @@ def download_list(output, retry, no_redirect, workers):
     for thread in threads:
         thread.join()
 
+
+
+
+
 def download_loop(snapshot_batch, output, worker, retry, no_redirect, attempt=1, connection=None):
     """
     Download a list of URLs in a recursive loop. If a download fails, the function will retry the download.
@@ -173,6 +177,10 @@ def download_loop(snapshot_batch, output, worker, retry, no_redirect, attempt=1,
             v.write(f"\n-----> Worker: {worker} - Retry Timeout: 10 seconds")
             time.sleep(15)
         download_loop(failed_urls, output, worker, retry, no_redirect, attempt, connection)
+
+
+
+
 
 def download(output, snapshot_entry, connection, status_message, no_redirect=False):
     """
@@ -202,20 +210,21 @@ def download(output, snapshot_entry, connection, status_message, no_redirect=Fal
                         response = connection.getresponse()
                         response_data = response.read()
                         response_status = response.status
+                        response_status_message = parse_response_code(response_status)
                         location = response.getheader("Location")
                         if location:
-                            status_message = f"{status_message}\n" + \
-                                f"           -> URL: {location}"
                             location = urljoin(download_url, location)
                             download_url = location
+                            status_message = f"{status_message}\n" + \
+                                f"           -> URL: {download_url}"
                             sc.snapshot_entry_modify(snapshot_entry, "redirect_timestamp", sc.url_get_timestamp(location))
                             sc.snapshot_entry_modify(snapshot_entry, "redirect_url", location)
                         else:
                             break
             if response_status == 200:
-                sc.snapshot_entry_modify(snapshot_entry, "file", sc.snapshot_entry_create_output(snapshot_entry, output))
-                download_file = snapshot_entry["file"]
-                os.makedirs(os.path.dirname(download_file), exist_ok=True)
+                download_file = sc.snapshot_entry_create_output(snapshot_entry, output)
+                download_path = os.path.dirname(download_file)
+                os.makedirs(download_path, exist_ok=True)
                 with open(download_file, 'wb') as file:
                     if response.getheader('Content-Encoding') == 'gzip':
                         response_data = gzip.decompress(response_data)
@@ -227,12 +236,13 @@ def download(output, snapshot_entry, connection, status_message, no_redirect=Fal
                         f"SUCCESS    -> HTTP: {response_status} - {response_status_message}\n" + \
                         f"           -> URL: {download_url}\n" + \
                         f"           -> FILE: {download_file}"
+                    sc.snapshot_entry_modify(snapshot_entry, "file", download_file)
                 v.write(status_message)
                 return True
             else:
                 status_message = f"{status_message}\n" + \
                     f"UNEXPECTED -> HTTP: {response_status} - {response_status_message}\n" + \
-                    f"           -> URL: {download_url}\n"
+                    f"           -> URL: {download_url}"
                 v.write(status_message)
                 return True
         # exception returns false and appends the url to the failed list
@@ -262,6 +272,10 @@ RESPONSE_CODE_DICT = {
     500: "Internal Server Error",
     503: "Service Unavailable"
 }
+
+
+
+
 def parse_response_code(response_code: int):
     """
     Parse the response code of the Wayback Machine and return a human-readable message.
@@ -269,6 +283,10 @@ def parse_response_code(response_code: int):
     if response_code in RESPONSE_CODE_DICT:
         return RESPONSE_CODE_DICT[response_code]
     return "Unknown response code"
+
+
+
+
 
 def save_csv(csv_path: str, url: str):
     """

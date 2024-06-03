@@ -117,9 +117,12 @@ class SnapshotCollection:
             url = "http://" + url
         parsed_url = urlparse(url)
         domain = parsed_url.netloc.split("@")[-1].split(":")[0] # split mailto: and port
-        filename = parsed_url.path.split("/")[-1]
-        if index is True and filename == "":
-            filename = "index.html"
-        subdir = parsed_url.path.strip("/").replace(filename, "").strip("/")
+        path_parts = parsed_url.path.split("/")
+        if not url.endswith("/") or "." in path_parts[-1]:
+            filename = path_parts[-1]
+            subdir = "/".join(path_parts[:-1]).strip("/")
+        else:
+            filename = "index.html" if index else ""
+            subdir = "/".join(path_parts).strip("/")
         filename = filename.replace("%20", " ") # replace url encoded spaces
         return domain, subdir, filename
