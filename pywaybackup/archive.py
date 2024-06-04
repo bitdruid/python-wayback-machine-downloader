@@ -7,6 +7,8 @@ import http.client
 from urllib.parse import urljoin
 from datetime import datetime, timezone
 
+from pywaybackup.helper import url_get_timestamp, url_split, file_move_index
+
 from pywaybackup.SnapshotCollection import SnapshotCollection as sc
 
 from pywaybackup.Verbosity import Verbosity as v
@@ -43,7 +45,7 @@ def save_page(url: str):
     if response_status == 302:
         location = response.getheader("Location")
         v.write("\n-----> Response: 302 (redirect to snapshot)")
-        snapshot_timestamp = datetime.strptime(sc.url_get_timestamp(location), '%Y%m%d%H%M%S').strftime('%Y-%m-%d %H:%M:%S')
+        snapshot_timestamp = datetime.strptime(url_get_timestamp(location), '%Y%m%d%H%M%S').strftime('%Y-%m-%d %H:%M:%S')
         current_timestamp = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
         timestamp_difference = (datetime.strptime(current_timestamp, '%Y-%m-%d %H:%M:%S') - datetime.strptime(snapshot_timestamp, '%Y-%m-%d %H:%M:%S')).seconds / 60
         timestamp_difference = int(round(timestamp_difference, 0))
@@ -97,7 +99,7 @@ def query_list(url: str, range: int, start: int, end: int, explicit: bool, mode:
             query_range = "&from=" + str(datetime.now().year - range)
 
         # parse user input url and create according cdx url
-        domain, subdir, filename = sc.url_split(url)
+        domain, subdir, filename = url_split(url)
         if domain and not subdir and not filename:
             cdx_url = f"*.{domain}/*" if not explicit else f"{domain}"
         if domain and subdir and not filename:
@@ -107,7 +109,7 @@ def query_list(url: str, range: int, start: int, end: int, explicit: bool, mode:
         if domain and not subdir and filename:
             cdx_url = f"{domain}/{filename}/*"
 
-        print(f"---> {cdx_url}")
+        v.write(f"---> {cdx_url}")
         cdxQuery = f"https://web.archive.org/cdx/search/xd?output=json&url={cdx_url}{query_range}&fl=timestamp,digest,mimetype,statuscode,original&filter!=statuscode:200"
         cdxResult = requests.get(cdxQuery)
         sc.create_list(cdxResult, mode)
@@ -174,7 +176,7 @@ def download_loop(snapshot_batch, output, worker, retry, no_redirect, attempt=1,
     attempt += 1
     if failed_urls:
         if not attempt > max_attempt: 
-            v.write(f"\n-----> Worker: {worker} - Retry Timeout: 10 seconds")
+            v.write(f"\n-----> Worker: {worker} - Retry Timeout: 15 seconds")
             time.sleep(15)
         download_loop(failed_urls, output, worker, retry, no_redirect, attempt, connection)
 
@@ -204,7 +206,8 @@ def download(output, snapshot_entry, connection, status_message, no_redirect=Fal
             if not no_redirect:
                 if response_status == 302:
                     status_message = f"{status_message}\n" + \
-                        f"REDIRECT   -> HTTP: {response.status}"
+                        f"REDIRECT   -> HTTP: {response.status} - {response_status_message}\n" + \
+                        f"           -> FROM: {download_url}"
                     while response_status == 302:
                         connection.request("GET", download_url, headers=headers)
                         response = connection.getresponse()
@@ -213,32 +216,42 @@ def download(output, snapshot_entry, connection, status_message, no_redirect=Fal
                         response_status_message = parse_response_code(response_status)
                         location = response.getheader("Location")
                         if location:
-                            location = urljoin(download_url, location)
-                            download_url = location
+                            download_url = urljoin(download_url, location)
                             status_message = f"{status_message}\n" + \
-                                f"           -> URL: {download_url}"
-                            sc.snapshot_entry_modify(snapshot_entry, "redirect_timestamp", sc.url_get_timestamp(location))
-                            sc.snapshot_entry_modify(snapshot_entry, "redirect_url", location)
+                                f"           ->   TO: {download_url}"
+                            sc.snapshot_entry_modify(snapshot_entry, "redirect_timestamp", url_get_timestamp(location))
+                            sc.snapshot_entry_modify(snapshot_entry, "redirect_url", download_url)
                         else:
                             break
             if response_status == 200:
-                download_file = sc.snapshot_entry_create_output(snapshot_entry, output)
-                download_path = os.path.dirname(download_file)
-                os.makedirs(download_path, exist_ok=True)
-                with open(download_file, 'wb') as file:
-                    if response.getheader('Content-Encoding') == 'gzip':
-                        response_data = gzip.decompress(response_data)
-                        file.write(response_data)
-                    else:
-                        file.write(response_data)
-                if os.path.isfile(download_file):
+                output_file = sc.create_output(download_url, snapshot_entry["timestamp"], output)
+                output_path = os.path.dirname(output_file)
+                if os.path.isfile(output_path): 
+                    file_move_index(output_path)
+                else: 
+                    os.makedirs(output_path, exist_ok=True)
+
+                if not os.path.isfile(output_file):
+                    with open(output_file, 'wb') as file:
+                        if response.getheader('Content-Encoding') == 'gzip':
+                            response_data = gzip.decompress(response_data)
+                            file.write(response_data)
+                        else:
+                            file.write(response_data)
+                    if os.path.isfile(output_file):
+                        status_message = f"{status_message}\n" + \
+                            f"SUCCESS    -> HTTP: {response_status} - {response_status_message}"
+                        sc.snapshot_entry_modify(snapshot_entry, "file", output_file)
+
+                else:
                     status_message = f"{status_message}\n" + \
-                        f"SUCCESS    -> HTTP: {response_status} - {response_status_message}\n" + \
-                        f"           -> URL: {download_url}\n" + \
-                        f"           -> FILE: {download_file}"
-                    sc.snapshot_entry_modify(snapshot_entry, "file", download_file)
+                        f"EXISTING   -> HTTP: {response_status} - {response_status_message}"
+                status_message = f"{status_message}\n" + \
+                    f"           -> URL: {download_url}\n" + \
+                    f"           -> FILE: {output_file}"
                 v.write(status_message)
                 return True
+            
             else:
                 status_message = f"{status_message}\n" + \
                     f"UNEXPECTED -> HTTP: {response_status} - {response_status_message}\n" + \
