@@ -72,9 +72,13 @@ def save_page(url: str):
 
 
 
-def print_list():
+def print_list(csv: str = None):
     v.write("")
     count = sc.count_list()
+    if csv:
+        csv_header(csv)
+        for snapshot in sc.SNAPSHOT_COLLECTION:
+            csv_write(csv, snapshot)
     if count == 0:
         v.write("\nNo snapshots found")
     else:
@@ -122,7 +126,7 @@ def query_list(url: str, range: int, start: int, end: int, explicit: bool, mode:
 
 
 # example download: http://web.archive.org/web/20190815104545id_/https://www.google.com/
-def download_list(output, retry, no_redirect, workers):
+def download_list(output, retry, no_redirect, workers, csv: str = None):
     """
     Download a list of urls in format: [{"timestamp": "20190815104545", "url": "https://www.google.com/"}]
     """
@@ -137,12 +141,14 @@ def download_list(output, retry, no_redirect, workers):
         batch_size = sc.count_list()
     sc.create_collection()
     v.write("\n-----> Snapshots prepared")
+    if csv:
+        csv_header(csv)
     batch_list = [sc.SNAPSHOT_COLLECTION[i:i + batch_size] for i in range(0, len(sc.SNAPSHOT_COLLECTION), batch_size)]    
     threads = []
     worker = 0
     for batch in batch_list:
         worker += 1
-        thread = threading.Thread(target=download_loop, args=(batch, output, workers, retry, no_redirect))
+        thread = threading.Thread(target=download_loop, args=(batch, output, workers, retry, no_redirect, csv))
         threads.append(thread)
         thread.start()
     for thread in threads:
@@ -152,7 +158,7 @@ def download_list(output, retry, no_redirect, workers):
 
 
 
-def download_loop(snapshot_batch, output, worker, retry, no_redirect, attempt=1, connection=None):
+def download_loop(snapshot_batch, output, worker, retry, no_redirect, csv=None, attempt=1, connection=None):
     """
     Download a list of URLs in a recursive loop. If a download fails, the function will retry the download.
     The "snapshot_collection" dictionary will be updated with the download status and file information.
@@ -168,7 +174,7 @@ def download_loop(snapshot_batch, output, worker, retry, no_redirect, attempt=1,
         return
     for snapshot in snapshot_batch:
         status = f"\n-----> Attempt: [{attempt}/{max_attempt}] Snapshot [{snapshot_batch.index(snapshot)+1}/{len(snapshot_batch)}] - Worker: {worker}"
-        download_status = download(output, snapshot, connection, status, no_redirect)
+        download_status = download(output, snapshot, connection, status, no_redirect, csv)
         if not download_status:
             failed_urls.append(snapshot)
         if download_status:
@@ -178,13 +184,13 @@ def download_loop(snapshot_batch, output, worker, retry, no_redirect, attempt=1,
         if not attempt > max_attempt: 
             v.write(f"\n-----> Worker: {worker} - Retry Timeout: 15 seconds")
             time.sleep(15)
-        download_loop(failed_urls, output, worker, retry, no_redirect, attempt, connection)
+        download_loop(failed_urls, output, worker, retry, no_redirect, csv, attempt, connection)
 
 
 
 
 
-def download(output, snapshot_entry, connection, status_message, no_redirect=False):
+def download(output, snapshot_entry, connection, status_message, no_redirect=False, csv=None):
     """
     Download a single URL and save it to the specified filepath.
     If there is a redirect, the function will follow the redirect and update the download URL.
@@ -242,6 +248,7 @@ def download(output, snapshot_entry, connection, status_message, no_redirect=Fal
                         status_message = f"{status_message}\n" + \
                             f"SUCCESS    -> HTTP: {response_status} - {response_status_message}"
                         sc.snapshot_entry_modify(snapshot_entry, "file", output_file)
+                        csv_write(csv, snapshot_entry) if csv else None
 
                 else:
                     status_message = f"{status_message}\n" + \
@@ -286,9 +293,6 @@ RESPONSE_CODE_DICT = {
     503: "Service Unavailable"
 }
 
-
-
-
 def parse_response_code(response_code: int):
     """
     Parse the response code of the Wayback Machine and return a human-readable message.
@@ -301,19 +305,40 @@ def parse_response_code(response_code: int):
 
 
 
-def save_csv(csv_path: str, url: str):
+def csv_open(csv_path: str, url: str) -> object:
     """
-    Write a CSV file with the list of snapshots.
+    Open the CSV file with for writing snapshots and return the file object.
     """
-    import csv
     disallowed = ['<', '>', ':', '"', '/', '\\', '|', '?', '*']
     for char in disallowed:
         url = url.replace(char, '.')
-    if sc.count_list() > 0:
-        v.write("\nSaving CSV file...")
-        os.makedirs(os.path.abspath(csv_path), exist_ok=True)
-        with open(os.path.join(csv_path, f"waybackup_{url}.csv"), mode='w') as file:
-            row = csv.DictWriter(file, sc.SNAPSHOT_COLLECTION[0].keys())
-            row.writeheader()
-            for snapshot in sc.SNAPSHOT_COLLECTION:
-                row.writerow(snapshot)
+    os.makedirs(os.path.abspath(csv_path), exist_ok=True)
+    file = open(os.path.join(csv_path, f"waybackup_{url}.csv"), mode='w')
+    return file
+
+def csv_header(file: object):
+    """
+    Write the header of the CSV file.
+    """
+    import csv
+    row = csv.DictWriter(file, sc.SNAPSHOT_COLLECTION[0].keys())
+    row.writeheader()
+
+def csv_write(file: object, snapshot: dict):
+    """
+    Write a snapshot to the CSV file.
+    """
+    import csv
+    row = csv.DictWriter(file, snapshot.keys())
+    row.writerow(snapshot)
+
+def csv_close(file: object):
+    """
+    Close a CSV file and sort the entries by timestamp.
+    """
+    file.close()
+    with open(file.name, 'r') as f:
+        data = f.readlines()
+    data[1:] = sorted(data[1:], key=lambda x: int(x.split(',')[0]))
+    with open(file.name, 'w') as f:
+        f.writelines(data)

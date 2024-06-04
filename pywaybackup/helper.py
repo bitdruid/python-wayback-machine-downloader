@@ -6,7 +6,7 @@ def url_get_timestamp(url):
         """
         Extract the timestamp from a wayback machine URL.
         """
-        timestamp = url.split("web.archive.org/web/")[1].split("id_/")[0]
+        timestamp = url.split("id_/")[0].split("/")[-1]
         return timestamp
 
 def url_split(url, index=False):
