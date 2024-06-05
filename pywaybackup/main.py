@@ -7,7 +7,9 @@ from pywaybackup.Verbosity import Verbosity as v
 def main():
     args = parse()
     v.open(args.verbosity)
-    file = None
+
+    logfile = None
+    csvfile = None
 
     if args.full:
         mode = "full"
@@ -16,23 +18,21 @@ def main():
 
     if args.output is None:
         args.output = os.path.join(os.getcwd(), "waybackup_snapshots")
-    if args.csv is True:
-        args.csv = args.output
 
     if args.save:
         archive.save_page(args.url)
     else:
         try:
-            if args.csv:
-                file = archive.csv_open(args.csv, args.url)
+            logfile = archive.log_open(args.output, args.url)
+            csvfile = archive.csv_open(args.output, args.url) if args.csv else None
             archive.query_list(args.url, args.range, args.start, args.end, args.explicit, mode)
             if args.list:
-                archive.print_list(file)
+                archive.print_list(csvfile)
             else:
-                archive.download_list(args.output, args.retry, args.no_redirect, args.workers, file)
+                archive.download_list(args.output, args.retry, args.no_redirect, args.workers, csvfile, logfile)
         finally:
-            if args.csv:
-                archive.csv_close(file)
+            archive.log_close(logfile) if logfile else None
+            archive.csv_close(csvfile) if csvfile else None
     v.close()
 
 if __name__ == "__main__":

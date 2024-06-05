@@ -72,13 +72,13 @@ def save_page(url: str):
 
 
 
-def print_list(csv: str = None):
+def print_list(csvfile: str = None):
     v.write("")
     count = sc.count_list()
-    if csv:
-        csv_header(csv)
+    if csvfile:
+        csv_header(csvfile)
         for snapshot in sc.SNAPSHOT_COLLECTION:
-            csv_write(csv, snapshot)
+            csv_write(csvfile, snapshot)
     if count == 0:
         v.write("\nNo snapshots found")
     else:
@@ -126,7 +126,7 @@ def query_list(url: str, range: int, start: int, end: int, explicit: bool, mode:
 
 
 # example download: http://web.archive.org/web/20190815104545id_/https://www.google.com/
-def download_list(output, retry, no_redirect, workers, csv: str = None):
+def download_list(output, retry, no_redirect, workers, csvfile: object = None, logfile: object = None):
     """
     Download a list of urls in format: [{"timestamp": "20190815104545", "url": "https://www.google.com/"}]
     """
@@ -141,14 +141,13 @@ def download_list(output, retry, no_redirect, workers, csv: str = None):
         batch_size = sc.count_list()
     sc.create_collection()
     v.write("\n-----> Snapshots prepared")
-    if csv:
-        csv_header(csv)
+    csv_header(csvfile) if csvfile else None
     batch_list = [sc.SNAPSHOT_COLLECTION[i:i + batch_size] for i in range(0, len(sc.SNAPSHOT_COLLECTION), batch_size)]    
     threads = []
     worker = 0
     for batch in batch_list:
         worker += 1
-        thread = threading.Thread(target=download_loop, args=(batch, output, workers, retry, no_redirect, csv))
+        thread = threading.Thread(target=download_loop, args=(batch, output, workers, retry, no_redirect, csvfile, logfile))
         threads.append(thread)
         thread.start()
     for thread in threads:
@@ -158,7 +157,7 @@ def download_list(output, retry, no_redirect, workers, csv: str = None):
 
 
 
-def download_loop(snapshot_batch, output, worker, retry, no_redirect, csv=None, attempt=1, connection=None):
+def download_loop(snapshot_batch, output, worker, retry, no_redirect, csvfile=None, logfile=None, attempt=1, connection=None):
     """
     Download a list of URLs in a recursive loop. If a download fails, the function will retry the download.
     The "snapshot_collection" dictionary will be updated with the download status and file information.
@@ -174,7 +173,7 @@ def download_loop(snapshot_batch, output, worker, retry, no_redirect, csv=None, 
         return
     for snapshot in snapshot_batch:
         status = f"\n-----> Attempt: [{attempt}/{max_attempt}] Snapshot [{snapshot_batch.index(snapshot)+1}/{len(snapshot_batch)}] - Worker: {worker}"
-        download_status = download(output, snapshot, connection, status, no_redirect, csv)
+        download_status = download(output, snapshot, connection, status, no_redirect, csvfile, logfile)
         if not download_status:
             failed_urls.append(snapshot)
         if download_status:
@@ -184,13 +183,13 @@ def download_loop(snapshot_batch, output, worker, retry, no_redirect, csv=None, 
         if not attempt > max_attempt: 
             v.write(f"\n-----> Worker: {worker} - Retry Timeout: 15 seconds")
             time.sleep(15)
-        download_loop(failed_urls, output, worker, retry, no_redirect, csv, attempt, connection)
+        download_loop(failed_urls, output, worker, retry, no_redirect, csvfile, logfile, attempt, connection)
 
 
 
 
 
-def download(output, snapshot_entry, connection, status_message, no_redirect=False, csv=None):
+def download(output, snapshot_entry, connection, status_message, no_redirect=False, csvfile=None, logfile=None):
     """
     Download a single URL and save it to the specified filepath.
     If there is a redirect, the function will follow the redirect and update the download URL.
@@ -198,6 +197,9 @@ def download(output, snapshot_entry, connection, status_message, no_redirect=Fal
     According to the response status, the function will write a status message to the console and append a failed URL.
     """
     download_url = snapshot_entry["url_archive"]
+    if logfile and log_read(logfile, download_url):
+        v.write(f"\nEXISTING -> URL: {download_url}")
+        return True
     max_retries = 2
     sleep_time = 45
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'}
@@ -247,9 +249,6 @@ def download(output, snapshot_entry, connection, status_message, no_redirect=Fal
                     if os.path.isfile(output_file):
                         status_message = f"{status_message}\n" + \
                             f"SUCCESS    -> HTTP: {response_status} - {response_status_message}"
-                        sc.snapshot_entry_modify(snapshot_entry, "file", output_file)
-                        csv_write(csv, snapshot_entry) if csv else None
-
                 else:
                     status_message = f"{status_message}\n" + \
                         f"EXISTING   -> HTTP: {response_status} - {response_status_message}"
@@ -257,6 +256,9 @@ def download(output, snapshot_entry, connection, status_message, no_redirect=Fal
                     f"           -> URL: {download_url}\n" + \
                     f"           -> FILE: {output_file}"
                 v.write(status_message)
+                sc.snapshot_entry_modify(snapshot_entry, "file", output_file)
+                log_write(logfile, snapshot_entry["url_archive"]) if logfile else None
+                csv_write(csvfile, snapshot_entry) if csvfile else None
                 return True
             
             else:
@@ -307,38 +309,80 @@ def parse_response_code(response_code: int):
 
 def csv_open(csv_path: str, url: str) -> object:
     """
-    Open the CSV file with for writing snapshots and return the file object.
+    Open the CSV file which contains the snapshot collection.
     """
     disallowed = ['<', '>', ':', '"', '/', '\\', '|', '?', '*']
     for char in disallowed:
         url = url.replace(char, '.')
     os.makedirs(os.path.abspath(csv_path), exist_ok=True)
-    file = open(os.path.join(csv_path, f"waybackup_{url}.csv"), mode='w')
-    return file
+    csvfile = open(os.path.join(csv_path, f"waybackup_{url}.csv"), mode='w')
+    return csvfile
 
-def csv_header(file: object):
+def csv_header(csvfile: object):
     """
     Write the header of the CSV file.
     """
     import csv
-    row = csv.DictWriter(file, sc.SNAPSHOT_COLLECTION[0].keys())
+    row = csv.DictWriter(csvfile, sc.SNAPSHOT_COLLECTION[0].keys())
     row.writeheader()
 
-def csv_write(file: object, snapshot: dict):
+def csv_write(csvfile: object, snapshot: dict):
     """
     Write a snapshot to the CSV file.
     """
     import csv
-    row = csv.DictWriter(file, snapshot.keys())
+    row = csv.DictWriter(csvfile, snapshot.keys())
     row.writerow(snapshot)
 
-def csv_close(file: object):
+def csv_close(csvfile: object):
     """
-    Close a CSV file and sort the entries by timestamp.
+    Close the CSV file and sort the entries by it's index.
     """
-    file.close()
-    with open(file.name, 'r') as f:
+    csvfile.close()
+    with open(csvfile.name, 'r') as f:
         data = f.readlines()
     data[1:] = sorted(data[1:], key=lambda x: int(x.split(',')[0]))
-    with open(file.name, 'w') as f:
+    with open(csvfile.name, 'w') as f:
         f.writelines(data)
+    csvfile.close()
+
+
+
+
+
+def log_open(log_path: str, url: str) -> object:
+    """
+    Open the log file which contains successed downloads.
+    """
+    disallowed = ['<', '>', ':', '"', '/', '\\', '|', '?', '*']
+    for char in disallowed:
+        url = url.replace(char, '.')
+    os.makedirs(os.path.abspath(log_path), exist_ok=True)
+    log_file_path = os.path.join(log_path, f"waybackup_success_{url}.log")
+    if os.path.exists(log_file_path):
+        logfile = open(log_file_path, mode='r+')
+    else:
+        logfile = open(log_file_path, mode='w+')
+    return logfile
+
+def log_write(logfile: object, archive_url: str):
+    """
+    Write a successed download to the log file.
+    """
+    logfile.write(f"{archive_url}\n")
+
+def log_read(logfile: object, archive_url: str) -> bool:
+    """
+    Read the log file and check if the URL is already downloaded.
+    """
+    logfile.seek(0)
+    for line in logfile:
+        if archive_url in line:
+            return True
+    return False
+
+def log_close(logfile: object):
+    """
+    Close the log file.
+    """
+    logfile.close()
