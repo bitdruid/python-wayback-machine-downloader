@@ -8,8 +8,6 @@ def main():
     args = parse()
     v.open(args.verbosity)
 
-    logfile = None
-    csvfile = None
 
     if args.full:
         mode = "full"
@@ -19,19 +17,26 @@ def main():
     if args.output is None:
         args.output = os.path.join(os.getcwd(), "waybackup_snapshots")
 
+    if args.skip is True:
+        skipfile = None
+        args.skip = args.output
+    if args.csv is True:
+        csvfile = None
+        args.csv = args.output
+
     if args.save:
         archive.save_page(args.url)
     else:
         try:
-            logfile = archive.log_open(args.output, args.url)
-            csvfile = archive.csv_open(args.output, args.url) if args.csv else None
+            skipfile = archive.skip_open(args.skip, args.url) if args.skip else None
+            csvfile = archive.csv_open(args.csv, args.url) if args.csv else None
             archive.query_list(args.url, args.range, args.start, args.end, args.explicit, mode)
             if args.list:
                 archive.print_list(csvfile)
             else:
-                archive.download_list(args.output, args.retry, args.no_redirect, args.workers, csvfile, logfile)
+                archive.download_list(args.output, args.retry, args.no_redirect, args.workers, csvfile, skipfile)
         finally:
-            archive.log_close(logfile) if logfile else None
+            archive.log_close(skipfile) if skipfile else None
             archive.csv_close(csvfile) if csvfile else None
     v.close()
 

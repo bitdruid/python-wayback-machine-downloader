@@ -4,7 +4,7 @@ import os
 class SnapshotCollection:
 
     SNAPSHOT_COLLECTION = []
-    MODE_CURRENT = 0
+    MODE_CURRENT = 0        
 
     @classmethod
     def create_list(cls, cdxResult, mode):
