@@ -126,7 +126,7 @@ def query_list(url: str, range: int, start: int, end: int, explicit: bool, mode:
 
 
 # example download: http://web.archive.org/web/20190815104545id_/https://www.google.com/
-def download_list(output, retry, no_redirect, workers, csvfile: object = None, skipfile: object = None):
+def download_list(output, retry, no_redirect, workers, csvfile: object = None, skipset: object = None):
     """
     Download a list of urls in format: [{"timestamp": "20190815104545", "url": "https://www.google.com/"}]
     """
@@ -147,7 +147,7 @@ def download_list(output, retry, no_redirect, workers, csvfile: object = None, s
     worker = 0
     for batch in batch_list:
         worker += 1
-        thread = threading.Thread(target=download_loop, args=(batch, output, workers, retry, no_redirect, csvfile, skipfile))
+        thread = threading.Thread(target=download_loop, args=(batch, output, workers, retry, no_redirect, csvfile, skipset))
         threads.append(thread)
         thread.start()
     for thread in threads:
@@ -157,7 +157,7 @@ def download_list(output, retry, no_redirect, workers, csvfile: object = None, s
 
 
 
-def download_loop(snapshot_batch, output, worker, retry, no_redirect, csvfile=None, skipfile=None, attempt=1, connection=None):
+def download_loop(snapshot_batch, output, worker, retry, no_redirect, csvfile=None, skipset=None, attempt=1, connection=None):
     """
     Download a list of URLs in a recursive loop. If a download fails, the function will retry the download.
     The "snapshot_collection" dictionary will be updated with the download status and file information.
@@ -173,7 +173,7 @@ def download_loop(snapshot_batch, output, worker, retry, no_redirect, csvfile=No
         return
     for snapshot in snapshot_batch:
         status = f"\n-----> Attempt: [{attempt}/{max_attempt}] Snapshot [{snapshot_batch.index(snapshot)+1}/{len(snapshot_batch)}] - Worker: {worker}"
-        download_status = download(output, snapshot, connection, status, no_redirect, csvfile, skipfile)
+        download_status = download(output, snapshot, connection, status, no_redirect, csvfile, skipset)
         if not download_status:
             failed_urls.append(snapshot)
         if download_status:
@@ -183,13 +183,13 @@ def download_loop(snapshot_batch, output, worker, retry, no_redirect, csvfile=No
         if not attempt > max_attempt: 
             v.write(f"\n-----> Worker: {worker} - Retry Timeout: 15 seconds")
             time.sleep(15)
-        download_loop(failed_urls, output, worker, retry, no_redirect, csvfile, skipfile, attempt, connection)
+        download_loop(failed_urls, output, worker, retry, no_redirect, csvfile, skipset, attempt, connection)
 
 
 
 
 
-def download(output, snapshot_entry, connection, status_message, no_redirect=False, csvfile=None, skipfile=None):
+def download(output, snapshot_entry, connection, status_message, no_redirect=False, csvfile=None, skipset=None):
     """
     Download a single URL and save it to the specified filepath.
     If there is a redirect, the function will follow the redirect and update the download URL.
@@ -197,7 +197,7 @@ def download(output, snapshot_entry, connection, status_message, no_redirect=Fal
     According to the response status, the function will write a status message to the console and append a failed URL.
     """
     download_url = snapshot_entry["url_archive"]
-    if skipfile and log_read(skipfile, download_url):
+    if skipset and skip_read(skipset, download_url):
         v.write(f"\nEXISTING -> URL: {download_url}")
         return True
     max_retries = 2
@@ -257,7 +257,7 @@ def download(output, snapshot_entry, connection, status_message, no_redirect=Fal
                     f"           -> FILE: {output_file}"
                 v.write(status_message)
                 sc.snapshot_entry_modify(snapshot_entry, "file", output_file)
-                log_write(skipfile, snapshot_entry["url_archive"]) if skipfile else None
+                skip_write(skipset, snapshot_entry["url_archive"]) if skipset else None
                 csv_write(csvfile, snapshot_entry) if csvfile else None
                 return True
             
@@ -350,37 +350,38 @@ def csv_close(csvfile: object):
 
 
 
-def skip_open(log_path: str, url: str) -> object:
+def skip_open(skipset_path: str, url: str) -> set:
     """
-    Open the log file which contains successed downloads.
+    Open the log file which contains successed downloads and return its content as a set.
     """
     domain, subdir, filename = url_split(url)
-    os.makedirs(os.path.abspath(log_path), exist_ok=True)
-    log_file_path = os.path.join(log_path, f"waybackup_{domain}.skip")
-    if os.path.exists(log_file_path):
-        skipfile = open(log_file_path, mode='r+')
+    os.makedirs(os.path.abspath(skipset_path), exist_ok=True)
+    skipset_path = os.path.join(skipset_path, f"waybackup_{domain}.skip")
+    if os.path.exists(skipset_path):
+        with open(skipset_path, mode='r') as skipset:
+            content = skipset.read().splitlines()
+            return set(content)
     else:
-        skipfile = open(log_file_path, mode='w+')
-    return skipfile
+        return set()
 
-def log_write(skipfile: object, archive_url: str):
+def skip_write(skipset: set, archive_url: str):
     """
-    Write a successed download to the log file.
+    Write a successed download to the set.
     """
-    skipfile.write(f"{archive_url}\n")
+    skipset.add(archive_url)
 
-def log_read(skipfile: object, archive_url: str) -> bool:
+def skip_read(skipset: set, archive_url: str) -> bool:
     """
-    Read the log file and check if the URL is already downloaded.
+    Check if the URL is already downloaded and contained in the set.
     """
-    skipfile.seek(0)
-    for line in skipfile:
-        if archive_url in line:
-            return True
-    return False
+    return archive_url in skipset
 
-def log_close(skipfile: object):
+def skip_close(skipset: set, skipset_path: str):
     """
-    Close the log file.
+    Write the set to a file in the specified skipset_path.
     """
-    skipfile.close()
+    os.makedirs(os.path.abspath(skipset_path), exist_ok=True)
+    skipset_path = os.path.join(skipset_path, "waybackup_skip.log")
+    with open(skipset_path, mode='w') as skipset:
+        for url in skipset:
+            skipset.write(url + "\n")
