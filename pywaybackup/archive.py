@@ -8,7 +8,7 @@ import http.client
 from urllib.parse import urljoin
 from datetime import datetime, timezone
 
-from pywaybackup.helper import url_get_timestamp, url_split, file_move_index
+from pywaybackup.helper import url_get_timestamp, url_split, move_index, sanitize_filename
 
 from pywaybackup.SnapshotCollection import SnapshotCollection as sc
 
@@ -88,14 +88,13 @@ def print_list():
 
 # create filelist
 # timestamp format yyyyMMddhhmmss
-def query_list(url: str, range: int, start: int, end: int, explicit: bool, mode: str, cdxinject: str):
+def query_list(url: str, range: int, start: int, end: int, explicit: bool, mode: str, cdxbackup: str, cdxinject: str):
     if cdxinject:
-        v.write("\nInjecting snapshots...")
-        file = open(cdxinject, "r")
-        sc.create_list(json.load(file), mode)
+        v.write("\nInjecting CDX data...")
+        cdxResult = open(cdxinject, "r")
+        cdxResult = cdxResult.read()
         v.write(f"\n-----> {sc.count_list()} snapshots injected")
-        return
-    try:
+    else:
         v.write("\nQuerying snapshots...")
         query_range = ""
         
@@ -118,11 +117,22 @@ def query_list(url: str, range: int, start: int, end: int, explicit: bool, mode:
 
         v.write(f"---> {cdx_url}")
         cdxQuery = f"https://web.archive.org/cdx/search/cdx?output=json&url={cdx_url}{query_range}&fl=timestamp,digest,mimetype,statuscode,original&filter!=statuscode:200"
-        cdxResult = json.loads(requests.get(cdxQuery).text)
-        sc.create_list(cdxResult, mode)
-        v.write(f"\n-----> {sc.count_list()} snapshots found")
-    except requests.exceptions.ConnectionError as e:
-        v.write(f"\n-----> ERROR: could not query snapshots:\n{e}"); exit()
+
+        try:
+            cdxResult = requests.get(cdxQuery).text
+        except requests.exceptions.ConnectionError as e:
+            v.write(f"\n-----> ERROR: could not query snapshots:\n{e}")
+            raise Exception("Error querying snapshots")
+        
+        if cdxbackup:
+            os.makedirs(cdxbackup, exist_ok=True)
+            with open(os.path.join(cdxbackup, f"waybackup_{sanitize_filename(url)}.cdx"), "w") as file: 
+                file.write(cdxResult)
+                v.write("\n-----> CDX backup generated")
+
+    sc.create_list(json.loads(cdxResult), mode)
+    v.write(f"\n-----> {sc.count_list()} snapshots found")
+
 
 
 
@@ -149,7 +159,8 @@ def download_list(output, retry, no_redirect, workers, skipset: set = None):
     worker = 0
     for batch in batch_list:
         worker += 1
-        thread = threading.Thread(target=download_loop, args=(batch, output, workers, retry, no_redirect, skipset))
+        v.write(f"\n-----> Starting worker: {worker}")
+        thread = threading.Thread(target=download_loop, args=(batch, output, worker, retry, no_redirect, skipset))
         threads.append(thread)
         thread.start()
     for thread in threads:
@@ -185,7 +196,7 @@ def download_loop(snapshot_batch, output, worker, retry, no_redirect, skipset=No
         if not attempt > max_attempt: 
             v.write(f"\n-----> Worker: {worker} - Retry Timeout: 15 seconds")
             time.sleep(15)
-        download_loop(failed_urls, output, worker, retry, no_redirect, skipset, attempt, connection)
+        download_loop(failed_urls, output, worker, retry, no_redirect, skipset, attempt, connection)            
 
 
 
@@ -218,7 +229,9 @@ def download(output, snapshot_entry, connection, status_message, no_redirect=Fal
                     status_message = f"{status_message}\n" + \
                         f"REDIRECT   -> HTTP: {response.status} - {response_status_message}\n" + \
                         f"           -> FROM: {download_url}"
-                    while response_status == 302:
+                    redirect_count = 0
+                    while response_status == 302 and redirect_count < 10:
+                        redirect_count += 1
                         connection.request("GET", download_url, headers=headers)
                         response = connection.getresponse()
                         response_data = response.read()
@@ -236,10 +249,24 @@ def download(output, snapshot_entry, connection, status_message, no_redirect=Fal
             if response_status == 200:
                 output_file = sc.create_output(download_url, snapshot_entry["timestamp"], output)
                 output_path = os.path.dirname(output_file)
-                if os.path.isfile(output_path): 
-                    file_move_index(output_path)
+
+                # case if output_path is a file, move file to temporary name, create output_path and move file into output_path
+                if os.path.isfile(output_path):
+                    move_index(existpath=output_path)
                 else: 
                     os.makedirs(output_path, exist_ok=True)
+                # case if output_file is a directory, create file as index.html in this directory
+                if os.path.isdir(output_file):
+                    output_file = move_index(existfile=output_file)
+
+                # if filename is too long, skip download
+                if len(os.path.basename(output_file)) > 255:
+                    status_message = f"{status_message}\n" + \
+                        f"FILENAME TOO LONG -> HTTP: {response_status} - {response_status_message}\n" + \
+                        f"                  -> URL: {download_url}"
+                    v.write(status_message)
+                    skip_write(skipset, snapshot_entry["url_archive"]) if skipset is not None else None
+                    return True
 
                 if not os.path.isfile(output_file):
                     with open(output_file, 'wb') as file:
@@ -275,6 +302,13 @@ def download(output, snapshot_entry, connection, status_message, no_redirect=Fal
                 f"          -> {e}"
             v.write(status_message)
             return False
+        # connection timeout waits and retries
+        except requests.exceptions.Timeout as e:
+            status_message = f"{status_message}\n" + \
+                f"TIMEOUT   -> ({i+1}/{max_retries}), reconnect in {sleep_time} seconds...\n" + \
+                f"         -> {e}"
+            v.write(status_message)
+            time.sleep(sleep_time)
         # connection refused waits and retries
         except ConnectionRefusedError as e:
             status_message = f"{status_message}\n" + \
@@ -313,9 +347,7 @@ def csv_close(csv_path: str, url: str):
     Write a CSV file with the list of snapshots.
     """
     import csv
-    disallowed = ['<', '>', ':', '"', '/', '\\', '|', '?', '*']
-    for char in disallowed:
-        url = url.replace(char, '.')
+    url = sanitize_filename(url)
     if sc.count_list() > 0:
         v.write("\nSaving CSV-file...")
         os.makedirs(os.path.abspath(csv_path), exist_ok=True)
@@ -333,23 +365,24 @@ def skip_open(skipset_path: str, url: str) -> tuple:
     Opens an existing skip file or creates a new one.
 
     Args:
-        skipset_path (str): The path to the skip file.
+        skipset_path (str): The path to the skip-file.
         url (str): The URL of the webpage to be saved.
 
     Returns:
         tuple: A tuple containing the skip file object and the skip set.
     """
     domain, subdir, filename = url_split(url)
-    os.makedirs(os.path.abspath(skipset_path), exist_ok=True)
-    skipset_path = os.path.join(skipset_path, f"waybackup_{domain}.skip")
-    if os.path.exists(skipset_path):
+    default_file = f"waybackup_{domain}.skip"
+    default_path = os.path.join(skipset_path, default_file)
+    skipset = set()
+    # check if custom or default skip file exists in the directory
+    if os.path.isfile(skipset_path) or os.path.isfile(default_path):
         skipfile = open(skipset_path, mode='r+')
         skipset = set(skipfile.read().splitlines())
-        return skipfile, skipset        
     else:
-        skipfile = open(skipset_path, mode='w')
-        skipset = set()
-        return skipfile, skipset
+        skipfile = open(default_path, mode='w')
+
+    return skipfile, skipset
 
 def skip_write(skipset: set, archive_url: str):
     """
