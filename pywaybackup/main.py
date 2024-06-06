@@ -32,7 +32,6 @@ def main():
             else:
                 archive.download_list(args.output, args.retry, args.no_redirect, args.workers, skipset)
         finally:
-            print("Closing skip path: ", args.skip)
             archive.skip_close(skipfile, skipset) if args.skip else None
             archive.csv_close(args.csv, args.url) if args.csv else None
     v.close()

@@ -4,7 +4,6 @@ import gzip
 import threading
 import time
 import json
-import csv
 import http.client
 from urllib.parse import urljoin
 from datetime import datetime, timezone
@@ -318,7 +317,7 @@ def csv_close(csv_path: str, url: str):
     for char in disallowed:
         url = url.replace(char, '.')
     if sc.count_list() > 0:
-        v.write("\nSaving CSV file...")
+        v.write("\nSaving CSV-file...")
         os.makedirs(os.path.abspath(csv_path), exist_ok=True)
         with open(os.path.join(csv_path, f"waybackup_{url}.csv"), mode='w') as file:
             row = csv.DictWriter(file, sc.SNAPSHOT_COLLECTION[0].keys())
@@ -368,6 +367,7 @@ def skip_close(skipfile: object, skipset: set):
     """
     Overwrite existing skip file with the new set content.
     """
+    v.write("\nSaving skip-file...")
     skipfile.seek(0)
     skipfile.truncate()
     skipfile.write('\n'.join(skipset))
