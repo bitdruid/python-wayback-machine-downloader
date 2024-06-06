@@ -30,6 +30,8 @@ def parse():
     special.add_argument('--retry', type=int, default=0, metavar="", help='Retry failed downloads (opt tries as int, else infinite)')
     special.add_argument('--workers', type=int, default=1, metavar="", help='Number of workers (simultaneous downloads)')
 
+    special.add_argument('--cdxinject', type=str, metavar="", help=argparse.SUPPRESS)
+
     args = parser.parse_args(args=None if sys.argv[1:] else ['--help']) # if no arguments are given, print help
 
     return args

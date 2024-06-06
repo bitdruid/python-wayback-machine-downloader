@@ -15,7 +15,7 @@ class SnapshotCollection:
         - mode `current`: Only the latest snapshot of each file is included.
         """
         # creates a list of dictionaries for each snapshot entry
-        cls.SNAPSHOT_COLLECTION = sorted([{"timestamp": snapshot[0], "digest": snapshot[1], "mimetype": snapshot[2], "status": snapshot[3], "url": snapshot[4]} for snapshot in cdxResult.json()[1:]], key=lambda k: k['timestamp'], reverse=True)
+        cls.SNAPSHOT_COLLECTION = sorted([{"timestamp": snapshot[0], "digest": snapshot[1], "mimetype": snapshot[2], "status": snapshot[3], "url": snapshot[4]} for snapshot in cdxResult[1:]], key=lambda k: k['timestamp'], reverse=True)
         if mode == "current": 
             cls.MODE_CURRENT = 1
             cdxResult_list_filtered = []
