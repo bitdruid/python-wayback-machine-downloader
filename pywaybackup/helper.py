@@ -2,6 +2,17 @@
 import os
 import shutil
 
+def sanitize_filename(input: str) -> str:
+    """
+    Sanitize a string to be used as (part of) a filename.
+    """
+    disallowed = ['<', '>', ':', '"', '/', '\\', '|', '?', '*']
+    for char in disallowed:
+        input = input.replace(char, ".")
+    input = '.'.join(filter(None, input.split('.')))
+    return input
+
+
 def url_get_timestamp(url):
         """
         Extract the timestamp from a wayback machine URL.
@@ -34,8 +45,20 @@ def url_split(url, index=False):
     filename = filename.replace("%20", " ")
     return domain, subdir, filename
 
-def file_move_index(output_path: str):
-    shutil.move(output_path, output_path + "_exist")
-    os.makedirs(output_path, exist_ok=True)
-    shutil.move(output_path + "_exist", os.path.join(output_path, "index.html"))
+def move_index(existpath: str = None, existfile: str = None):
+    """
+    1. If output_path is given but can't be created because a file exists with the same name
+        - moves the existing file to a temporary name
+        - creates the output_path
+        - moves the temporary file to the output_path
+
+    2. If output_file is given but can't be created because a folder exists with the same name
+        - sets output_file path to existing folder + index.html
+    """
+    if existpath:
+        shutil.move(existpath, existpath + "_exist")
+        os.makedirs(existpath, exist_ok=True)
+        shutil.move(existpath + "_exist", os.path.join(existpath, "index.html"))
+    elif existfile:
+        return os.path.join(existfile, "index.html")
 

@@ -25,12 +25,16 @@ def parse():
     special = parser.add_argument_group('special')
     special.add_argument('--skip', type=str, nargs='?', const=True, metavar='', help='Skips existing files in the output folder by checking the success-log file')
     special.add_argument('--csv', type=str, nargs='?', const=True, metavar='', help='Save a csv file on a given path or defaults to the output folder')
+    special.add_argument('--cdx', type=str, nargs='?', const=True, metavar='', help='Save the received cdx data to a file for later use')
     special.add_argument('--no-redirect', action='store_true', help='Do not follow redirects by archive.org')
     special.add_argument('--verbosity', type=str, default="standard", metavar="", help='["progress", "json"] Verbosity level')
     special.add_argument('--retry', type=int, default=0, metavar="", help='Retry failed downloads (opt tries as int, else infinite)')
     special.add_argument('--workers', type=int, default=1, metavar="", help='Number of workers (simultaneous downloads)')
 
-    special.add_argument('--cdxinject', type=str, metavar="", help=argparse.SUPPRESS)
+    cdx = parser.add_argument_group('cdx')
+    exclusive_cdx = cdx.add_mutually_exclusive_group()
+    exclusive_cdx.add_argument('--cdxbackup', type=str, nargs='?', const=True, metavar='path', help='Save the cdx query-result according to the given url to a file')
+    exclusive_cdx.add_argument('--cdxinject', type=str, nargs='?', const=True, metavar='path', help='Inject a cdx query-result as file to download according to the given url')
 
     args = parser.parse_args(args=None if sys.argv[1:] else ['--help']) # if no arguments are given, print help
 
