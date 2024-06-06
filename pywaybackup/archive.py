@@ -92,8 +92,8 @@ def query_list(url: str, range: int, start: int, end: int, explicit: bool, mode:
     if cdxinject:
         v.write("\nInjecting CDX data...")
         cdxResult = open(cdxinject, "r")
-        cdxResult = cdxResult.read()
-        v.write(f"\n-----> {sc.count_list()} snapshots injected")
+        cdxResult = json.loads(cdxResult.read())
+        v.write(f"\n-----> {len(cdxResult)} snapshots injected")
     else:
         v.write("\nQuerying snapshots...")
         query_range = ""
@@ -119,7 +119,7 @@ def query_list(url: str, range: int, start: int, end: int, explicit: bool, mode:
         cdxQuery = f"https://web.archive.org/cdx/search/cdx?output=json&url={cdx_url}{query_range}&fl=timestamp,digest,mimetype,statuscode,original&filter!=statuscode:200"
 
         try:
-            cdxResult = requests.get(cdxQuery).text
+            cdxResult = json.loads(requests.get(cdxQuery).text)
         except requests.exceptions.ConnectionError as e:
             v.write(f"\n-----> ERROR: could not query snapshots:\n{e}")
             raise Exception("Error querying snapshots")
@@ -130,8 +130,8 @@ def query_list(url: str, range: int, start: int, end: int, explicit: bool, mode:
                 file.write(cdxResult)
                 v.write("\n-----> CDX backup generated")
 
-    sc.create_list(json.loads(cdxResult), mode)
-    v.write(f"\n-----> {sc.count_list()} snapshots found")
+    sc.create_list(cdxResult, mode)
+    v.write(f"\n-----> {sc.count_list()} snapshots to utilize")
 
 
 
@@ -211,7 +211,7 @@ def download(output, snapshot_entry, connection, status_message, no_redirect=Fal
     """
     download_url = snapshot_entry["url_archive"]
     if skipset and skip_read(skipset, download_url):
-        v.write(f"\nEXISTING -> URL: {download_url}")
+        v.write(f"\nSKIPPING -> URL: {download_url}")
         return True
     max_retries = 2
     sleep_time = 45
@@ -346,21 +346,25 @@ def csv_close(csv_path: str, url: str):
     """
     Write a CSV file with the list of snapshots.
     """
-    import csv
-    url = sanitize_filename(url)
-    if sc.count_list() > 0:
-        v.write("\nSaving CSV-file...")
-        os.makedirs(os.path.abspath(csv_path), exist_ok=True)
-        with open(os.path.join(csv_path, f"waybackup_{url}.csv"), mode='w') as file:
-            row = csv.DictWriter(file, sc.SNAPSHOT_COLLECTION[0].keys())
-            row.writeheader()
-            for snapshot in sc.SNAPSHOT_COLLECTION:
-                row.writerow(snapshot)
+    try:
+        import csv
+        url = sanitize_filename(url)
+        if sc.count_list() > 0:
+            os.makedirs(os.path.abspath(csv_path), exist_ok=True)
+            with open(os.path.join(csv_path, f"waybackup_{url}.csv"), mode='w') as file:
+                row = csv.DictWriter(file, sc.SNAPSHOT_COLLECTION[0].keys())
+                row.writeheader()
+                for snapshot in sc.SNAPSHOT_COLLECTION:
+                    row.writerow(snapshot)
+    except Exception as e:
+        v.write(f"\n-----> ERROR: could not save CSV-file:\n{e}\n")
+        os._exit(1)
 
 
 
 
-def skip_open(skipset_path: str, url: str) -> tuple:
+
+def skip_open(skipfile_path: str, url: str) -> tuple:
     """
     Opens an existing skip file or creates a new one.
 
@@ -371,18 +375,21 @@ def skip_open(skipset_path: str, url: str) -> tuple:
     Returns:
         tuple: A tuple containing the skip file object and the skip set.
     """
-    domain, subdir, filename = url_split(url)
-    default_file = f"waybackup_{domain}.skip"
-    default_path = os.path.join(skipset_path, default_file)
-    skipset = set()
-    # check if custom or default skip file exists in the directory
-    if os.path.isfile(skipset_path) or os.path.isfile(default_path):
-        skipfile = open(skipset_path, mode='r+')
-        skipset = set(skipfile.read().splitlines())
-    else:
-        skipfile = open(default_path, mode='w')
-
-    return skipfile, skipset
+    try:
+        domain, subdir, filename = url_split(url)
+        os.makedirs(os.path.abspath(skipfile_path), exist_ok=True)
+        skipfile_path = os.path.join(skipfile_path, f"waybackup_{domain}.skip")
+        if os.path.exists(skipfile_path):
+            skipfile = open(skipfile_path, mode='r+')
+            skipset = set(skipfile.read().splitlines())
+            return skipfile, skipset        
+        else:
+            skipfile = open(skipfile_path, mode='w')
+            skipset = set()
+            return skipfile, skipset
+    except Exception as e:
+        v.write(f"\n-----> ERROR: could not open skip-file:\n{e}\n")
+        os._exit(1)
 
 def skip_write(skipset: set, archive_url: str):
     """
@@ -400,11 +407,14 @@ def skip_close(skipfile: object, skipset: set):
     """
     Overwrite existing skip file with the new set content.
     """
-    v.write("\nSaving skip-file...")
-    skipfile.seek(0)
-    skipfile.truncate()
-    skipfile.write('\n'.join(skipset))
-    skipfile.close()
+    try:
+        skipfile.seek(0)
+        skipfile.truncate()
+        skipfile.write('\n'.join(skipset))
+        skipfile.close()
+    except Exception as e:
+        v.write(f"\n-----> ERROR: could not save skip-file:\n{e}\n")
+        os._exit(1)
     
     
     
