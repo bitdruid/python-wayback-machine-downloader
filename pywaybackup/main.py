@@ -1,11 +1,21 @@
 import pywaybackup.archive as archive
 import os
+import sys
 
 from pywaybackup.arguments import parse
 from pywaybackup.Verbosity import Verbosity as v
 
+def exception_handler(exception_type, exception, traceback):
+    #placeholder
+    pass
+
 def main():
     args = parse()
+
+    if not args.debug:
+        #sys.excepthook = exception_handler
+        sys.tracebacklimit = 0
+
     v.open(args.verbosity)        
 
     if args.full:

@@ -4,6 +4,7 @@ import gzip
 import threading
 import time
 import json
+import urllib.parse
 import http.client
 from urllib.parse import urljoin
 from datetime import datetime, timezone
@@ -121,8 +122,7 @@ def query_list(url: str, range: int, start: int, end: int, explicit: bool, mode:
         try:
             cdxResult = json.loads(requests.get(cdxQuery).text)
         except requests.exceptions.ConnectionError as e:
-            v.write(f"\n-----> ERROR: could not query snapshots:\n{e}")
-            raise Exception("Error querying snapshots")
+            v.write(f"\n-----> ERROR: could not query snapshots:\n{e}\n")
         
         if cdxbackup:
             os.makedirs(cdxbackup, exist_ok=True)
@@ -210,6 +210,8 @@ def download(output, snapshot_entry, connection, status_message, no_redirect=Fal
     According to the response status, the function will write a status message to the console and append a failed URL.
     """
     download_url = snapshot_entry["url_archive"]
+    encoded_download_url = urllib.parse.quote(download_url, safe=':/')
+    v.write(f"Encoded URL: {encoded_download_url}")
     if skipset and skip_read(skipset, download_url):
         v.write(f"\nSKIPPING -> URL: {download_url}")
         return True
@@ -218,7 +220,7 @@ def download(output, snapshot_entry, connection, status_message, no_redirect=Fal
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'}
     for i in range(max_retries):
         try:
-            connection.request("GET", download_url, headers=headers)
+            connection.request("GET", encoded_download_url, headers=headers)
             response = connection.getresponse()
             response_data = response.read()
             response_status = response.status
@@ -232,7 +234,7 @@ def download(output, snapshot_entry, connection, status_message, no_redirect=Fal
                     redirect_count = 0
                     while response_status == 302 and redirect_count < 10:
                         redirect_count += 1
-                        connection.request("GET", download_url, headers=headers)
+                        connection.request("GET", encoded_download_url, headers=headers)
                         response = connection.getresponse()
                         response_data = response.read()
                         response_status = response.status
@@ -358,7 +360,6 @@ def csv_close(csv_path: str, url: str):
                     row.writerow(snapshot)
     except Exception as e:
         v.write(f"\n-----> ERROR: could not save CSV-file:\n{e}\n")
-        os._exit(1)
 
 
 
@@ -389,7 +390,6 @@ def skip_open(skipfile_path: str, url: str) -> tuple:
             return skipfile, skipset
     except Exception as e:
         v.write(f"\n-----> ERROR: could not open skip-file:\n{e}\n")
-        os._exit(1)
 
 def skip_write(skipset: set, archive_url: str):
     """
@@ -414,7 +414,6 @@ def skip_close(skipfile: object, skipset: set):
         skipfile.close()
     except Exception as e:
         v.write(f"\n-----> ERROR: could not save skip-file:\n{e}\n")
-        os._exit(1)
     
     
     

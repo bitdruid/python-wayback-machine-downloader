@@ -6,6 +6,7 @@ def parse():
 
     parser = argparse.ArgumentParser(description='Download from wayback machine (archive.org)')
     parser.add_argument('-a', '--about', action='version', version='%(prog)s ' + __version__ + ' by @bitdruid -> https://github.com/bitdruid')
+    parser.add_argument('-d', '--debug', action='store_true', help='Debug mode')
 
     required = parser.add_argument_group('required')
     required.add_argument('-u', '--url', type=str, metavar="", help='URL to use')
