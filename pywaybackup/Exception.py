@@ -5,8 +5,6 @@ from datetime import datetime
 import linecache
 import traceback
 
-from pywaybackup.Verbosity import Verbosity as vb
-
 class Exception:
 
     new_debug = True
@@ -38,7 +36,6 @@ class Exception:
             filename = tb_frame.f_code.co_filename
             codeline = linecache.getline(filename, tb_line).strip()
             exception_message += (
-                f"!-- Command: {cls.command}\n"
                 f"!-- File: {filename}\n"
                 f"!-- Function: {func_name}\n"
                 f"!-- Line: {tb_line}\n"
@@ -49,15 +46,18 @@ class Exception:
         exception_message += (
             f"!-- Description: {e}\n"
             "-------------------------")
-        vb.write(exception_message)
+        print(exception_message)
         if cls.debug:
             debug_file = os.path.join(cls.output, "waybackup_error.log")
-            vb.write(f"Exception log: {debug_file}")
-            vb.write("-------------------------")
-            vb.write(f"Full traceback:\n{original_tb}")
+            print(f"Exception log: {debug_file}")
+            print("-------------------------")
+            print(f"Full traceback:\n{original_tb}")
             if cls.new_debug: # new run, overwrite file
                 cls.new_debug = False
                 f = open(debug_file, "w")
+                f.write("-------------------------\n")
+                f.write(f"Command: {cls.command}\n")
+                f.write("-------------------------\n\n")
             else: # current run, append to file
                 f = open(debug_file, "a")
             f.write(datetime.now().strftime("%Y-%m-%d %H:%M:%S") + "\n")
