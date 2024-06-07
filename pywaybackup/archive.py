@@ -165,6 +165,10 @@ def download_list(output, retry, no_redirect, workers, skipset: set = None):
         thread.start()
     for thread in threads:
         thread.join()
+    successed = len([snapshot for snapshot in sc.SNAPSHOT_COLLECTION if "file" in snapshot and snapshot["file"]])
+    failed = len([snapshot for snapshot in sc.SNAPSHOT_COLLECTION if "file" in snapshot and not snapshot["file"]])
+    v.write(f"\nFiles downloaded: {successed}")
+    v.write(f"Files missing: {failed}\n")
 
 
 

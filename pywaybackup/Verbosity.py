@@ -22,12 +22,6 @@ class Verbosity:
     def close(cls):
         if cls.mode == "progress":
             if cls.pbar is not None: cls.pbar.close()
-        if cls.mode == "progress" or cls.mode == "standard":
-            successed = len([snapshot for snapshot in sc.SNAPSHOT_COLLECTION if "file" in snapshot and snapshot["file"]])
-            failed = len([snapshot for snapshot in sc.SNAPSHOT_COLLECTION if "file" in snapshot and not snapshot["file"]])
-            print(f"\nFiles downloaded: {successed}")
-            print(f"Files missing: {failed}")
-            print("")
         if cls.mode == "json":
             print(json.dumps(sc.SNAPSHOT_COLLECTION, indent=4, sort_keys=True))
 
