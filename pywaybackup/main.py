@@ -16,9 +16,6 @@ def main():
     ex.init(args.debug, args.output, command)
     vb.open(args.verbosity)
 
-    int('a') # test exception
-    exit()
-
     if args.full:
         mode = "full"
     if args.current:

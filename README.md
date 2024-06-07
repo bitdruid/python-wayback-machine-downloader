@@ -58,19 +58,23 @@ Specify the range in years or a specific timestamp either start, end or both. If
    - `--start`: Timestamp to start searching.
    - `--end`: Timestamp to end searching.
 
-#### Additional
+**Additional Options:**
+- `--skip` `<path>`: Path defaults to output-dir. Saves a logfile with successfull downloaded urls. Checks `waybackup_<domain>.skip` for these URLs to skip downloading. If no skipping-file exists, it will be created. Useful for interrupted downloads. Files are checked by their root-domain, ensuring consistency across queries. This means that if you download `http://example.com/subdir1/` and later `http://example.com`, the second query will skip the first path.
+  
+- `--csv` `<path>`: Path defaults to output-dir. Saves a CSV file with the json-response for successfull downloads. If `--list` is set, the CSV contains the CDX list of snapshots. If `--current` or `--full` is set, CSV contains downloaded files. Named as `waybackup_<sanitized_url>.csv`.
+  
+- `--no-redirect`: Disables following redirects of snapshots. Useful for preventing timestamp-folder mismatches caused by Archive.org redirects.
+  
+- `--verbosity <level>`: Sets verbosity level. Options are `json` (prints JSON response) or `progress` (shows progress bar).
+  
+- `--retry <attempts>`: Specifies number of retry attempts for failed downloads.
+  
+- `--workers <count>`: Sets the number of simultaneous download workers. Default is 1, safe range is about 10. Be cautious as too many workers may lead to refused connections from the Wayback Machine.
 
-- `--skip`: Specify a path or defaults to output-dir. Checks the file (`waybackup_<domain>.skip`) and skips the download of containing urls. If there is no skipping-file, it will be created. This is useful for interrupted downloads. Files will be checked by their root-domain. So if you run a query like `example.com/subdir1/subdir2` - keep the logfile and later run a query for `example.com` the same logfile will be used for both queries. The skip will not differ between `--current` and `--full`!
-- `--csv`: Save a csv file with the list of snapshots inside the output folder or a specified folder. If you set `--list` the csv will contain the cdx list of snapshots. If you set either `--current` or `--full` the csv will contain the downloaded files. The csv will be named according to the specific query `waybackup_<url with sanitized characters>.csv`.
-- `--no-redirect`: Do not follow redirects of snapshots. Archive.org sometimes redirects to a different snapshot for several reasons. Downloading redirects may lead to timestamp-folders which contain some files with a different timestamp. This does not matter if you only want to download the latest version (`-c`).
-- `--verbosity`: Set the verbosity: json (print json response), progress (show progress bar).
-- `--retry`: Retry failed downloads. You can specify the number of retry attempts as an integer.
-- `--workers`: The number of workers to use for downloading (simultaneous downloads). Default is 1. A safe spot is about 10 workers. Beware: Using too many workers will lead into refused connections from the Wayback Machine. Duration about 1.5 minutes.
-
-#### CDX query handling
-
-- `--cdxbackup`: Specify a path or defaults to output-dir. The result of the cdx-query will be saved as a file. You can use this file to download the snapshots later. This can be used to overcome refused connections by the cdx server when sending to many queries. The file will be named according to the specific query `waybackup_<url with sanitized characters>.cdx`. This query is a result according to your specified arguments. So keep that in mind if you want to download the snapshots later.
-- `--cdxinject`: Inject a cdx-query file to download the snapshots. As the query was a result of your previously specified arguments, you should inject with the exact same `--url`. Otherwise, the folder structure will not match your previous query.
+**CDX Query Handling:**
+- `--cdxbackup` `<path>`: Path defaults to output-dir. Saves the result of CDX query as a file. Useful for later downloading snapshots and overcoming refused connections by CDX server due to too many queries. Named as `waybackup_<sanitized_url>.cdx`.
+  
+- `--cdxinject` `<filepath>`: Injects a CDX query file to download snapshots. Ensure the query matches the previous `--url` for correct folder structure.
 
 #### Debug
 

@@ -92,10 +92,13 @@ def print_list():
 # timestamp format yyyyMMddhhmmss
 def query_list(url: str, range: int, start: int, end: int, explicit: bool, mode: str, cdxbackup: str, cdxinject: str):
     if cdxinject:
-        vb.write("\nInjecting CDX data...")
-        cdxResult = open(cdxinject, "r")
-        cdxResult = json.loads(cdxResult.read())
-        vb.write(f"\n-----> {len(cdxResult)} snapshots injected")
+        try:
+            vb.write("\nInjecting CDX data...")
+            cdxResult = open(cdxinject, "r")
+            cdxResult = cdxResult.read()
+            vb.write(f"\n-----> {len(cdxResult)} snapshots injected")
+        except FileNotFoundError as e:
+            ex.exception("Could not inject CDX data", e)
     else:
         vb.write("\nQuerying snapshots...")
         query_range = ""
@@ -121,7 +124,7 @@ def query_list(url: str, range: int, start: int, end: int, explicit: bool, mode:
         cdxQuery = f"https://web.archive.org/cdx/search/cdx?output=json&url={cdx_url}{query_range}&fl=timestamp,digest,mimetype,statuscode,original&filter!=statuscode:200"
 
         try:
-            cdxResult = json.loads(requests.get(cdxQuery).text)
+            cdxResult = requests.get(cdxQuery).text
         except requests.exceptions.ConnectionError as e:
             ex.exception("Could not query snapshots", e)
         
@@ -131,6 +134,7 @@ def query_list(url: str, range: int, start: int, end: int, explicit: bool, mode:
                 file.write(cdxResult)
                 vb.write("\n-----> CDX backup generated")
 
+    cdxResult = json.loads(cdxResult)
     sc.create_list(cdxResult, mode)
     vb.write(f"\n-----> {sc.count_list()} snapshots to utilize")
 
@@ -215,8 +219,7 @@ def download(output, snapshot_entry, connection, status_message, no_redirect=Fal
     According to the response status, the function will write a status message to the console and append a failed URL.
     """
     download_url = snapshot_entry["url_archive"]
-    encoded_download_url = urllib.parse.quote(download_url, safe=':/')
-    vb.write(f"Encoded URL: {encoded_download_url}")
+    encoded_download_url = urllib.parse.quote(download_url, safe=':/') # used for GET - otherwise always download_url
     if skipset and skip_read(skipset, download_url):
         vb.write(f"\nSKIPPING -> URL: {download_url}")
         return True
@@ -237,8 +240,10 @@ def download(output, snapshot_entry, connection, status_message, no_redirect=Fal
                         f"REDIRECT   -> HTTP: {response.status} - {response_status_message}\n" + \
                         f"           -> FROM: {download_url}"
                     redirect_count = 0
-                    while response_status == 302 and redirect_count < 10:
+                    while response_status == 302:
                         redirect_count += 1
+                        if redirect_count > 5:
+                            break
                         connection.request("GET", encoded_download_url, headers=headers)
                         response = connection.getresponse()
                         response_data = response.read()
@@ -246,7 +251,7 @@ def download(output, snapshot_entry, connection, status_message, no_redirect=Fal
                         response_status_message = parse_response_code(response_status)
                         location = response.getheader("Location")
                         if location:
-                            download_url = urljoin(download_url, location)
+                            encoded_download_url = urllib.parse.quote(urljoin(download_url, location), safe=':/')
                             status_message = f"{status_message}\n" + \
                                 f"           ->   TO: {download_url}"
                             sc.snapshot_entry_modify(snapshot_entry, "redirect_timestamp", url_get_timestamp(location))
