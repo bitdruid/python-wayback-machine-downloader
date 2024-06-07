@@ -269,7 +269,7 @@ def download(output, snapshot_entry, connection, status_message, no_redirect=Fal
                     os.makedirs(output_path, exist_ok=True)
                 # case if output_file is a directory, create file as index.html in this directory
                 if os.path.isdir(output_file):
-                    output_file = move_index(existfile=output_file)
+                    output_file = move_index(existfile=output_file, filebuffer=response_data)
 
                 # if filename is too long, skip download
                 if len(os.path.basename(output_file)) > 255:
