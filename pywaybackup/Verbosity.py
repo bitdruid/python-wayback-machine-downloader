@@ -15,7 +15,7 @@ class Verbosity:
     command = None
 
     @classmethod
-    def open(cls, v_args: list, debug=False, output=None, command=None):
+    def init(cls, v_args: list, debug=False, output=None, command=None):
         cls.args = v_args
         cls.output = output
         cls.command = command
@@ -28,7 +28,7 @@ class Verbosity:
         cls.debug = True if debug else False
 
     @classmethod
-    def close(cls):
+    def fini(cls):
         if cls.mode == "progress":
             if cls.pbar is not None: cls.pbar.close()
         if cls.mode == "json":
