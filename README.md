@@ -7,7 +7,9 @@
 
 Downloading archived web pages from the [Wayback Machine](https://archive.org/web/).
 
-Internet-archive is a nice source for several OSINT-information. This script is a work in progress to query and fetch archived web pages.
+Internet-archive is a nice source for several OSINT-information. This tool is a work in progress to query and fetch archived web pages.
+
+This tool allows you to download content from the Wayback Machine (archive.org). You can use it to download either the latest version or all versions of web page snapshots within a specified range.
 
 ## Installation
 
@@ -15,7 +17,7 @@ Internet-archive is a nice source for several OSINT-information. This script is 
 
 1. Install the package <br>
    ```pip install pywaybackup```
-2. Run the script <br>
+2. Run the tool <br>
    ```waybackup -h```
 
 ### Manual
@@ -26,30 +28,25 @@ Internet-archive is a nice source for several OSINT-information. This script is 
    ```pip install .```
    - in a virtual env or use `--break-system-package`
 
-## Usage
-
-This script allows you to download content from the Wayback Machine (archive.org). You can use it to download either the latest version or all versions of web page snapshots within a specified range.
-
-### Arguments
+## Arguments
 
 - `-h`, `--help`: Show the help message and exit.
-- `-a`, `--about`: Show information about the script and exit.
+- `-a`, `--about`: Show information about the tool and exit.
 
-#### Required Arguments
+### Required
 
 - `-u`, `--url`: The URL of the web page to download. This argument is required.
 
 #### Mode Selection (Choose One)
-
 - `-c`, `--current`: Download the latest version of each file snapshot. You will get a rebuild of the current website with all available files (but not any original state because new and old versions are mixed).
 - `-f`, `--full`: Download snapshots of all timestamps. You will get a folder per timestamp with the files available at that time.
 - `-s`, `--save`: Save a page to the Wayback Machine. (beta)
 
-#### Optional Arguments
+#### Optional query parameters
 
 - `-l`, `--list`: Only print the snapshots available within the specified range. Does not download the snapshots.
 - `-e`, `--explicit`: Only download the explicit given url. No wildcard subdomains or paths. Use e.g. to get root-only snapshots.
-- `-o`, `--output`: The folder where downloaded files will be saved.
+- `-o`, `--output`: Defaults to `waybackup_snapshots` in the current directory. The folder where downloaded files will be saved.
 
 - **Range Selection:**<br>
 Specify the range in years or a specific timestamp either start, end or both. If you specify the `range` argument, the `start` and `end` arguments will be ignored. Format for timestamps: YYYYMMDDhhmmss. You can only give a year or increase specificity by going through the timestamp starting on the left.<br>
@@ -58,7 +55,7 @@ Specify the range in years or a specific timestamp either start, end or both. If
    - `--start`: Timestamp to start searching.
    - `--end`: Timestamp to end searching.
 
-**Additional Options:**
+#### Additional behavior manipulation
 - `--skip` `<path>`: Path defaults to output-dir. Saves a logfile with successfull downloaded urls. Checks `waybackup_<domain>.skip` for these URLs to skip downloading. If no skipping-file exists, it will be created. Useful for interrupted downloads. Files are checked by their root-domain, ensuring consistency across queries. This means that if you download `http://example.com/subdir1/` and later `http://example.com`, the second query will skip the first path.
   
 - `--csv` `<path>`: Path defaults to output-dir. Saves a CSV file with the json-response for successfull downloads. If `--list` is set, the CSV contains the CDX list of snapshots. If `--current` or `--full` is set, CSV contains downloaded files. Named as `waybackup_<sanitized_url>.csv`.
@@ -183,5 +180,5 @@ The csv contains the json response in a table format.
 
 ## Contributing
 
-I'm always happy for some feature requests to improve the usability of this script.
+I'm always happy for some feature requests to improve the usability of this tool.
 Feel free to give suggestions and report issues. Project is still far from being perfect.
