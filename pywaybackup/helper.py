@@ -1,6 +1,7 @@
 
 import os
 import shutil
+import magic
 
 def sanitize_filename(input: str) -> str:
     """
@@ -45,20 +46,38 @@ def url_split(url, index=False):
     filename = filename.replace("%20", " ")
     return domain, subdir, filename
 
-def move_index(existpath: str = None, existfile: str = None):
+def move_index(existpath: str = None, existfile: str = None, filebuffer: bytes = None):
     """
-    1. If output_path is given but can't be created because a file exists with the same name
+    1. If existpath is given but can't be created because a file exists with the same name
         - moves the existing file to a temporary name
-        - creates the output_path
-        - moves the temporary file to the output_path
+        - creates the existpath
+        - moves the temporary file to the existpath
+        - if existing file is text/html, renames it to index.html, else to basename
 
-    2. If output_file is given but can't be created because a folder exists with the same name
-        - sets output_file path to existing folder + index.html
+    2. If existfile is given but can't be created because a folder exists with the same name
+        - sets existfile path to existing folder + index.html
+        - if the new file is text/html, stores it as index.html, else as basename of target folder
     """
     if existpath:
         shutil.move(existpath, existpath + "_exist")
         os.makedirs(existpath, exist_ok=True)
-        shutil.move(existpath + "_exist", os.path.join(existpath, "index.html"))
+        if not check_index_mime(existpath):
+            new_file = os.path.join(existpath, os.path.basename(os.path.normpath(existpath)))
+        else:
+            new_file = os.path.join(existpath, "index.html")
+        shutil.move(existpath + "_exist", new_file)
     elif existfile:
-        return os.path.join(existfile, "index.html")
+        if filebuffer:
+            if not check_index_mime(filebuffer):
+                return os.path.join(existfile, os.path.basename(os.path.normpath(existfile)))
+            else:
+                return os.path.join(existfile, "index.html")
+    
+def check_index_mime(filebuffer: bytes) -> bool:
+    mime = magic.Magic(mime=True)
+    mime_type = mime.from_buffer(filebuffer)
+    if mime_type != "text/html":
+        return False
+    return True
+
 
