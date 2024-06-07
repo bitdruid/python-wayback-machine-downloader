@@ -13,7 +13,8 @@ from pywaybackup.helper import url_get_timestamp, url_split, move_index, sanitiz
 
 from pywaybackup.SnapshotCollection import SnapshotCollection as sc
 
-from pywaybackup.Verbosity import Verbosity as v
+from pywaybackup.Verbosity import Verbosity as vb
+from pywaybackup.Exception import Exception as ex
 
 
 
@@ -34,40 +35,40 @@ def save_page(url: str):
     Returns:
         None: The function does not return any value. It only prints messages to the console.
     """
-    v.write("\nSaving page to the Wayback Machine...")
+    vb.write("\nSaving page to the Wayback Machine...")
     connection = http.client.HTTPSConnection("web.archive.org")
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'
     }
     connection.request("GET", f"https://web.archive.org/save/{url}", headers=headers)
-    v.write("\n-----> Request sent")
+    vb.write("\n-----> Request sent")
     response = connection.getresponse()
     response_status = response.status
 
     if response_status == 302:
         location = response.getheader("Location")
-        v.write("\n-----> Response: 302 (redirect to snapshot)")
+        vb.write("\n-----> Response: 302 (redirect to snapshot)")
         snapshot_timestamp = datetime.strptime(url_get_timestamp(location), '%Y%m%d%H%M%S').strftime('%Y-%m-%d %H:%M:%S')
         current_timestamp = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
         timestamp_difference = (datetime.strptime(current_timestamp, '%Y-%m-%d %H:%M:%S') - datetime.strptime(snapshot_timestamp, '%Y-%m-%d %H:%M:%S')).seconds / 60
         timestamp_difference = int(round(timestamp_difference, 0))
 
         if timestamp_difference < 1:
-            v.write("\n-----> New snapshot created")
+            vb.write("\n-----> New snapshot created")
         elif timestamp_difference > 1:
-            v.write(f"\n-----> Snapshot already exists. (1 hour limit) - wait for {60 - timestamp_difference} minutes")
-            v.write(f"TIMESTAMP SNAPSHOT: {snapshot_timestamp}")
-            v.write(f"TIMESTAMP REQUEST : {current_timestamp}")
-            v.write(f"\nLAST SNAPSHOT BACK: {timestamp_difference} minutes")
+            vb.write(f"\n-----> Snapshot already exists. (1 hour limit) - wait for {60 - timestamp_difference} minutes")
+            vb.write(f"TIMESTAMP SNAPSHOT: {snapshot_timestamp}")
+            vb.write(f"TIMESTAMP REQUEST : {current_timestamp}")
+            vb.write(f"\nLAST SNAPSHOT BACK: {timestamp_difference} minutes")
 
-        v.write(f"\nURL: {location}")
+        vb.write(f"\nURL: {location}")
 
     elif response_status == 404:
-        v.write("\n-----> Response: 404 (not found)")
-        v.write(f"\nFAILED -> URL: {url}")
+        vb.write("\n-----> Response: 404 (not found)")
+        vb.write(f"\nFAILED -> URL: {url}")
     else:
-        v.write("\n-----> Response: unexpected")
-        v.write(f"\nFAILED -> URL: {url}")
+        vb.write("\n-----> Response: unexpected")
+        vb.write(f"\nFAILED -> URL: {url}")
 
     connection.close()
 
@@ -75,13 +76,13 @@ def save_page(url: str):
 
 
 def print_list():
-    v.write("")
+    vb.write("")
     count = sc.count_list()
     if count == 0:
-        v.write("\nNo snapshots found")
+        vb.write("\nNo snapshots found")
     else:
         __import__('pprint').pprint(sc.SNAPSHOT_COLLECTION)
-        v.write(f"\n-----> {count} snapshots listed")
+        vb.write(f"\n-----> {count} snapshots listed")
 
 
 
@@ -91,12 +92,12 @@ def print_list():
 # timestamp format yyyyMMddhhmmss
 def query_list(url: str, range: int, start: int, end: int, explicit: bool, mode: str, cdxbackup: str, cdxinject: str):
     if cdxinject:
-        v.write("\nInjecting CDX data...")
+        vb.write("\nInjecting CDX data...")
         cdxResult = open(cdxinject, "r")
         cdxResult = json.loads(cdxResult.read())
-        v.write(f"\n-----> {len(cdxResult)} snapshots injected")
+        vb.write(f"\n-----> {len(cdxResult)} snapshots injected")
     else:
-        v.write("\nQuerying snapshots...")
+        vb.write("\nQuerying snapshots...")
         query_range = ""
         
         if not range:
@@ -116,22 +117,22 @@ def query_list(url: str, range: int, start: int, end: int, explicit: bool, mode:
         if domain and not subdir and filename:
             cdx_url = f"{domain}/{filename}/*"
 
-        v.write(f"---> {cdx_url}")
+        vb.write(f"---> {cdx_url}")
         cdxQuery = f"https://web.archive.org/cdx/search/cdx?output=json&url={cdx_url}{query_range}&fl=timestamp,digest,mimetype,statuscode,original&filter!=statuscode:200"
 
         try:
             cdxResult = json.loads(requests.get(cdxQuery).text)
         except requests.exceptions.ConnectionError as e:
-            v.write(f"\n-----> ERROR: could not query snapshots:\n{e}\n")
+            ex.exception("Could not query snapshots", e)
         
         if cdxbackup:
             os.makedirs(cdxbackup, exist_ok=True)
             with open(os.path.join(cdxbackup, f"waybackup_{sanitize_filename(url)}.cdx"), "w") as file: 
                 file.write(cdxResult)
-                v.write("\n-----> CDX backup generated")
+                vb.write("\n-----> CDX backup generated")
 
     sc.create_list(cdxResult, mode)
-    v.write(f"\n-----> {sc.count_list()} snapshots to utilize")
+    vb.write(f"\n-----> {sc.count_list()} snapshots to utilize")
 
 
 
@@ -144,22 +145,22 @@ def download_list(output, retry, no_redirect, workers, skipset: set = None):
     Download a list of urls in format: [{"timestamp": "20190815104545", "url": "https://www.google.com/"}]
     """
     if sc.count_list() == 0: 
-        v.write("\nNothing to download");
+        vb.write("\nNothing to download");
         return
-    v.write("\nDownloading snapshots...", progress=0)
+    vb.write("\nDownloading snapshots...", progress=0)
     if workers > 1:
-        v.write(f"\n-----> Simultaneous downloads: {workers}")
+        vb.write(f"\n-----> Simultaneous downloads: {workers}")
         batch_size = sc.count_list() // workers + 1
     else:
         batch_size = sc.count_list()
     sc.create_collection()
-    v.write("\n-----> Snapshots prepared")
+    vb.write("\n-----> Snapshots prepared")
     batch_list = [sc.SNAPSHOT_COLLECTION[i:i + batch_size] for i in range(0, len(sc.SNAPSHOT_COLLECTION), batch_size)]    
     threads = []
     worker = 0
     for batch in batch_list:
         worker += 1
-        v.write(f"\n-----> Starting worker: {worker}")
+        vb.write(f"\n-----> Starting worker: {worker}")
         thread = threading.Thread(target=download_loop, args=(batch, output, worker, retry, no_redirect, skipset))
         threads.append(thread)
         thread.start()
@@ -167,8 +168,8 @@ def download_list(output, retry, no_redirect, workers, skipset: set = None):
         thread.join()
     successed = len([snapshot for snapshot in sc.SNAPSHOT_COLLECTION if "file" in snapshot and snapshot["file"]])
     failed = len([snapshot for snapshot in sc.SNAPSHOT_COLLECTION if "file" in snapshot and not snapshot["file"]])
-    v.write(f"\nFiles downloaded: {successed}")
-    v.write(f"Files missing: {failed}\n")
+    vb.write(f"\nFiles downloaded: {successed}")
+    vb.write(f"Files missing: {failed}\n")
 
 
 
@@ -186,7 +187,7 @@ def download_loop(snapshot_batch, output, worker, retry, no_redirect, skipset=No
         connection = http.client.HTTPSConnection("web.archive.org")
     if attempt > max_attempt:
         connection.close()
-        v.write(f"\n-----> Worker: {worker} - Failed downloads: {len(snapshot_batch)}")
+        vb.write(f"\n-----> Worker: {worker} - Failed downloads: {len(snapshot_batch)}")
         return
     for snapshot in snapshot_batch:
         status = f"\n-----> Attempt: [{attempt}/{max_attempt}] Snapshot [{snapshot_batch.index(snapshot)+1}/{len(snapshot_batch)}] - Worker: {worker}"
@@ -194,11 +195,11 @@ def download_loop(snapshot_batch, output, worker, retry, no_redirect, skipset=No
         if not download_status:
             failed_urls.append(snapshot)
         if download_status:
-            v.write(progress=1)
+            vb.write(progress=1)
     attempt += 1
     if failed_urls:
         if not attempt > max_attempt: 
-            v.write(f"\n-----> Worker: {worker} - Retry Timeout: 15 seconds")
+            vb.write(f"\n-----> Worker: {worker} - Retry Timeout: 15 seconds")
             time.sleep(15)
         download_loop(failed_urls, output, worker, retry, no_redirect, skipset, attempt, connection)            
 
@@ -215,9 +216,9 @@ def download(output, snapshot_entry, connection, status_message, no_redirect=Fal
     """
     download_url = snapshot_entry["url_archive"]
     encoded_download_url = urllib.parse.quote(download_url, safe=':/')
-    v.write(f"Encoded URL: {encoded_download_url}")
+    vb.write(f"Encoded URL: {encoded_download_url}")
     if skipset and skip_read(skipset, download_url):
-        v.write(f"\nSKIPPING -> URL: {download_url}")
+        vb.write(f"\nSKIPPING -> URL: {download_url}")
         return True
     max_retries = 2
     sleep_time = 45
@@ -270,7 +271,7 @@ def download(output, snapshot_entry, connection, status_message, no_redirect=Fal
                     status_message = f"{status_message}\n" + \
                         f"FILENAME TOO LONG -> HTTP: {response_status} - {response_status_message}\n" + \
                         f"                  -> URL: {download_url}"
-                    v.write(status_message)
+                    vb.write(status_message)
                     skip_write(skipset, snapshot_entry["url_archive"]) if skipset is not None else None
                     return True
 
@@ -290,7 +291,7 @@ def download(output, snapshot_entry, connection, status_message, no_redirect=Fal
                 status_message = f"{status_message}\n" + \
                     f"           -> URL: {download_url}\n" + \
                     f"           -> FILE: {output_file}"
-                v.write(status_message)
+                vb.write(status_message)
                 sc.snapshot_entry_modify(snapshot_entry, "file", output_file)
                 skip_write(skipset, snapshot_entry["url_archive"]) if skipset is not None else None
                 return True
@@ -299,30 +300,30 @@ def download(output, snapshot_entry, connection, status_message, no_redirect=Fal
                 status_message = f"{status_message}\n" + \
                     f"UNEXPECTED -> HTTP: {response_status} - {response_status_message}\n" + \
                     f"           -> URL: {download_url}"
-                v.write(status_message)
+                vb.write(status_message)
                 return True
         # exception returns false and appends the url to the failed list
         except http.client.HTTPException as e:
             status_message = f"{status_message}\n" + \
                 f"EXCEPTION -> ({i+1}/{max_retries}), append to failed_urls: {download_url}\n" + \
                 f"          -> {e}"
-            v.write(status_message)
+            vb.write(status_message)
             return False
         # connection timeout waits and retries
         except requests.exceptions.Timeout as e:
             status_message = f"{status_message}\n" + \
                 f"TIMEOUT   -> ({i+1}/{max_retries}), reconnect in {sleep_time} seconds...\n" + \
                 f"         -> {e}"
-            v.write(status_message)
+            vb.write(status_message)
             time.sleep(sleep_time)
         # connection refused waits and retries
         except ConnectionRefusedError as e:
             status_message = f"{status_message}\n" + \
                 f"REFUSED  -> ({i+1}/{max_retries}), reconnect in {sleep_time} seconds...\n" + \
                 f"         -> {e}"
-            v.write(status_message)
+            vb.write(status_message)
             time.sleep(sleep_time)
-    v.write(f"FAILED  -> download, append to failed_urls: {download_url}")
+    vb.write(f"FAILED  -> download, append to failed_urls: {download_url}")
     return False
 
 RESPONSE_CODE_DICT = {
@@ -363,7 +364,7 @@ def csv_close(csv_path: str, url: str):
                 for snapshot in sc.SNAPSHOT_COLLECTION:
                     row.writerow(snapshot)
     except Exception as e:
-        v.write(f"\n-----> ERROR: could not save CSV-file:\n{e}\n")
+        ex.exception("Could not save CSV-file", e)
 
 
 
@@ -393,7 +394,7 @@ def skip_open(skipfile_path: str, url: str) -> tuple:
             skipset = set()
             return skipfile, skipset
     except Exception as e:
-        v.write(f"\n-----> ERROR: could not open skip-file:\n{e}\n")
+        ex.exception("Could not open skip-file", e)
 
 def skip_write(skipset: set, archive_url: str):
     """
@@ -417,7 +418,7 @@ def skip_close(skipfile: object, skipset: set):
         skipfile.write('\n'.join(skipset))
         skipfile.close()
     except Exception as e:
-        v.write(f"\n-----> ERROR: could not save skip-file:\n{e}\n")
+        ex.exception("Could not save skip-file", e)
     
     
     

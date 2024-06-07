@@ -38,5 +38,6 @@ def parse():
     exclusive_cdx.add_argument('--cdxinject', type=str, nargs='?', const=True, metavar='path', help='Inject a cdx query-result as file to download according to the given url')
 
     args = parser.parse_args(args=None if sys.argv[1:] else ['--help']) # if no arguments are given, print help
+    command = ' '.join(sys.argv[1:])
 
-    return args
+    return args, command

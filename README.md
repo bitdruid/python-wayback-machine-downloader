@@ -72,6 +72,10 @@ Specify the range in years or a specific timestamp either start, end or both. If
 - `--cdxbackup`: Specify a path or defaults to output-dir. The result of the cdx-query will be saved as a file. You can use this file to download the snapshots later. This can be used to overcome refused connections by the cdx server when sending to many queries. The file will be named according to the specific query `waybackup_<url with sanitized characters>.cdx`. This query is a result according to your specified arguments. So keep that in mind if you want to download the snapshots later.
 - `--cdxinject`: Inject a cdx-query file to download the snapshots. As the query was a result of your previously specified arguments, you should inject with the exact same `--url`. Otherwise, the folder structure will not match your previous query.
 
+#### Debug
+
+- `--debug`: If set, full traceback will be printed in case of an error. The full exception will be written into `waybackup_error.log`.
+
 ### Examples
 
 Download latest snapshot of all files:<br>

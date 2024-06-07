@@ -2,21 +2,30 @@ import tqdm
 import json
 from pywaybackup.SnapshotCollection import SnapshotCollection as sc
 
+
 class Verbosity:
 
     mode = None
     args = None
     pbar = None
 
+    new_debug = True
+    debug = False
+    output = None
+    command = None
+
     @classmethod
-    def open(cls, args: list):
-        cls.args = args
+    def open(cls, v_args: list, debug=False, output=None, command=None):
+        cls.args = v_args
+        cls.output = output
+        cls.command = command
         if cls.args == "progress":
             cls.mode = "progress"
         elif cls.args == "json":
             cls.mode = "json"
         else:
             cls.mode = "standard"
+        cls.debug = True if debug else False
 
     @classmethod
     def close(cls):
