@@ -1,20 +1,25 @@
-import pywaybackup.archive as archive
 import os
 
+import pywaybackup.archive as archive
+
 from pywaybackup.arguments import parse
-from pywaybackup.Verbosity import Verbosity as v
+from pywaybackup.Verbosity import Verbosity as vb
+from pywaybackup.Exception import Exception as ex
 
 def main():
-    args = parse()
-    v.open(args.verbosity)        
+    args, command = parse()
+
+    if args.output is None:
+        args.output = os.path.join(os.getcwd(), "waybackup_snapshots")
+        os.makedirs(args.output, exist_ok=True)
+
+    ex.init(args.debug, args.output, command)
+    vb.init(args.verbosity)
 
     if args.full:
         mode = "full"
     if args.current:
         mode = "current"
-
-    if args.output is None:
-        args.output = os.path.join(os.getcwd(), "waybackup_snapshots")
 
     if args.skip is True:
         args.skip = args.output
@@ -38,7 +43,7 @@ def main():
         finally:
             archive.skip_close(skipfile, skipset) if args.skip else None
             archive.csv_close(args.csv, args.url) if args.csv else None
-    v.close()
+    vb.fini()
 
 if __name__ == "__main__":
     main()

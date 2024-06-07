@@ -2,32 +2,35 @@ import tqdm
 import json
 from pywaybackup.SnapshotCollection import SnapshotCollection as sc
 
+
 class Verbosity:
 
     mode = None
     args = None
     pbar = None
 
+    new_debug = True
+    debug = False
+    output = None
+    command = None
+
     @classmethod
-    def open(cls, args: list):
-        cls.args = args
+    def init(cls, v_args: list, debug=False, output=None, command=None):
+        cls.args = v_args
+        cls.output = output
+        cls.command = command
         if cls.args == "progress":
             cls.mode = "progress"
         elif cls.args == "json":
             cls.mode = "json"
         else:
             cls.mode = "standard"
+        cls.debug = True if debug else False
 
     @classmethod
-    def close(cls):
+    def fini(cls):
         if cls.mode == "progress":
             if cls.pbar is not None: cls.pbar.close()
-        if cls.mode == "progress" or cls.mode == "standard":
-            successed = len([snapshot for snapshot in sc.SNAPSHOT_COLLECTION if "file" in snapshot and snapshot["file"]])
-            failed = len([snapshot for snapshot in sc.SNAPSHOT_COLLECTION if "file" in snapshot and not snapshot["file"]])
-            print(f"\nFiles downloaded: {successed}")
-            print(f"Files missing: {failed}")
-            print("")
         if cls.mode == "json":
             print(json.dumps(sc.SNAPSHOT_COLLECTION, indent=4, sort_keys=True))
 
