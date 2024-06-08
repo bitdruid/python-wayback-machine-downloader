@@ -1,4 +1,4 @@
-# archive wayback downloader
+# python wayback machine downloader
 
 [![PyPI](https://img.shields.io/pypi/v/pywaybackup)](https://pypi.org/project/pywaybackup/)
 [![PyPI - Downloads](https://img.shields.io/pypi/dm/pywaybackup)](https://pypi.org/project/pywaybackup/)
@@ -7,7 +7,9 @@
 
 Downloading archived web pages from the [Wayback Machine](https://archive.org/web/).
 
-Internet-archive is a nice source for several OSINT-information. This script is a work in progress to query and fetch archived web pages.
+Internet-archive is a nice source for several OSINT-information. This tool is a work in progress to query and fetch archived web pages.
+
+This tool allows you to download content from the Wayback Machine (archive.org). You can use it to download either the latest version or all versions of web page snapshots within a specified range.
 
 ## Installation
 
@@ -15,7 +17,7 @@ Internet-archive is a nice source for several OSINT-information. This script is 
 
 1. Install the package <br>
    ```pip install pywaybackup```
-2. Run the script <br>
+2. Run the tool <br>
    ```waybackup -h```
 
 ### Manual
@@ -26,30 +28,25 @@ Internet-archive is a nice source for several OSINT-information. This script is 
    ```pip install .```
    - in a virtual env or use `--break-system-package`
 
-## Usage
-
-This script allows you to download content from the Wayback Machine (archive.org). You can use it to download either the latest version or all versions of web page snapshots within a specified range.
-
-### Arguments
+## Arguments
 
 - `-h`, `--help`: Show the help message and exit.
-- `-a`, `--about`: Show information about the script and exit.
+- `-a`, `--about`: Show information about the tool and exit.
 
-#### Required Arguments
+### Required
 
 - `-u`, `--url`: The URL of the web page to download. This argument is required.
 
 #### Mode Selection (Choose One)
-
 - `-c`, `--current`: Download the latest version of each file snapshot. You will get a rebuild of the current website with all available files (but not any original state because new and old versions are mixed).
 - `-f`, `--full`: Download snapshots of all timestamps. You will get a folder per timestamp with the files available at that time.
 - `-s`, `--save`: Save a page to the Wayback Machine. (beta)
 
-#### Optional Arguments
+### Optional query parameters
 
 - `-l`, `--list`: Only print the snapshots available within the specified range. Does not download the snapshots.
 - `-e`, `--explicit`: Only download the explicit given url. No wildcard subdomains or paths. Use e.g. to get root-only snapshots.
-- `-o`, `--output`: The folder where downloaded files will be saved.
+- `-o`, `--output`: Defaults to `waybackup_snapshots` in the current directory. The folder where downloaded files will be saved.
 
 - **Range Selection:**<br>
 Specify the range in years or a specific timestamp either start, end or both. If you specify the `range` argument, the `start` and `end` arguments will be ignored. Format for timestamps: YYYYMMDDhhmmss. You can only give a year or increase specificity by going through the timestamp starting on the left.<br>
@@ -58,13 +55,36 @@ Specify the range in years or a specific timestamp either start, end or both. If
    - `--start`: Timestamp to start searching.
    - `--end`: Timestamp to end searching.
 
-#### Additional
+### Additional behavior manipulation
+  
+- **`--csv`** `<path>`:<br>
+Path defaults to output-dir. Saves a CSV file with the json-response for successfull downloads. If `--list` is set, the CSV contains the CDX list of snapshots. If `--current` or `--full` is set, CSV contains downloaded files. Named as `waybackup_<sanitized_url>.csv`.
 
-- `--csv`: Save a csv file with the list of snapshots inside the output folder or a specified folder. If you set `--list` the csv will contain the cdx list of snapshots. If you set either `--current` or `--full` the csv will contain the downloaded files.
-- `--no-redirect`: Do not follow redirects of snapshots. Archive.org sometimes redirects to a different snapshot for several reasons. Downloading redirects may lead to timestamp-folders which contain some files with a different timestamp. This does not matter if you only want to download the latest version (`-c`).
-- `--verbosity`: Set the verbosity: json (print json response), progress (show progress bar).
-- `--retry`: Retry failed downloads. You can specify the number of retry attempts as an integer.
-- `--workers`: The number of workers to use for downloading (simultaneous downloads). Default is 1. A safe spot is about 10 workers. Beware: Using too many workers will lead into refused connections from the Wayback Machine. Duration about 1.5 minutes.
+- **`--skip`** `<path>`:<br>
+Path defaults to output-dir. Checks for an existing `waybackup_<domain>.csv` for URLs to skip downloading. Useful for interrupted downloads. Files are checked by their root-domain, ensuring consistency across queries. This means that if you download `http://example.com/subdir1/` and later `http://example.com`, the second query will skip the first path.
+  
+- **`--no-redirect`**:<br>
+Disables following redirects of snapshots. Useful for preventing timestamp-folder mismatches caused by Archive.org redirects.
+  
+- **`--verbosity`** `<level>`:<br>
+Sets verbosity level. Options are `json` (prints JSON response) or `progress` (shows progress bar).
+  
+- **`--retry`** `<attempts>`:<br>
+Specifies number of retry attempts for failed downloads.
+  
+- **`--workers`** `<count>`:<br>
+Sets the number of simultaneous download workers. Default is 1, safe range is about 10. Be cautious as too many workers may lead to refused connections from the Wayback Machine.
+
+**CDX Query Handling:**
+- **`--cdxbackup`** `<path>`:<br>
+Path defaults to output-dir. Saves the result of CDX query as a file. Useful for later downloading snapshots and overcoming refused connections by CDX server due to too many queries. Named as `waybackup_<sanitized_url>.cdx`.
+  
+- **`--cdxinject`** `<filepath>`:<br>
+Injects a CDX query file to download snapshots. Ensure the query matches the previous `--url` for correct folder structure.
+
+### Debug
+
+- `--debug`: If set, full traceback will be printed in case of an error. The full exception will be written into `waybackup_error.log`.
 
 ### Examples
 
@@ -169,5 +189,5 @@ The csv contains the json response in a table format.
 
 ## Contributing
 
-I'm always happy for some feature requests to improve the usability of this script.
+I'm always happy for some feature requests to improve the usability of this tool.
 Feel free to give suggestions and report issues. Project is still far from being perfect.
