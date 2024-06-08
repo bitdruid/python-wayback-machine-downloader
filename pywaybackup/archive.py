@@ -1,7 +1,9 @@
 import requests
 import os
 import gzip
+import csv
 import threading
+import queue
 import time
 import json
 import urllib.parse
@@ -153,27 +155,30 @@ def download_list(output, retry, no_redirect, workers, skipset: set = None, skip
         vb.write("\nNothing to download");
         return
     vb.write("\nDownloading snapshots...", progress=0)
+    if workers > 1:
+        vb.write(f"\n-----> Simultaneous downloads: {workers}")
+
     sc.create_collection()
     vb.write("\n-----> Snapshots prepared")
-    fifo_queue = queue.Queue()
+
+    # create queue with snapshots and skip already downloaded urls
+    snapshot_queue = queue.Queue()
+    skip_count = 0
+    for snapshot in sc.SNAPSHOT_COLLECTION:
+        if skipset is not None and skip_read(skipset, snapshot["url_archive"]):
+            skip_count += 1
+            continue
+        snapshot_queue.put(snapshot)
+    vb.write(progress=skip_count)
+    if skip_count > 0:
+        vb.write(f"\n-----> Skipped snapshots: {skip_count}")
+
     threads = []
     worker = 0
-
-    skipped = 0;
-    # Allows for quick skipping of files marked as skipped or downloaded as soon as possible.
-    for snapshot in sc.SNAPSHOT_COLLECTION:
-        download_url = snapshot["url_archive"]
-        if should_skip(snapshot, skipset, output):
-            skip_write(skipset, download_url)
-            skipped+=1
-        else:
-            fifo_queue.put(snapshot)
-    print(f"Skipped {skipped} urls from skipset")
-    vb.write(progress=skipped)
-    for i in range(workers):
+    for worker in range(workers):
         worker += 1
         vb.write(f"\n-----> Starting worker: {worker}")
-        thread = threading.Thread(target=download_loop, args=(fifo_queue, output, worker, retry, no_redirect, skipset, skipfile))
+        thread = threading.Thread(target=download_loop, args=(snapshot_queue, output, worker, retry, no_redirect, skipset))
         threads.append(thread)
         thread.start()
     for thread in threads:
@@ -183,52 +188,45 @@ def download_list(output, retry, no_redirect, workers, skipset: set = None, skip
     vb.write(f"\nFiles downloaded: {successed}")
     vb.write(f"Files missing: {failed}\n")
 
-def should_skip(snapshot, skipset, output):
-    if(snapshot["url_archive"] in skipset):
-        return True
-    output_file = sc.create_output(snapshot["url_archive"], snapshot["timestamp"], output)
-    if os.path.isfile(output_file):
-        return True
-    return False
 
-def download_loop(queue, output, worker, retry, no_redirect, skipset=None, skipfile=None, attempt=1, connection=None):
+
+
+
+def download_loop(snapshot_queue, output, worker, retry, no_redirect, skipset=None, attempt=1, connection=None, failed_urls=[]):
     """
-    Download a list of URLs in a recursive loop. If a download fails, the function will retry the download.
+    Download a snapshot of the queue. If a download fails, the function will retry the download.
     The "snapshot_collection" dictionary will be updated with the download status and file information.
     Information for each entry is written by "create_entry" and "snapshot_dict_append" functions.
     """
-    max_attempt = retry if retry > 0 else retry + 1
-    failed_urls = []
-    if not connection:
-        connection = http.client.HTTPSConnection("web.archive.org")
     try:
+        max_attempt = retry if retry > 0 else retry + 1
+        if not connection:
+            connection = http.client.HTTPSConnection("web.archive.org")
         if attempt > max_attempt:
             connection.close()
+            vb.write(f"\n-----> Worker: {worker} - Failed downloads: {len(failed_urls)}")
             return
-    except:
-        print()
-    count = 0
+        while not snapshot_queue.empty():
+            snapshot = snapshot_queue.get()
+            status = f"\n-----> Attempt: [{attempt}/{max_attempt}] Snapshot [{sc.SNAPSHOT_COLLECTION.index(snapshot)+1}/{len(sc.SNAPSHOT_COLLECTION)}] - Worker: {worker}"
+            download_status = download(output, snapshot, connection, status, no_redirect, skipset)
+            if not download_status:
+                if snapshot not in failed_urls:
+                    failed_urls.append(snapshot)
+            if download_status:
+                if snapshot in failed_urls:
+                    failed_urls.remove(snapshot)
+                vb.write(progress=1)
+        if failed_urls:
+            if not attempt > max_attempt: 
+                vb.write(f"\n-----> Worker: {worker} - Retry Timeout: 15 seconds")
+                time.sleep(15)
+            download_loop(failed_urls, output, worker, retry, no_redirect, skipset, attempt, connection, failed_urls)
+    except Exception as e:
+        ex.exception(f"Worker: {worker} - Exception", e)
 
-    status = ""
-    # Use queue refactoring to avoid the problem that some snapshots are no longer processed when a particular worker crashes
-    while True:
-        snapshot = queue.get()
-        if snapshot is None:
-            break
-        download_status = download(output, snapshot, connection, status, no_redirect, skipset)
-        count += 1
-        if queue.qsize() % 300 == 0:
-            skip_save(skipfile, skipset) # Save in period to avoid loss progress when progeam stucked
-        if not download_status:
-            failed_urls.append(snapshot)
-        if download_status:
-            vb.write(progress=1)
-    attempt += 1
-    if failed_urls:
-        if not attempt > max_attempt: 
-            vb.write(f"\n-----> Worker: {worker} - Retry Timeout: 15 seconds")
-            time.sleep(15)
-        download_loop(failed_urls, output, worker, retry, no_redirect, skipset, attempt, connection)   
+
+
 
 
 def download(output, snapshot_entry, connection, status_message, no_redirect=False, skipset=None):
@@ -240,7 +238,6 @@ def download(output, snapshot_entry, connection, status_message, no_redirect=Fal
     """
     download_url = snapshot_entry["url_archive"]
     encoded_download_url = urllib.parse.quote(download_url, safe=':/') # used for GET - otherwise always download_url
-    # Removed this part of the check as it was already done at the very beginning
     max_retries = 2
     sleep_time = 45
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'}
@@ -295,7 +292,7 @@ def download(output, snapshot_entry, connection, status_message, no_redirect=Fal
                         f"FILENAME TOO LONG -> HTTP: {response_status} - {response_status_message}\n" + \
                         f"                  -> URL: {download_url}"
                     vb.write(status_message)
-                    skip_write(skipset, snapshot_entry["url_archive"]) if skipset is not None else None
+                    #skip_write(skipset, snapshot_entry["url_archive"]) if skipset is not None else None
                     return True
 
                 if not os.path.isfile(output_file):
@@ -316,7 +313,7 @@ def download(output, snapshot_entry, connection, status_message, no_redirect=Fal
                     f"           -> FILE: {output_file}"
                 vb.write(status_message)
                 sc.snapshot_entry_modify(snapshot_entry, "file", output_file)
-                skip_write(skipset, snapshot_entry["url_archive"]) if skipset is not None else None
+                #skip_write(skipset, snapshot_entry["url_archive"], output_file) if skipset is not None else None
                 return True
             
             else:
@@ -364,85 +361,71 @@ def parse_response_code(response_code: int):
 
 def csv_close(csv_path: str, url: str):
     """
-    Write a CSV file with the list of snapshots.
+    Write a CSV file with the list of snapshots. Append new snapshots to the existing file.
     """
     try:
-        import csv
-        url = sanitize_filename(url)
+        csv_path = csv_filepath(csv_path, url)
         if sc.count_list() > 0:
-            os.makedirs(os.path.abspath(csv_path), exist_ok=True)
-            with open(os.path.join(csv_path, f"waybackup_{url}.csv"), mode='w') as file:
-                row = csv.DictWriter(file, sc.SNAPSHOT_COLLECTION[0].keys())
-                row.writeheader()
-                for snapshot in sc.SNAPSHOT_COLLECTION:
-                    row.writerow(snapshot)
+            if os.path.exists(csv_path): # append to existing file
+                existing_rows = set()
+                with open(csv_path, mode='r') as file: # read existing rows
+                    existing_rows = set(csv_read(file))
+                with open(csv_path, mode='a') as file: # append new rows
+                    row = csv.DictWriter(file, sc.SNAPSHOT_COLLECTION[0].keys())
+                    for snapshot in sc.SNAPSHOT_COLLECTION:
+                        if snapshot["url_archive"] not in existing_rows:
+                            row.writerow(snapshot)
+            else: # create new file
+                with open(csv_path, mode='w') as file:
+                    row = csv.DictWriter(file, sc.SNAPSHOT_COLLECTION[0].keys())
+                    row.writeheader()
+                    for snapshot in sc.SNAPSHOT_COLLECTION:
+                        row.writerow(snapshot)
     except Exception as e:
         ex.exception("Could not save CSV-file", e)
 
-
-
-
-
-def skip_open(skipfile_path: str, url: str) -> tuple:
+def csv_read(csv_file: object) -> list:
     """
-    Opens an existing skip file or creates a new one.
-
-    Args:
-        skipset_path (str): The path to the skip-file.
-        url (str): The URL of the webpage to be saved.
-
-    Returns:
-        tuple: A tuple containing the skip file object and the skip set.
+    Read the CSV file and return a list of existing snapshot urls.
     """
     try:
-        domain, subdir, filename = url_split(url)
-        os.makedirs(os.path.abspath(skipfile_path), exist_ok=True)
-        skipfile_path = os.path.join(skipfile_path, f"waybackup_{domain}.skip")
-        if os.path.exists(skipfile_path):
-            skipfile = open(skipfile_path, mode='r+')
-            skipset = set(skipfile.read().splitlines())
-            return skipfile, skipset        
-        else:
-            skipfile = open(skipfile_path, mode='w')
-            skipset = set()
-            return skipfile, skipset
+        csv_reader = csv.reader(csv_file)
+        next(csv_reader)  # Skip the header row
+        return [row[2] for row in csv_reader]
     except Exception as e:
-        ex.exception("Could not open skip-file", e)
+        ex.exception("Could not read CSV-file", e)
 
-def skip_write(skipset: set, archive_url: str):
+def csv_filepath(csv_path: str, url: str) -> str:
     """
-    Write a successed download to the set.
+    Return the path to the CSV file.
     """
-    skipset.add(archive_url)
+    return os.path.join(csv_path, f"waybackup_{sanitize_filename(url)}.csv")
+
+
+
+
+
+def skip_open(csv_path: str, url: str) -> tuple:
+    """
+    Open the CSV file and return a set of existing snapshot urls.
+    """
+    try:
+        csv_path = csv_filepath(csv_path, url)
+        if os.path.exists(csv_path) and os.path.getsize(csv_path) > 0:
+            csv_file = open(csv_path, mode='r')
+            skipset = set(csv_read(csv_file))
+            return skipset
+        else:
+            return None
+    except Exception as e:
+        ex.exception("Could not open CSV-file", e)
 
 def skip_read(skipset: set, archive_url: str) -> bool:
     """
     Check if the URL is already downloaded and contained in the set.
     """
+    # print the whole set
     return archive_url in skipset
-
-def skip_save(skipfile: object, skipset: set):
-    """
-    Overwrite existing skip file with the new set content.
-    """
-    try:
-        skipfile.seek(0)
-        skipfile.truncate()
-        skipfile.write('\n'.join(skipset))
-    except Exception as e:
-        ex.exception("Could not save skip-file", e)
-
-def skip_close(skipfile: object, skipset: set):
-    """
-    Overwrite existing skip file with the new set content.
-    """
-    try:
-        skipfile.seek(0)
-        skipfile.truncate()
-        skipfile.write('\n'.join(skipset))
-        skipfile.close()
-    except Exception as e:
-        ex.exception("Could not save skip-file", e)
     
     
     

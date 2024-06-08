@@ -37,11 +37,10 @@ class Verbosity:
     @classmethod
     def write(cls, message: str = None, progress: int = None):
         if cls.mode == "progress":
-            if progress == 0:
-                print("")
+            if cls.pbar is None and progress == 0:
                 maxval = sc.count_list()
                 cls.pbar = tqdm.tqdm(total=maxval, desc="Downloading", unit=" snapshot", ascii="░▒█")
-            elif cls.pbar is not None and progress is not None and progress >= 1:# Allow fast forwarding of the progress bar by a specified length
+            if cls.pbar is not None and progress is not None and progress > 0 :
                 cls.pbar.update(progress)
                 cls.pbar.refresh()
         elif cls.mode == "json":

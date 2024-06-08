@@ -24,8 +24,8 @@ def parse():
     optional.add_argument('--end', type=int, metavar="", help='end timestamp format: YYYYMMDDhhmmss')
 
     special = parser.add_argument_group('manipulate behavior')
-    special.add_argument('--skip', type=str, nargs='?', const=True, metavar='path', help='skips existing files in the output folder by checking the .skip file - defaults to output folder')
     special.add_argument('--csv', type=str, nargs='?', const=True, metavar='path', help='save a csv file with the json output - defaults to output folder')
+    special.add_argument('--skip', type=str, nargs='?', const=True, metavar='path', help='skips existing files in the output folder by checking the .csv file - defaults to output folder')
     special.add_argument('--no-redirect', action='store_true', help='do not follow redirects by archive.org')
     special.add_argument('--verbosity', type=str, default="standard", metavar="", help='["progress", "json"] Verbosity level')
     special.add_argument('--retry', type=int, default=0, metavar="", help='retry failed downloads (opt tries as int, else infinite)')
