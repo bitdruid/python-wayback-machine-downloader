@@ -56,11 +56,12 @@ Specify the range in years or a specific timestamp either start, end or both. If
    - `--end`: Timestamp to end searching.
 
 ### Additional behavior manipulation
-- **`--skip`** `<path>`:<br>
-Path defaults to output-dir. Saves a logfile with successfull downloaded urls. Checks `waybackup_<domain>.skip` for these URLs to skip downloading. If no skipping-file exists, it will be created. Useful for interrupted downloads. Files are checked by their root-domain, ensuring consistency across queries. This means that if you download `http://example.com/subdir1/` and later `http://example.com`, the second query will skip the first path.
   
 - **`--csv`** `<path>`:<br>
 Path defaults to output-dir. Saves a CSV file with the json-response for successfull downloads. If `--list` is set, the CSV contains the CDX list of snapshots. If `--current` or `--full` is set, CSV contains downloaded files. Named as `waybackup_<sanitized_url>.csv`.
+
+- **`--skip`** `<path>`:<br>
+Path defaults to output-dir. Checks for an existing `waybackup_<domain>.csv` for URLs to skip downloading. Useful for interrupted downloads. Files are checked by their root-domain, ensuring consistency across queries. This means that if you download `http://example.com/subdir1/` and later `http://example.com`, the second query will skip the first path.
   
 - **`--no-redirect`**:<br>
 Disables following redirects of snapshots. Useful for preventing timestamp-folder mismatches caused by Archive.org redirects.

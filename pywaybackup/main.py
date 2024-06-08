@@ -36,7 +36,7 @@ def main():
         archive.save_page(args.url)
     else:
         try:
-            skipfile, skipset = archive.skip_open(args.skip, args.url) if args.skip else (None, None)
+            skipset = archive.skip_open(args.skip, args.url) if args.skip else None
             archive.query_list(args.url, args.range, args.start, args.end, args.explicit, mode, args.cdxbackup, args.cdxinject)
             if args.list:
                 archive.print_list()
@@ -46,7 +46,6 @@ def main():
             print("\nInterrupted by user\n")
         finally:
             signal.signal(signal.SIGINT, signal.SIG_IGN)
-            archive.skip_close(skipfile, skipset) if args.skip else None
             archive.csv_close(args.csv, args.url) if args.csv else None
     vb.fini()
 
