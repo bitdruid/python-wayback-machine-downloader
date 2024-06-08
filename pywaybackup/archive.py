@@ -1,7 +1,9 @@
 import requests
 import os
+import sys
 import gzip
 import threading
+import queue
 import time
 import json
 import urllib.parse
@@ -154,18 +156,17 @@ def download_list(output, retry, no_redirect, workers, skipset: set = None):
     vb.write("\nDownloading snapshots...", progress=0)
     if workers > 1:
         vb.write(f"\n-----> Simultaneous downloads: {workers}")
-        batch_size = sc.count_list() // workers + 1
-    else:
-        batch_size = sc.count_list()
     sc.create_collection()
     vb.write("\n-----> Snapshots prepared")
-    batch_list = [sc.SNAPSHOT_COLLECTION[i:i + batch_size] for i in range(0, len(sc.SNAPSHOT_COLLECTION), batch_size)]    
+    snapshot_queue = queue.Queue()
+    for snapshot in sc.SNAPSHOT_COLLECTION:
+        snapshot_queue.put(snapshot)
     threads = []
     worker = 0
-    for batch in batch_list:
+    for worker in range(workers):
         worker += 1
         vb.write(f"\n-----> Starting worker: {worker}")
-        thread = threading.Thread(target=download_loop, args=(batch, output, worker, retry, no_redirect, skipset))
+        thread = threading.Thread(target=download_loop, args=(snapshot_queue, output, worker, retry, no_redirect, skipset))
         threads.append(thread)
         thread.start()
     for thread in threads:
@@ -179,33 +180,38 @@ def download_list(output, retry, no_redirect, workers, skipset: set = None):
 
 
 
-def download_loop(snapshot_batch, output, worker, retry, no_redirect, skipset=None, attempt=1, connection=None):
+def download_loop(snapshot_queue, output, worker, retry, no_redirect, skipset=None, attempt=1, connection=None, failed_urls=[]):
     """
     Download a list of URLs in a recursive loop. If a download fails, the function will retry the download.
     The "snapshot_collection" dictionary will be updated with the download status and file information.
     Information for each entry is written by "create_entry" and "snapshot_dict_append" functions.
     """
-    max_attempt = retry if retry > 0 else retry + 1
-    failed_urls = []
-    if not connection:
-        connection = http.client.HTTPSConnection("web.archive.org")
-    if attempt > max_attempt:
-        connection.close()
-        vb.write(f"\n-----> Worker: {worker} - Failed downloads: {len(snapshot_batch)}")
-        return
-    for snapshot in snapshot_batch:
-        status = f"\n-----> Attempt: [{attempt}/{max_attempt}] Snapshot [{snapshot_batch.index(snapshot)+1}/{len(snapshot_batch)}] - Worker: {worker}"
-        download_status = download(output, snapshot, connection, status, no_redirect, skipset)
-        if not download_status:
-            failed_urls.append(snapshot)
-        if download_status:
-            vb.write(progress=1)
-    attempt += 1
-    if failed_urls:
-        if not attempt > max_attempt: 
-            vb.write(f"\n-----> Worker: {worker} - Retry Timeout: 15 seconds")
-            time.sleep(15)
-        download_loop(failed_urls, output, worker, retry, no_redirect, skipset, attempt, connection)            
+    try:
+        max_attempt = retry if retry > 0 else retry + 1
+        if not connection:
+            connection = http.client.HTTPSConnection("web.archive.org")
+        if attempt > max_attempt:
+            connection.close()
+            vb.write(f"\n-----> Worker: {worker} - Failed downloads: {len(failed_urls)}")
+            return
+        while not snapshot_queue.empty():
+            snapshot = snapshot_queue.get()
+            status = f"\n-----> Attempt: [{attempt}/{max_attempt}] Snapshot [{sc.SNAPSHOT_COLLECTION.index(snapshot)+1}/{len(sc.SNAPSHOT_COLLECTION)}] - Worker: {worker}"
+            download_status = download(output, snapshot, connection, status, no_redirect, skipset)
+            if not download_status:
+                if snapshot not in failed_urls:
+                    failed_urls.append(snapshot)
+            if download_status:
+                if snapshot in failed_urls:
+                    failed_urls.remove(snapshot)
+                vb.write(progress=1)
+        if failed_urls:
+            if not attempt > max_attempt: 
+                vb.write(f"\n-----> Worker: {worker} - Retry Timeout: 15 seconds")
+                time.sleep(15)
+            download_loop(failed_urls, output, worker, retry, no_redirect, skipset, attempt, connection, failed_urls)
+    except Exception as e:
+        ex.exception(f"Worker: {worker} - Exception", e)
 
 
 
