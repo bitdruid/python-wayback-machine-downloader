@@ -218,7 +218,7 @@ def download_loop(queue, output, worker, retry, no_redirect, skipset=None, skipf
         download_status = download(output, snapshot, connection, status, no_redirect, skipset)
         count += 1
         if queue.qsize() % 300 == 0:
-            skip_save(skipfile, skipset)
+            skip_save(skipfile, skipset) # Save in period to avoid loss progress when progeam stucked
         if not download_status:
             failed_urls.append(snapshot)
         if download_status:
