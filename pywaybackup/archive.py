@@ -6,6 +6,7 @@ import time
 import json
 import urllib.parse
 import http.client
+import queue
 from urllib.parse import urljoin
 from datetime import datetime, timezone
 
@@ -144,7 +145,7 @@ def query_list(url: str, range: int, start: int, end: int, explicit: bool, mode:
 
 
 # example download: http://web.archive.org/web/20190815104545id_/https://www.google.com/
-def download_list(output, retry, no_redirect, workers, skipset: set = None):
+def download_list(output, retry, no_redirect, workers, skipset: set = None, skipfile = None):
     """
     Download a list of urls in format: [{"timestamp": "20190815104545", "url": "https://www.google.com/"}]
     """
@@ -152,20 +153,27 @@ def download_list(output, retry, no_redirect, workers, skipset: set = None):
         vb.write("\nNothing to download");
         return
     vb.write("\nDownloading snapshots...", progress=0)
-    if workers > 1:
-        vb.write(f"\n-----> Simultaneous downloads: {workers}")
-        batch_size = sc.count_list() // workers + 1
-    else:
-        batch_size = sc.count_list()
     sc.create_collection()
     vb.write("\n-----> Snapshots prepared")
-    batch_list = [sc.SNAPSHOT_COLLECTION[i:i + batch_size] for i in range(0, len(sc.SNAPSHOT_COLLECTION), batch_size)]    
+    fifo_queue = queue.Queue()
     threads = []
     worker = 0
-    for batch in batch_list:
+
+    skipped = 0;
+    # Allows for quick skipping of files marked as skipped or downloaded as soon as possible.
+    for snapshot in sc.SNAPSHOT_COLLECTION:
+        download_url = snapshot["url_archive"]
+        if should_skip(snapshot, skipset, output):
+            skip_write(skipset, download_url)
+            skipped+=1
+        else:
+            fifo_queue.put(snapshot)
+    print(f"Skipped {skipped} urls from skipset")
+    vb.write(progress=skipped)
+    for i in range(workers):
         worker += 1
         vb.write(f"\n-----> Starting worker: {worker}")
-        thread = threading.Thread(target=download_loop, args=(batch, output, worker, retry, no_redirect, skipset))
+        thread = threading.Thread(target=download_loop, args=(fifo_queue, output, worker, retry, no_redirect, skipset, skipfile))
         threads.append(thread)
         thread.start()
     for thread in threads:
@@ -175,11 +183,15 @@ def download_list(output, retry, no_redirect, workers, skipset: set = None):
     vb.write(f"\nFiles downloaded: {successed}")
     vb.write(f"Files missing: {failed}\n")
 
+def should_skip(snapshot, skipset, output):
+    if(snapshot["url_archive"] in skipset):
+        return True
+    output_file = sc.create_output(snapshot["url_archive"], snapshot["timestamp"], output)
+    if os.path.isfile(output_file):
+        return True
+    return False
 
-
-
-
-def download_loop(snapshot_batch, output, worker, retry, no_redirect, skipset=None, attempt=1, connection=None):
+def download_loop(queue, output, worker, retry, no_redirect, skipset=None, skipfile=None, attempt=1, connection=None):
     """
     Download a list of URLs in a recursive loop. If a download fails, the function will retry the download.
     The "snapshot_collection" dictionary will be updated with the download status and file information.
@@ -189,13 +201,24 @@ def download_loop(snapshot_batch, output, worker, retry, no_redirect, skipset=No
     failed_urls = []
     if not connection:
         connection = http.client.HTTPSConnection("web.archive.org")
-    if attempt > max_attempt:
-        connection.close()
-        vb.write(f"\n-----> Worker: {worker} - Failed downloads: {len(snapshot_batch)}")
-        return
-    for snapshot in snapshot_batch:
-        status = f"\n-----> Attempt: [{attempt}/{max_attempt}] Snapshot [{snapshot_batch.index(snapshot)+1}/{len(snapshot_batch)}] - Worker: {worker}"
+    try:
+        if attempt > max_attempt:
+            connection.close()
+            return
+    except:
+        print()
+    count = 0
+
+    status = ""
+    # Use queue refactoring to avoid the problem that some snapshots are no longer processed when a particular worker crashes
+    while True:
+        snapshot = queue.get()
+        if snapshot is None:
+            break
         download_status = download(output, snapshot, connection, status, no_redirect, skipset)
+        count += 1
+        if queue.qsize() % 300 == 0:
+            skip_save(skipfile, skipset)
         if not download_status:
             failed_urls.append(snapshot)
         if download_status:
@@ -205,10 +228,7 @@ def download_loop(snapshot_batch, output, worker, retry, no_redirect, skipset=No
         if not attempt > max_attempt: 
             vb.write(f"\n-----> Worker: {worker} - Retry Timeout: 15 seconds")
             time.sleep(15)
-        download_loop(failed_urls, output, worker, retry, no_redirect, skipset, attempt, connection)            
-
-
-
+        download_loop(failed_urls, output, worker, retry, no_redirect, skipset, attempt, connection)   
 
 
 def download(output, snapshot_entry, connection, status_message, no_redirect=False, skipset=None):
@@ -220,9 +240,7 @@ def download(output, snapshot_entry, connection, status_message, no_redirect=Fal
     """
     download_url = snapshot_entry["url_archive"]
     encoded_download_url = urllib.parse.quote(download_url, safe=':/') # used for GET - otherwise always download_url
-    if skipset and skip_read(skipset, download_url):
-        vb.write(f"\nSKIPPING -> URL: {download_url}")
-        return True
+    # Removed this part of the check as it was already done at the very beginning
     max_retries = 2
     sleep_time = 45
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'}
@@ -314,18 +332,8 @@ def download(output, snapshot_entry, connection, status_message, no_redirect=Fal
                 f"          -> {e}"
             vb.write(status_message)
             return False
-        # connection timeout waits and retries
-        except requests.exceptions.Timeout as e:
-            status_message = f"{status_message}\n" + \
-                f"TIMEOUT   -> ({i+1}/{max_retries}), reconnect in {sleep_time} seconds...\n" + \
-                f"         -> {e}"
-            vb.write(status_message)
-            time.sleep(sleep_time)
-        # connection refused waits and retries
-        except ConnectionRefusedError as e:
-            status_message = f"{status_message}\n" + \
-                f"REFUSED  -> ({i+1}/{max_retries}), reconnect in {sleep_time} seconds...\n" + \
-                f"         -> {e}"
+        # We always miss some exceptions, so completely intercept all exceptions
+        except:
             vb.write(status_message)
             time.sleep(sleep_time)
     vb.write(f"FAILED  -> download, append to failed_urls: {download_url}")
@@ -412,6 +420,17 @@ def skip_read(skipset: set, archive_url: str) -> bool:
     Check if the URL is already downloaded and contained in the set.
     """
     return archive_url in skipset
+
+def skip_save(skipfile: object, skipset: set):
+    """
+    Overwrite existing skip file with the new set content.
+    """
+    try:
+        skipfile.seek(0)
+        skipfile.truncate()
+        skipfile.write('\n'.join(skipset))
+    except Exception as e:
+        ex.exception("Could not save skip-file", e)
 
 def skip_close(skipfile: object, skipset: set):
     """

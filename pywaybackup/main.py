@@ -39,7 +39,7 @@ def main():
             if args.list:
                 archive.print_list()
             else:
-                archive.download_list(args.output, args.retry, args.no_redirect, args.workers, skipset)
+                archive.download_list(args.output, args.retry, args.no_redirect, args.workers, skipset, skipfile)
         finally:
             archive.skip_close(skipfile, skipset) if args.skip else None
             archive.csv_close(args.csv, args.url) if args.csv else None

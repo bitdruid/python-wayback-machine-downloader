@@ -41,8 +41,8 @@ class Verbosity:
                 print("")
                 maxval = sc.count_list()
                 cls.pbar = tqdm.tqdm(total=maxval, desc="Downloading", unit=" snapshot", ascii="░▒█")
-            elif cls.pbar is not None and progress == 1:
-                cls.pbar.update(1)
+            elif cls.pbar is not None and progress is not None and progress >= 1:# Allow fast forwarding of the progress bar by a specified length
+                cls.pbar.update(progress)
                 cls.pbar.refresh()
         elif cls.mode == "json":
             pass
