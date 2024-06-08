@@ -162,11 +162,14 @@ def download_list(output, retry, no_redirect, workers, skipset: set = None):
 
     # create queue with snapshots and skip already downloaded urls
     snapshot_queue = queue.Queue()
+    skip_count = 0
     for snapshot in sc.SNAPSHOT_COLLECTION:
         if skipset is not None and skip_read(skipset, snapshot["url_archive"]):
+            skip_count += 1
             vb.write(f"\nSKIPPING -> URL: {snapshot['url_archive']}")
             continue
         snapshot_queue.put(snapshot)
+    vb.write(progress=skip_count)
 
     threads = []
     worker = 0
