@@ -1,5 +1,7 @@
 import os
 
+import signal
+
 import pywaybackup.archive as archive
 
 from pywaybackup.arguments import parse
@@ -40,7 +42,10 @@ def main():
                 archive.print_list()
             else:
                 archive.download_list(args.output, args.retry, args.no_redirect, args.workers, skipset)
+        except KeyboardInterrupt:
+            print("\nInterrupted by user\n")
         finally:
+            signal.signal(signal.SIGINT, signal.SIG_IGN)
             archive.skip_close(skipfile, skipset) if args.skip else None
             archive.csv_close(args.csv, args.url) if args.csv else None
     vb.fini()
