@@ -156,11 +156,19 @@ def download_list(output, retry, no_redirect, workers, skipset: set = None):
     vb.write("\nDownloading snapshots...", progress=0)
     if workers > 1:
         vb.write(f"\n-----> Simultaneous downloads: {workers}")
+
     sc.create_collection()
     vb.write("\n-----> Snapshots prepared")
+
+    # create queue with snapshots and skip already downloaded urls
     snapshot_queue = queue.Queue()
     for snapshot in sc.SNAPSHOT_COLLECTION:
+        if skip_read(skipset, snapshot["url_archive"]):
+            vb.write(f"\nSKIPPING -> URL: {snapshot['url_archive']}")
+            sc.snapshot_entry_modify(snapshot, "file", None)
+            continue
         snapshot_queue.put(snapshot)
+
     threads = []
     worker = 0
     for worker in range(workers):
@@ -182,7 +190,7 @@ def download_list(output, retry, no_redirect, workers, skipset: set = None):
 
 def download_loop(snapshot_queue, output, worker, retry, no_redirect, skipset=None, attempt=1, connection=None, failed_urls=[]):
     """
-    Download a list of URLs in a recursive loop. If a download fails, the function will retry the download.
+    Download a snapshot of the queue. If a download fails, the function will retry the download.
     The "snapshot_collection" dictionary will be updated with the download status and file information.
     Information for each entry is written by "create_entry" and "snapshot_dict_append" functions.
     """
@@ -226,9 +234,6 @@ def download(output, snapshot_entry, connection, status_message, no_redirect=Fal
     """
     download_url = snapshot_entry["url_archive"]
     encoded_download_url = urllib.parse.quote(download_url, safe=':/') # used for GET - otherwise always download_url
-    if skipset and skip_read(skipset, download_url):
-        vb.write(f"\nSKIPPING -> URL: {download_url}")
-        return True
     max_retries = 2
     sleep_time = 45
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'}
