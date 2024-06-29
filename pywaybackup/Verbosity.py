@@ -38,7 +38,7 @@ class Verbosity:
     def write(cls, message: str = None, progress: int = None):
         if cls.mode == "progress":
             if cls.pbar is None and progress == 0:
-                maxval = sc.count_list()
+                maxval = sc.count(collection=True)
                 cls.pbar = tqdm.tqdm(total=maxval, desc="Downloading", unit=" snapshot", ascii="░▒█")
             if cls.pbar is not None and progress is not None and progress > 0 :
                 cls.pbar.update(progress)

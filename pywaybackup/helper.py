@@ -3,6 +3,14 @@ import os
 import shutil
 import magic
 
+
+def check_nt():
+    """
+    Check if the OS is Windows.
+    """
+    return os.name == "nt"
+
+
 def sanitize_filename(input: str) -> str:
     """
     Sanitize a string to be used as (part of) a filename.
@@ -21,6 +29,7 @@ def url_get_timestamp(url):
         timestamp = url.split("id_/")[0].split("/")[-1]
         return timestamp
 
+
 def url_split(url, index=False):
     """
     Split a URL into domain, subdir, and filename.
@@ -38,13 +47,14 @@ def url_split(url, index=False):
         filename = "index.html" if index else ""
     subdir = "/".join(path_parts).strip("/")
     # sanitize subdir and filename for windows
-    if os.name == "nt":
+    if check_nt():
         special_chars = [":", "*", "?", "&", "=", "<", ">", "\\", "|"]
         for char in special_chars:
             subdir = subdir.replace(char, f"%{ord(char):02x}")
             filename = filename.replace(char, f"%{ord(char):02x}")
     filename = filename.replace("%20", " ")
     return domain, subdir, filename
+
 
 def move_index(existpath: str = None, existfile: str = None, filebuffer: bytes = None):
     """
@@ -73,6 +83,7 @@ def move_index(existpath: str = None, existfile: str = None, filebuffer: bytes =
             else:
                 return os.path.join(existfile, "index.html")
     
+
 def check_index_mime(filebuffer: bytes) -> bool:
     mime = magic.Magic(mime=True)
     mime_type = mime.from_buffer(filebuffer)

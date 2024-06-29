@@ -11,7 +11,7 @@ fi
 
 # update pip
 "$TARGET_PATH/.venv/bin/python" -m pip install --upgrade pip
-"$TARGET_PATH/.venv/bin/python" -m pip install twine wheel
+"$TARGET_PATH/.venv/bin/python" -m pip install twine wheel setuptools
 
 # install requirements
 "$TARGET_PATH/.venv/bin/python" -m pip install -r "$TARGET_PATH/requirements.txt"

@@ -11,6 +11,10 @@ Internet-archive is a nice source for several OSINT-information. This tool is a 
 
 This tool allows you to download content from the Wayback Machine (archive.org). You can use it to download either the latest version or all versions of web page snapshots within a specified range.
 
+## Info
+
+Linux recommended: On windows machines, the path length is limited. It can only be overcome by editing the registry. Files which exceed the path length will not be downloaded.
+
 ## Installation
 
 ### Pip
@@ -81,6 +85,10 @@ Path defaults to output-dir. Saves the result of CDX query as a file. Useful for
   
 - **`--cdxinject`** `<filepath>`:<br>
 Injects a CDX query file to download snapshots. Ensure the query matches the previous `--url` for correct folder structure.
+
+**Auto:**
+- **`--auto`**:<br>
+If set, csv, skip and cdxbackup/cdxinject are handled automatically. Keep the files and folders as they are. Otherwise they will not be recognized when restarting a download.
 
 ### Debug
 

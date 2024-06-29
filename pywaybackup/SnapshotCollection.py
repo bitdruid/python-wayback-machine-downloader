@@ -31,7 +31,13 @@ class SnapshotCollection:
     
 
     @classmethod
-    def count_list(cls):
+    def count(cls, collection=False, success=False, fail=False):
+        if collection:
+            return len(cls.SNAPSHOT_COLLECTION)
+        if success:
+            return len([entry for entry in cls.SNAPSHOT_COLLECTION if entry["file"]])
+        if fail:
+            return len([entry for entry in cls.SNAPSHOT_COLLECTION if not entry["file"]])
         return len(cls.SNAPSHOT_COLLECTION)
 
 

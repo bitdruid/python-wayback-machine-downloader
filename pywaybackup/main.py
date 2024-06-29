@@ -2,6 +2,7 @@ import os
 
 import signal
 
+import pywaybackup.helper as helper
 import pywaybackup.archive as archive
 
 from pywaybackup.arguments import parse
@@ -14,6 +15,8 @@ def main():
     if args.output is None:
         args.output = os.path.join(os.getcwd(), "waybackup_snapshots")
         os.makedirs(args.output, exist_ok=True)
+    else:
+        os.makedirs(args.output, exist_ok=True)
 
     ex.init(args.debug, args.output, command)
     vb.init(args.verbosity)
@@ -23,14 +26,20 @@ def main():
     if args.current:
         mode = "current"
 
-    if args.skip is True:
+    if args.auto:
         args.skip = args.output
-    if args.csv is True:
         args.csv = args.output
-    if args.cdxbackup is True:
         args.cdxbackup = args.output
-    if args.cdxinject is True:
-        args.cdxinject = args.output
+        args.cdxinject = os.path.join(args.output, f"waybackup_{helper.sanitize_filename(args.url)}.cdx")
+    else:
+        if args.skip is True:
+            args.skip = args.output
+        if args.csv is True:
+            args.csv = args.output
+        if args.cdxbackup is True:
+            args.cdxbackup = args.output
+        if args.cdxinject is True:
+            args.cdxinject = args.output
 
     if args.save:
         archive.save_page(args.url)

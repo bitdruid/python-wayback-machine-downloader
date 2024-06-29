@@ -36,6 +36,9 @@ def parse():
     exclusive_cdx.add_argument('--cdxbackup', type=str, nargs='?', const=True, metavar='path', help='Save the cdx query-result to a file for recurent use - defaults to output folder')
     exclusive_cdx.add_argument('--cdxinject', type=str, nargs='?', const=True, metavar='path', help='Inject a cdx backup-file to download according to the given url')
 
+    auto = parser.add_argument_group('auto')
+    auto.add_argument('--auto', action='store_true', help='includes automatic csv, skip and cdxbackup/cdxinject to resume a stopped download')
+
     args = parser.parse_args(args=None if sys.argv[1:] else ['--help']) # if no arguments are given, print help
     command = ' '.join(sys.argv[1:])
 
