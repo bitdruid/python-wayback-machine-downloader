@@ -97,7 +97,7 @@ def print_list():
 # create filelist
 # timestamp format yyyyMMddhhmmss
 def query_list(url: str, range: int, start: int, end: int, explicit: bool, mode: str, cdxbackup: str, cdxinject: str):
-
+    
     def inject(cdxinject):
         if os.path.isfile(cdxinject):
             vb.write("\nInjecting CDX data...")
@@ -146,6 +146,7 @@ def query_list(url: str, range: int, start: int, end: int, explicit: bool, mode:
 
         return cdxResult
 
+    cdxResult = None
     if cdxinject:
         cdxResult = inject(cdxinject)
     if not cdxResult:
