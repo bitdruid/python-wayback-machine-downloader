@@ -1,7 +1,7 @@
 ---
 name: Bug
 about: Describe a faulty behavior
-title: ''
+title: "[BUG]"
 labels: bug
 assignees: ''
 
