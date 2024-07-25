@@ -1,6 +1,8 @@
 
 import os
+import re
 import shutil
+from urllib.parse import urlparse, urljoin
 import magic
 
 
@@ -21,20 +23,35 @@ def sanitize_filename(input: str) -> str:
     input = '.'.join(filter(None, input.split('.')))
     return input
 
+def sanitize_url(input: str) -> str:
+    """
+    Sanitize a url by encoding special characters.
+    """
+    special_chars = [":", "*", "?", "&", "=", "<", ">", "\\", "|"]
+    for char in special_chars:
+        input = input.replace(char, f"%{ord(char):02x}")
+    return input
+
 
 def url_get_timestamp(url):
         """
         Extract the timestamp from a wayback machine URL.
         """
-        timestamp = url.split("id_/")[0].split("/")[-1]
+        timestamp = url.split("web.archive.org/web/")[1].split("/")[0]
+        if "id_" in url: timestamp = timestamp.split("id_")[0]            
         return timestamp
 
 
 def url_split(url, index=False):
     """
     Split a URL into domain, subdir, and filename.
+
+    Index:
+    - [0] = domain
+    - [1] = subdir
+    - [2] = filename
     """
-    if url.startswith("http"):
+    if "://" in url:
         url = url.split("://")[1]
     domain = url.split("/")[0]
     path = url[len(domain):]
@@ -90,5 +107,3 @@ def check_index_mime(filebuffer: bytes) -> bool:
     if mime_type != "text/html":
         return False
     return True
-
-

@@ -70,10 +70,10 @@ class SnapshotCollection:
             download_dir = os.path.join(output, domain, timestamp, subdir)
         download_file = os.path.abspath(os.path.join(download_dir, filename))
         return download_file
-
+    
 
     @classmethod
-    def snapshot_entry_modify(cls, collection_entry: dict, key: str, value: str):
+    def entry_modify(cls, collection_entry: dict, key: str, value: str):
         """
         Modify a key-value pair in a snapshot entry of the collection (dict).
 

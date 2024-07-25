@@ -11,10 +11,6 @@ Internet-archive is a nice source for several OSINT-information. This tool is a 
 
 This tool allows you to download content from the Wayback Machine (archive.org). You can use it to download either the latest version or all versions of web page snapshots within a specified range.
 
-## Info
-
-Linux recommended: On windows machines, the path length is limited. It can only be overcome by editing the registry. Files which exceed the path length will not be downloaded.
-
 ## Installation
 
 ### Pip
@@ -32,6 +28,11 @@ Linux recommended: On windows machines, the path length is limited. It can only 
    ```pip install .```
    - in a virtual env or use `--break-system-package`
 
+## Usage infos
+
+- Linux recommended: On Windows machines, the path length is limited. This can only be overcome by editing the registry. Files that exceed the path length will not be downloaded.
+- If you query an explicit file (e.g. a query-string `?query=this` or `login.html`), the `--explicit`-argument is recommended as a wildcard query may lead to an empty result.
+
 ## Arguments
 
 - `-h`, `--help`: Show the help message and exit.
@@ -39,25 +40,35 @@ Linux recommended: On windows machines, the path length is limited. It can only 
 
 ### Required
 
-- `-u`, `--url`: The URL of the web page to download. This argument is required.
+- **`-u`**, **`--url`**:<br>
+  The URL of the web page to download. This argument is required.
 
 #### Mode Selection (Choose One)
-- `-c`, `--current`: Download the latest version of each file snapshot. You will get a rebuild of the current website with all available files (but not any original state because new and old versions are mixed).
-- `-f`, `--full`: Download snapshots of all timestamps. You will get a folder per timestamp with the files available at that time.
-- `-s`, `--save`: Save a page to the Wayback Machine. (beta)
+- **`-c`**, **`--current`**:<br>
+  Download the latest version of each file snapshot. You will get a rebuild of the current website with all available files (but not any original state because new and old versions are mixed).
+- **`-f`**, **`--full`**:<br>
+  Download snapshots of all timestamps. You will get a folder per timestamp with the files available at that time.
+- **`-s`**, **`--save`**:<br>
+  Save a page to the Wayback Machine. (beta)
 
 ### Optional query parameters
 
-- `-l`, `--list`: Only print the snapshots available within the specified range. Does not download the snapshots.
-- `-e`, `--explicit`: Only download the explicit given url. No wildcard subdomains or paths. Use e.g. to get root-only snapshots.
-- `-o`, `--output`: Defaults to `waybackup_snapshots` in the current directory. The folder where downloaded files will be saved.
+- **`-l`**, **`--list`**:<br>
+  Only print the snapshots available within the specified range. Does not download the snapshots.
+- **`-e`**, **`--explicit`**:<br>
+  Only download the explicit given URL. No wildcard subdomains or paths. Use e.g. to get root-only snapshots. This is recommended for explicit files like `login.html` or `?query=this`.
+- **`-o`**, **`--output`**:<br>
+  Defaults to `waybackup_snapshots` in the current directory. The folder where downloaded files will be saved.
 
 - **Range Selection:**<br>
-Specify the range in years or a specific timestamp either start, end or both. If you specify the `range` argument, the `start` and `end` arguments will be ignored. Format for timestamps: YYYYMMDDhhmmss. You can only give a year or increase specificity by going through the timestamp starting on the left.<br>
-(year 2019, year+month 201901, year+month+day 20190101, year+month+day+hour 2019010112)
-   - `-r`, `--range`: Specify the range in years for which to search and download snapshots.
-   - `--start`: Timestamp to start searching.
-   - `--end`: Timestamp to end searching.
+  Specify the range in years or a specific timestamp either start, end, or both. If you specify the `range` argument, the `start` and `end` arguments will be ignored. Format for timestamps: YYYYMMDDhhmmss. You can only give a year or increase specificity by going through the timestamp starting on the left.<br>
+  (year 2019, year+month 201901, year+month+day 20190101, year+month+day+hour 2019010112)
+   - **`-r`**, **`--range`**:<br>
+     Specify the range in years for which to search and download snapshots.
+   - **`--start`**:<br>
+     Timestamp to start searching.
+   - **`--end`**:<br>
+     Timestamp to end searching.
 
 ### Additional behavior manipulation
   
@@ -65,19 +76,29 @@ Specify the range in years or a specific timestamp either start, end or both. If
 Path defaults to output-dir. Saves a CSV file with the json-response for successfull downloads. If `--list` is set, the CSV contains the CDX list of snapshots. If `--current` or `--full` is set, CSV contains downloaded files. Named as `waybackup_<sanitized_url>.csv`.
 
 - **`--skip`** `<path>`:<br>
-Path defaults to output-dir. Checks for an existing `waybackup_<domain>.csv` for URLs to skip downloading. Useful for interrupted downloads. Files are checked by their root-domain, ensuring consistency across queries. This means that if you download `http://example.com/subdir1/` and later `http://example.com`, the second query will skip the first path.
+Path defaults to output-dir. Checks for an existing `waybackup_<sanitized_url>.csv` for URLs to skip downloading. Useful for interrupted downloads. Files are checked by their root-domain, ensuring consistency across queries. This means that if you download `http://example.com/subdir1/` and later `http://example.com`, the second query will skip the first path.
   
 - **`--no-redirect`**:<br>
 Disables following redirects of snapshots. Useful for preventing timestamp-folder mismatches caused by Archive.org redirects.
   
 - **`--verbosity`** `<level>`:<br>
 Sets verbosity level. Options are `json` (prints JSON response) or `progress` (shows progress bar).
+<!-- Alternatively set verbosity level to `trace` for a very detailed output. -->
+
+- **`--log`** `<path>`:<br>
+Path defaults to output-dir. Saves a log file with the output of the tool. Named as `waybackup_<sanitized_url>.log`.
+
+- **`--workers`** `<count>`:<br>
+Sets the number of simultaneous download workers. Default is 1, safe range is about 10. Be cautious as too many workers may lead to refused connections from the Wayback Machine.
   
 - **`--retry`** `<attempts>`:<br>
 Specifies number of retry attempts for failed downloads.
-  
-- **`--workers`** `<count>`:<br>
-Sets the number of simultaneous download workers. Default is 1, safe range is about 10. Be cautious as too many workers may lead to refused connections from the Wayback Machine.
+
+- **`--delay`** `<seconds>`:<br>
+Specifies delay between download requests in seconds. Default is no delay (0).
+
+<!-- - **`--convert-links`**:<br>
+If set, all links in the downloaded files will be converted to local links. This is useful for offline browsing. The links are converted to the local path structure. Show output with `--verbosity trace`. -->
 
 **CDX Query Handling:**
 - **`--cdxbackup`** `<path>`:<br>
