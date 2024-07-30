@@ -390,24 +390,26 @@ def csv_close(csv_path: str, url: str):
     try:
         csv_path = csv_filepath(csv_path, url)
         if sc.count(collection=True) > 0:
-            if os.path.exists(csv_path): # append to existing file
-                existing_rows = set()
-                with open(csv_path, mode='r', newline='') as file: # read existing rows
-                    existing_rows = set(csv_read(file))
-                with open(csv_path, mode='a', newline='') as file: # append new rows
-                    row = csv.DictWriter(file, sc.SNAPSHOT_COLLECTION[0].keys())
-                    for snapshot in sc.SNAPSHOT_COLLECTION:
-                        if snapshot["response"] is not False and snapshot["url_archive"] not in existing_rows: # only append handled snapshots
-                            row.writerow(snapshot)
-            else: # create new file
+            new_rows = [snapshot for snapshot in sc.SNAPSHOT_COLLECTION 
+                        if ("response" in snapshot and snapshot["response"] is not False and "url_archive" in snapshot) or 
+                           ("digest" in snapshot)]
+            
+            if os.path.exists(csv_path):  # append to existing file
+                existing_rows = set(csv_read(open(csv_path, mode='r', newline='')))
+                
+                with open(csv_path, mode='a', newline='') as file:  # append new rows
+                    row_writer = csv.DictWriter(file, sc.SNAPSHOT_COLLECTION[0].keys())
+                    for snapshot in new_rows:
+                        snapshot_tuple = tuple(snapshot.values())
+                        if snapshot_tuple not in existing_rows:
+                            row_writer.writerow(snapshot)
+            else:  # create new file
                 with open(csv_path, mode='w', newline='') as file:
-                    row = csv.DictWriter(file, sc.SNAPSHOT_COLLECTION[0].keys())
-                    row.writeheader()
-                    for snapshot in sc.SNAPSHOT_COLLECTION:
-                        if snapshot["response"] is not False: # only append handled snapshots
-                            row.writerow(snapshot)
+                    row_writer = csv.DictWriter(file, sc.SNAPSHOT_COLLECTION[0].keys())
+                    row_writer.writeheader()
+                    row_writer.writerows(new_rows)
     except Exception as e:
-        ex.exception("Could not save CSV-file", e)
+        ex.exception("Could not save CSV file", e)
 
 def csv_read(csv_file: object) -> list:
     """
