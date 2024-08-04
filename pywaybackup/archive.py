@@ -263,7 +263,7 @@ def download(output, snapshot_entry, connection, status_message, no_redirect=Fal
     download_url = snapshot_entry["url_archive"]
     encoded_download_url = urllib.parse.quote(download_url, safe=':/') # used for GET - otherwise always download_url
     max_retries = 2
-    sleep_time = 45
+    sleep_time = 50
     headers = {'User-Agent': f'bitdruid-python-wayback-downloader/{__version__}'}
     success = False
     for i in range(max_retries):
@@ -325,7 +325,7 @@ def download(output, snapshot_entry, connection, status_message, no_redirect=Fal
                 status_message.store(status="UNEXPECTED", type="HTTP", message=f"{response.status} - {response_status_message}")
                 status_message.store(status="", type="URL", message=download_url)
                 status_message.write()
-                continue
+                break
         # exception handling        
         except (http.client.HTTPException, timeout, ConnectionRefusedError, ConnectionResetError) as e:
             download_exception(type, e, i, max_retries, sleep_time, status_message)

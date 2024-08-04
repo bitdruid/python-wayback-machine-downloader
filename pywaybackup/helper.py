@@ -37,7 +37,7 @@ def url_get_timestamp(url):
         """
         Extract the timestamp from a wayback machine URL.
         """
-        timestamp = url.split("web.archive.org/web/")[1].split("/")[0]
+        timestamp = url.split("web/")[1].split("/")[0]
         if "id_" in url: timestamp = timestamp.split("id_")[0]            
         return timestamp
 
