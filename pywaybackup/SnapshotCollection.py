@@ -25,8 +25,11 @@ class SnapshotCollection:
                 if line.endswith("]]"): line = line.rsplit("]", 1)[0]
                 if line.endswith(","): line = line.rsplit(",", 1)[0]
                 else: continue # drop incomplete line, maybe cdx response was cut off
-                line = json.loads(line)
-                line = {"timestamp": line[0], "digest": line[1], "mimetype": line[2], "status": line[3], "url": line[4]}
+                try:
+                    line = json.loads(line)
+                    line = {"timestamp": line[0], "digest": line[1], "mimetype": line[2], "status": line[3], "url": line[4]}
+                except json.JSONDecodeError:
+                    continue
                 cls.SNAPSHOT_COLLECTION.append(line)
         cls.SNAPSHOT_COLLECTION = sorted(cls.SNAPSHOT_COLLECTION, key=lambda k: k['timestamp'], reverse=True)
         if mode == "current": 
