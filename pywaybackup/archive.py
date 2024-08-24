@@ -5,11 +5,12 @@ import csv
 import threading
 import queue
 import time
-import json
 import urllib.parse
 import http.client
 from urllib.parse import urljoin
 from datetime import datetime, timezone
+
+from tqdm import tqdm
 
 from socket import timeout
 
@@ -20,10 +21,10 @@ from pywaybackup.Arguments import Configuration as config
 
 from pywaybackup.__version__ import __version__
 
-from pywaybackup.Converter import Converter as convert
 from pywaybackup.Verbosity import Message
 from pywaybackup.Verbosity import Verbosity as vb
 from pywaybackup.Exception import Exception as ex
+import threading
 
 
 
@@ -99,28 +100,41 @@ def print_list():
 
 # create filelist
 # timestamp format yyyyMMddhhmmss
-def query_list(range: int, start: int, end: int, explicit: bool, mode: str, cdxbackup: str, cdxinject: str):
+def query_list(queryrange: int, limit: int, start: int, end: int, explicit: bool, mode: str, cdxbackup: str, cdxinject: str):
+
+    def input_countdown():
+        for i in range(10, -1, -1):
+            vb.write(message=f"{i}")
+            print("\033[F", end="")
+            print("\033[K", end="")           
+            time.sleep(1)
+
+    def input_detection():
+        input()
+        vb.write(message="\nExiting...")
+        os._exit(1)
+
+    def count_cdxfile(cdxfile):
+        with open(cdxfile, "r") as file:
+            return file.read().count("\n") - 1
     
     def inject(cdxinject):
         if os.path.isfile(cdxinject):
             vb.write(message="\nInjecting CDX data...")
-            cdxResult = open(cdxinject, "r")
-            cdxResult = cdxResult.read()
-            linecount = cdxResult.count("\n") - 1
-            vb.write(message=f"\n-----> {linecount} snapshots injected")
-            return cdxResult
+            vb.write(message=f"\n-----> {count_cdxfile(cdxinject):,} lines injected")
+            return cdxinject
         else:
             vb.write(message="\nNo CDX file found to inject - querying snapshots...")
             return False
 
-    def query(range, start, end, explicit):
+    def query(queryrange, limit, start, end, explicit):
         vb.write(message="\nQuerying snapshots...")
         query_range = ""
-        if not range:
+        if not queryrange:
             if start: query_range = query_range + f"&from={start}"
             if end: query_range = query_range + f"&to={end}"
         else: 
-            query_range = "&from=" + str(datetime.now().year - range)
+            query_range = "&from=" + str(datetime.now().year - queryrange)
 
         if config.domain and not config.subdir and not config.filename:
             cdx_url = f"{config.domain}"
@@ -133,32 +147,58 @@ def query_list(range: int, start: int, end: int, explicit: bool, mode: str, cdxb
         if not explicit:
             cdx_url = f"{cdx_url}/*"
 
-        vb.write(message=f"---> {cdx_url}")
-        cdxQuery = f"https://web.archive.org/cdx/search/cdx?output=json&url={cdx_url}{query_range}&fl=timestamp,digest,mimetype,statuscode,original&filter!=statuscode:200"
+        limit = f"limit={limit}&" if limit else ""
+
+        vb.write(message=f"-----> {cdx_url}")
+        cdxQuery = f"https://web.archive.org/cdx/search/cdx?output=json&url={cdx_url}{query_range}&fl=timestamp,digest,mimetype,statuscode,original&{limit}filter!=statuscode:200"
+
+        cdxfile = os.path.join(cdxbackup, f"waybackup_{sanitize_filename(config.url)}.cdx")
 
         try:
-            cdxResult = requests.get(cdxQuery).text
-        except requests.exceptions.ConnectionError as e:
+            cdxfile_IO = open(cdxfile, "w")
+            with requests.get(cdxQuery, stream=True) as r:
+                r.raise_for_status()
+                with tqdm(unit='B', unit_scale=True, desc='-----> Downloading CDX result') as pbar:
+                    for chunk in r.iter_content(chunk_size=8192):
+                        if chunk:
+                            pbar.update(len(chunk))
+                            chunk = chunk.decode("utf-8")
+                            cdxfile_IO.write(chunk)
+            cdxfile_IO.close()
+        except requests.exceptions.ConnectionError:
             vb.write(message="\nCONNECTION REFUSED -> could not query cdx server (max retries exceeded)\n")
             os._exit(1)
-        
-        if cdxbackup:
-            os.makedirs(cdxbackup, exist_ok=True)
-            with open(os.path.join(cdxbackup, f"waybackup_{sanitize_filename(config.url)}.cdx"), "w") as file: 
-                file.write(cdxResult)
-                vb.write(message="\n-----> CDX backup generated")
 
-        return cdxResult
+        return cdxfile
 
-    cdxResult = None
+    cdxfile = None
     if cdxinject:
-        cdxResult = inject(cdxinject)
-    if not cdxResult:
-        cdxResult = query(range, start, end, explicit)
-    cdxResult = json.loads(cdxResult)
-    sc.create_list(cdxResult, mode)
-    vb.write(message=f"\n-----> {sc.count(collection=True)} snapshots to utilize")
+        cdxfile = inject(cdxinject)
+    if not cdxfile:
+        cdxfile = query(queryrange, limit, start, end, explicit)
 
+    snapshot_count = count_cdxfile(cdxfile) - 1
+    if snapshot_count > 1000000:
+        vb.write(message="\n!!!!! WARNING")
+        vb.write(message="Excessive amount of snapshots detected. System may run out of memory!")
+        vb.write(message="---> Consider splitting the query into smaller jobs (range start/end).")
+        vb.write(message="\nPress ANY key to abort...")
+
+        abort_listener = threading.Thread(target=input_detection)
+        abort_listener.start()
+
+        input_countdown()
+
+        abort_listener.join(timeout=1)
+
+    sc.create_list(cdxfile, mode)
+    if not cdxbackup and not cdxinject:
+        os.remove(cdxfile)
+    else:
+        vb.write(message="\n-----> CDX backup generated")
+
+    snapshot_count = sc.count(collection=True)
+    vb.write(message=f"\n-----> {snapshot_count:,} snapshots to utilize")
 
 
 
@@ -263,7 +303,7 @@ def download(output, snapshot_entry, connection, status_message, no_redirect=Fal
     download_url = snapshot_entry["url_archive"]
     encoded_download_url = urllib.parse.quote(download_url, safe=':/') # used for GET - otherwise always download_url
     max_retries = 2
-    sleep_time = 45
+    sleep_time = 50
     headers = {'User-Agent': f'bitdruid-python-wayback-downloader/{__version__}'}
     success = False
     for i in range(max_retries):
@@ -325,7 +365,7 @@ def download(output, snapshot_entry, connection, status_message, no_redirect=Fal
                 status_message.store(status="UNEXPECTED", type="HTTP", message=f"{response.status} - {response_status_message}")
                 status_message.store(status="", type="URL", message=download_url)
                 status_message.write()
-                continue
+                break
         # exception handling        
         except (http.client.HTTPException, timeout, ConnectionRefusedError, ConnectionResetError) as e:
             download_exception(type, e, i, max_retries, sleep_time, status_message)
@@ -390,24 +430,26 @@ def csv_close(csv_path: str, url: str):
     try:
         csv_path = csv_filepath(csv_path, url)
         if sc.count(collection=True) > 0:
-            if os.path.exists(csv_path): # append to existing file
-                existing_rows = set()
-                with open(csv_path, mode='r', newline='') as file: # read existing rows
-                    existing_rows = set(csv_read(file))
-                with open(csv_path, mode='a', newline='') as file: # append new rows
-                    row = csv.DictWriter(file, sc.SNAPSHOT_COLLECTION[0].keys())
-                    for snapshot in sc.SNAPSHOT_COLLECTION:
-                        if snapshot["response"] is not False and snapshot["url_archive"] not in existing_rows: # only append handled snapshots
-                            row.writerow(snapshot)
-            else: # create new file
+            new_rows = [snapshot for snapshot in sc.SNAPSHOT_COLLECTION 
+                        if ("response" in snapshot and snapshot["response"] is not False and "url_archive" in snapshot) or 
+                           ("digest" in snapshot)]
+            
+            if os.path.exists(csv_path):  # append to existing file
+                existing_rows = set(csv_read(open(csv_path, mode='r', newline='')))
+                
+                with open(csv_path, mode='a', newline='') as file:  # append new rows
+                    row_writer = csv.DictWriter(file, sc.SNAPSHOT_COLLECTION[0].keys())
+                    for snapshot in new_rows:
+                        snapshot_tuple = tuple(snapshot.values())
+                        if snapshot_tuple not in existing_rows:
+                            row_writer.writerow(snapshot)
+            else:  # create new file
                 with open(csv_path, mode='w', newline='') as file:
-                    row = csv.DictWriter(file, sc.SNAPSHOT_COLLECTION[0].keys())
-                    row.writeheader()
-                    for snapshot in sc.SNAPSHOT_COLLECTION:
-                        if snapshot["response"] is not False: # only append handled snapshots
-                            row.writerow(snapshot)
+                    row_writer = csv.DictWriter(file, sc.SNAPSHOT_COLLECTION[0].keys())
+                    row_writer.writeheader()
+                    row_writer.writerows(new_rows)
     except Exception as e:
-        ex.exception("Could not save CSV-file", e)
+        ex.exception("Could not save CSV file", e)
 
 def csv_read(csv_file: object) -> list:
     """

@@ -13,7 +13,6 @@ class Arguments:
 
         parser = argparse.ArgumentParser(description='Download from wayback machine (archive.org)')
         parser.add_argument('-a', '--about', action='version', version='%(prog)s ' + __version__ + ' by @bitdruid -> https://github.com/bitdruid')
-        parser.add_argument('-d', '--debug', action='store_true', help='Debug mode (Always full traceback and creates an error.log')
 
         required = parser.add_argument_group('required (one exclusive)')
         required.add_argument('-u', '--url', type=str, metavar="", help='url (with subdir/subdomain) to download')
@@ -40,6 +39,7 @@ class Arguments:
         special.add_argument('--workers', type=int, default=1, metavar="", help='number of workers (simultaneous downloads)')
         # special.add_argument('--convert-links', action='store_true', help='Convert all links in the files to local paths. Requires -c/--current')
         special.add_argument('--delay', type=int, default=0, metavar="", help='delay between each download in seconds')
+        special.add_argument('--limit', type=int, nargs='?', const=True, metavar='int', help='limit the number of snapshots to download')
 
         cdx = parser.add_argument_group('cdx (one exclusive)')
         exclusive_cdx = cdx.add_mutually_exclusive_group()
@@ -83,6 +83,8 @@ class Configuration:
             cls.mode = "full"
         if cls.current:
             cls.mode = "current"
+
+        cls.cdxbackup = cls.output if cls.cdxbackup is None else cls.cdxbackup
 
         if cls.auto:
             cls.skip = cls.output

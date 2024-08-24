@@ -12,16 +12,14 @@ from pywaybackup.__version__ import __version__
 class Exception:
 
     new_debug = True
-    debug = False
     output = None
     command = None
 
     @classmethod
-    def init(cls, debug=False, output=None, command=None):
+    def init(cls, output=None, command=None):
         sys.excepthook = cls.exception_handler # set custom exception handler (uncaught exceptions)
         cls.output = output
         cls.command = command
-        cls.debug = True if debug else False
 
     @classmethod
     def exception(cls, message: str, e: Exception, tb=None):
@@ -53,33 +51,32 @@ class Exception:
             "-------------------------"
         )
         print(exception_message)
-        if cls.debug:
-            debug_file = os.path.join(cls.output, "waybackup_error.log")
-            print(f"Exception log: {debug_file}")
-            print("-------------------------")
-            print(f"Full traceback:\n{original_tb}")
-            if cls.new_debug:  # new run, overwrite file
-                cls.new_debug = False
-                f = open(debug_file, "w")
-                f.write("-------------------------\n")
-                f.write(f"Version: {__version__}\n")
-                f.write("-------------------------\n")
-                f.write(f"Command: {cls.command}\n")
-                f.write("-------------------------\n\n")
-            else:  # current run, append to file
-                f = open(debug_file, "a")
-            f.write(datetime.now().strftime("%Y-%m-%d %H:%M:%S") + "\n")
-            f.write(exception_message + "\n")
-            f.write("!-- Local Variables:\n")
-            for var_name, value in local_vars.items():
-                if var_name in ["status_message", "headers"]:
-                    continue
-                value = cls.relativate_path(str(value))
-                value = value[:666] + " ... " if len(value) > 666 else value
-                f.write(f"    -- {var_name} = {value}\n")
+        debug_file = os.path.join(cls.output, "waybackup_error.log")
+        print(f"Exception log: {debug_file}")
+        # print("-------------------------")
+        # print(f"Full traceback:\n{original_tb}")
+        if cls.new_debug:  # new run, overwrite file
+            cls.new_debug = False
+            f = open(debug_file, "w")
             f.write("-------------------------\n")
-            f.write(original_tb + "\n")
-            f.close()
+            f.write(f"Version: {__version__}\n")
+            f.write("-------------------------\n")
+            f.write(f"Command: {cls.command}\n")
+            f.write("-------------------------\n\n")
+        else:  # current run, append to file
+            f = open(debug_file, "a")
+        f.write(datetime.now().strftime("%Y-%m-%d %H:%M:%S") + "\n")
+        f.write(exception_message + "\n")
+        f.write("!-- Local Variables:\n")
+        for var_name, value in local_vars.items():
+            if var_name in ["status_message", "headers"]:
+                continue
+            value = cls.relativate_path(str(value))
+            value = value[:666] + " ... " if len(value) > 666 else value
+            f.write(f"    -- {var_name} = {value}\n")
+        f.write("-------------------------\n")
+        f.write(original_tb + "\n")
+        f.close()
 
     @classmethod
     def relativate_path(cls, input: str) -> str:

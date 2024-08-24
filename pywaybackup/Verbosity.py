@@ -88,12 +88,13 @@ class Message(Verbosity):
         self.message = {}
 
     def __str__(self):
-        return self.message
+        return str(self.message)
 
     def store(self, status: str = "", type: str = "", message: str = "", level: str = "info"):
         if level not in self.message:
             self.message[level] = []
         self.message[level].append(super().generate_logline(status, type, message))
+        #super().write(message=f"Stored message: {status} -> {type}: {message}")
 
     def clear(self):
         self.message = {}

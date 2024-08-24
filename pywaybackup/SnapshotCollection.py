@@ -1,4 +1,5 @@
 from pywaybackup.helper import url_split
+import json
 import os
 
 class SnapshotCollection:
@@ -7,15 +8,27 @@ class SnapshotCollection:
     MODE_CURRENT = 0        
 
     @classmethod
-    def create_list(cls, cdxResult, mode):
+    def create_list(cls, cdxfile, mode):
         """
         Create the snapshot collection list from a cdx result.
 
         - mode `full`: All snapshots are included.
         - mode `current`: Only the latest snapshot of each file is included.
         """
-        # creates a list of dictionaries for each snapshot entry
-        cls.SNAPSHOT_COLLECTION = sorted([{"timestamp": snapshot[0], "digest": snapshot[1], "mimetype": snapshot[2], "status": snapshot[3], "url": snapshot[4]} for snapshot in cdxResult[1:]], key=lambda k: k['timestamp'], reverse=True)
+        with open(cdxfile, "r") as f:
+            first_line = True
+            for line in f:
+                if first_line:
+                    first_line = False
+                    continue
+                line = line.strip()
+                if line.endswith("]]"): line = line.rsplit("]", 1)[0]
+                if line.endswith(","): line = line.rsplit(",", 1)[0]
+                else: continue # drop incomplete line, maybe cdx response was cut off
+                line = json.loads(line)
+                line = {"timestamp": line[0], "digest": line[1], "mimetype": line[2], "status": line[3], "url": line[4]}
+                cls.SNAPSHOT_COLLECTION.append(line)
+        cls.SNAPSHOT_COLLECTION = sorted(cls.SNAPSHOT_COLLECTION, key=lambda k: k['timestamp'], reverse=True)
         if mode == "current": 
             cls.MODE_CURRENT = 1
             cdxResult_list_filtered = []

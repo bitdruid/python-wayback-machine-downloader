@@ -28,10 +28,11 @@ This tool allows you to download content from the Wayback Machine (archive.org).
    ```pip install .```
    - in a virtual env or use `--break-system-package`
 
-## Usage infos
+## Usage infos - important notes
 
 - Linux recommended: On Windows machines, the path length is limited. This can only be overcome by editing the registry. Files that exceed the path length will not be downloaded.
 - If you query an explicit file (e.g. a query-string `?query=this` or `login.html`), the `--explicit`-argument is recommended as a wildcard query may lead to an empty result.
+- The tool will inform you if your query has an immense amount of snapshots which could consume your system memory and lead to a crash. Consider splitting your query into smaller jobs by specifying a range e.g. `--start 2023 --end 2024` or `--range 1`.
 
 ## Arguments
 
@@ -97,10 +98,13 @@ Specifies number of retry attempts for failed downloads.
 - **`--delay`** `<seconds>`:<br>
 Specifies delay between download requests in seconds. Default is no delay (0).
 
+- **`--limit`** `<count>`:<br>
+Limits the amount of snapshots to query from the CDX server. If an existing CDX file is injected (with `--cdxinject` or `--auto`), the limit will have no effect.
+
 <!-- - **`--convert-links`**:<br>
 If set, all links in the downloaded files will be converted to local links. This is useful for offline browsing. The links are converted to the local path structure. Show output with `--verbosity trace`. -->
 
-**CDX Query Handling:**
+**CDX Query Result Handling:**
 - **`--cdxbackup`** `<path>`:<br>
 Path defaults to output-dir. Saves the result of CDX query as a file. Useful for later downloading snapshots and overcoming refused connections by CDX server due to too many queries. Named as `waybackup_<sanitized_url>.cdx`.
   
@@ -110,10 +114,6 @@ Injects a CDX query file to download snapshots. Ensure the query matches the pre
 **Auto:**
 - **`--auto`**:<br>
 If set, csv, skip and cdxbackup/cdxinject are handled automatically. Keep the files and folders as they are. Otherwise they will not be recognized when restarting a download.
-
-### Debug
-
-- `--debug`: If set, full traceback will be printed in case of an error. The full exception will be written into `waybackup_error.log`.
 
 ### Examples
 
@@ -215,6 +215,10 @@ For list queries:
 ## CSV Output
 
 The csv contains the json response in a table format.
+
+### Debugging
+
+Exceptions will be written into `waybackup_error.log` (each run overwrites the file).
 
 ## Contributing
 
