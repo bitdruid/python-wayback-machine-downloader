@@ -24,7 +24,6 @@ class SnapshotCollection:
                 line = line.strip()
                 if line.endswith("]]"): line = line.rsplit("]", 1)[0]
                 if line.endswith(","): line = line.rsplit(",", 1)[0]
-                else: continue # drop incomplete line, maybe cdx response was cut off
                 try:
                     line = json.loads(line)
                     line = {"timestamp": line[0], "digest": line[1], "mimetype": line[2], "status": line[3], "url": line[4]}
@@ -32,11 +31,21 @@ class SnapshotCollection:
                     continue
                 cls.SNAPSHOT_COLLECTION.append(line)
         cls.SNAPSHOT_COLLECTION = sorted(cls.SNAPSHOT_COLLECTION, key=lambda k: k['timestamp'], reverse=True)
+
+        # filter entries which have the same timestamp AND url
+        cdxResult_list_filtered = []
+        unique_timestamp_url = set()
+        for snapshot in cls.SNAPSHOT_COLLECTION:
+            if (snapshot["timestamp"], snapshot["url"]) not in unique_timestamp_url:
+                cdxResult_list_filtered.append(snapshot)
+                unique_timestamp_url.add((snapshot["timestamp"], snapshot["url"]))
+        cls.SNAPSHOT_COLLECTION = cdxResult_list_filtered
+
         if mode == "current": 
             cls.MODE_CURRENT = 1
+            # filters the list to only include the latest snapshot of each file
             cdxResult_list_filtered = []
             url_set = set()
-            # filters the list to only include the latest snapshot of each file
             for snapshot in cls.SNAPSHOT_COLLECTION:
                 if snapshot["url"] not in url_set:
                     cdxResult_list_filtered.append(snapshot)
