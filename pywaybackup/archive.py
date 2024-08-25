@@ -275,9 +275,9 @@ def download_loop(snapshot_queue, output, worker, retry, no_redirect, delay, ski
                 if snapshot in failed_urls:
                     failed_urls.remove(snapshot)
                 vb.progress(1)
-                if delay > 0:
-                    vb.write(message=f"\n-----> Worker: {worker} - Delay: {delay} seconds")
-                    time.sleep(delay)
+            if delay > 0:
+                vb.write(message=f"\n-----> Worker: {worker} - Delay: {delay} seconds")
+                time.sleep(delay)
 
         if failed_urls:
             if not attempt > max_attempt: 
