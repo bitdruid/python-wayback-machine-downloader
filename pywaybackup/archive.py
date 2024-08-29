@@ -237,7 +237,7 @@ def download_list(output, retry, no_redirect, delay, workers, skipset: set = Non
     for worker in range(workers):
         worker += 1
         vb.write(message=f"\n-----> Starting worker: {worker}")
-        thread = threading.Thread(target=download_loop, args=(snapshot_queue, output, worker, retry, no_redirect, delay, skipset))
+        thread = threading.Thread(target=download_loop, args=(snapshot_queue, output, worker, retry, no_redirect, delay))
         threads.append(thread)
         thread.start()
     for thread in threads:
@@ -245,46 +245,77 @@ def download_list(output, retry, no_redirect, delay, workers, skipset: set = Non
     successed = sc.count(success=True)
     failed = sc.count(fail=True)
     vb.write(message=f"\nFiles downloaded: {successed}")
-    vb.write(message=f"Not downloaded: {failed}\n")
+    vb.write(message=f"Not downloaded: {failed}")
+    vb.write(message=f"Filtered snapshots: {sc.FILTER_TIME_URL}\n")
 
 
 
 
 
-def download_loop(snapshot_queue, output, worker, retry, no_redirect, delay, skipset=None, attempt=1, connection=None, failed_urls=[]):
+def download_loop(snapshot_queue, output, worker, retry, no_redirect, delay, connection=None):
     """
     Download a snapshot of the queue. If a download fails, the function will retry the download.
     The "snapshot_collection" dictionary will be updated with the download status and file information.
     Information for each entry is written by "create_entry" and "snapshot_dict_append" functions.
     """
+
     try:
-        max_attempt = retry if retry > 0 else retry + 1
         connection = connection or http.client.HTTPSConnection("web.archive.org")
-        if attempt > max_attempt:
-            connection.close()
-            return
 
         while not snapshot_queue.empty():
+            retry_attempt = 1
+            retry_max_attempt = retry if retry > 0 else retry + 1
             snapshot = snapshot_queue.get()
             status_message = Message()
-            status_message.store(message=f"\n-----> Attempt: [{attempt}/{max_attempt}] Snapshot [{sc.SNAPSHOT_COLLECTION.index(snapshot)+1}/{len(sc.SNAPSHOT_COLLECTION)}] - Worker: {worker}")
-            download_status = download(output, snapshot, connection, status_message, no_redirect)
-            if not download_status and snapshot not in failed_urls:
-                failed_urls.append(snapshot)
-            if download_status:
-                if snapshot in failed_urls:
-                    failed_urls.remove(snapshot)
-                vb.progress(1)
+
+            while retry_attempt <= retry_max_attempt: # retry as given by user
+                status_message.store(message=f"\n-----> Worker: {worker} - Attempt: [{retry_attempt}/{retry_max_attempt}] Snapshot [{sc.SNAPSHOT_COLLECTION.index(snapshot)+1}/{len(sc.SNAPSHOT_COLLECTION)}]")
+                download_attempt = 1
+                download_max_attempt = 3
+
+                while download_attempt <= download_max_attempt: # reconnect as given by system
+                    download_status = False
+
+                    try:
+                        #status_message.store(message=f"attempt: {retry_attempt}, reconnect: {download_attempt}")
+                        download_status = download(output, snapshot, connection, status_message, no_redirect)
+
+                    except (timeout, ConnectionRefusedError, ConnectionResetError, http.client.HTTPException, Exception) as e:
+                        if isinstance(e, (timeout, ConnectionRefusedError, ConnectionResetError)):
+                            if download_attempt < download_max_attempt:
+                                download_attempt += 1  # try again 2x with same connection
+                                vb.write(message=f"\n-----> Worker: {worker} - Attempt: [{retry_attempt}/{retry_max_attempt}] Snapshot [{sc.SNAPSHOT_COLLECTION.index(snapshot)+1}/{len(sc.SNAPSHOT_COLLECTION)}] - {e.__class__.__name__} - requesting again in 50 seconds...")
+                                time.sleep(50)
+                                continue
+                        elif isinstance(e, http.client.HTTPException):
+                            if download_attempt < download_max_attempt:
+                                download_attempt = download_max_attempt  # try again 1x with new connection
+                                vb.write(message=f"\n-----> Worker: {worker} - Attempt: [{retry_attempt}/{retry_max_attempt}] Snapshot [{sc.SNAPSHOT_COLLECTION.index(snapshot)+1}/{len(sc.SNAPSHOT_COLLECTION)}] - {e.__class__.__name__} - renewing connection in 15 seconds...")
+                                time.sleep(15)
+                                connection.close()
+                                connection = http.client.HTTPSConnection("web.archive.org")
+                                continue
+                        else:
+                            vb.write(message=f"\n-----> Worker: {worker} - Attempt: [{retry_attempt}/{retry_max_attempt}] Snapshot [{sc.SNAPSHOT_COLLECTION.index(snapshot)+1}/{len(sc.SNAPSHOT_COLLECTION)}] - Skipping snapshot - EXCEPTION - {e}")
+                            retry_attempt = retry_max_attempt
+                            break  # break all loops because of unexpected exception
+
+                    if download_status:
+                        status_message.write()
+                        vb.progress(1)
+                        retry_attempt = retry_max_attempt
+                        break # break all loops because of successful download
+
+                    vb.write(message=f"\n-----> Worker: {worker} - Attempt: [{retry_attempt}/{retry_max_attempt}] Snapshot [{sc.SNAPSHOT_COLLECTION.index(snapshot)+1}/{len(sc.SNAPSHOT_COLLECTION)}] - Download failed - retry Timeout: 15 seconds...")
+                    time.sleep(15)
+                    break # break all loops and do a user-defined retry
+                
+                retry_attempt += 1
+
             if delay > 0:
                 vb.write(message=f"\n-----> Worker: {worker} - Delay: {delay} seconds")
                 time.sleep(delay)
 
-        if failed_urls:
-            if not attempt > max_attempt: 
-                attempt += 1
-                vb.write(message=f"\n-----> Worker: {worker} - Retry Timeout: 15 seconds")
-                time.sleep(15)
-            download_loop(snapshot_queue, output, worker, retry, no_redirect, delay, skipset, attempt, connection, failed_urls)
     except Exception as e:
         ex.exception(f"Worker: {worker} - Exception", e)
         snapshot_queue.put(snapshot)  # requeue snapshot if worker crashes
@@ -300,84 +331,72 @@ def download(output, snapshot_entry, connection, status_message, no_redirect=Fal
     gzip decompression is used if the response is encoded.
     According to the response status, the function will write a status message to the console and append a failed URL.
     """
+    # from random import randrange
+    # random_int = randrange(1, 6)
+    # if random_int == 3:
+    #     raise timeout
+    # if random_int == 2:
+    #     raise http.client.HTTPException
     download_url = snapshot_entry["url_archive"]
     encoded_download_url = urllib.parse.quote(download_url, safe=':/') # used for GET - otherwise always download_url
-    max_retries = 2
-    sleep_time = 50
     headers = {'User-Agent': f'bitdruid-python-wayback-downloader/{__version__}'}
-    success = False
-    for i in range(max_retries):
-        try:
-            response, response_data, response_status, response_status_message = download_response(connection, encoded_download_url, headers)
-            sc.entry_modify(snapshot_entry, "response", response_status)
-            if not no_redirect and response_status == 302:
-                status_message.store(status="REDIRECT", type="HTTP", message=f"{response.status} - {response_status_message}")
-                status_message.store(status="", type="FROM", message=download_url)
-                for _ in range(5):                   
-                    response, response_data, response_status, response_status_message = download_response(connection, encoded_download_url, headers) 
-                    location = response.getheader("Location")
-                    if location:
-                        encoded_download_url = urllib.parse.quote(urljoin(download_url, location), safe=':/')
-                        status_message.store(status="", type="TO", message=location)
-                        sc.entry_modify(snapshot_entry, "redirect_timestamp", url_get_timestamp(location))
-                        sc.entry_modify(snapshot_entry, "redirect_url", download_url)
-                    else:
-                        break
-            if response_status == 200:
-                output_file = sc.create_output(download_url, snapshot_entry["timestamp"], output)
-                output_path = os.path.dirname(output_file)
-
-                # if output_file is too long for windows, skip download
-                if check_nt() and len(output_file) > 255:
-                    status_message.store(status="PATH > 255", type="HTTP", message=f"{response.status} - {response_status_message}")
-                    status_message.store(status="", type="URL", message=download_url)
-                    sc.entry_modify(snapshot_entry, "file", "PATH TOO LONG TO SAVE FILE")
-                    status_message.write()
-                    continue
-                # case if output_path is a file, move file to temporary name, create output_path and move file into output_path
-                if os.path.isfile(output_path):
-                    move_index(existpath=output_path)
-                else: 
-                    os.makedirs(output_path, exist_ok=True)
-                # case if output_file is a directory, create file as index.html in this directory
-                if os.path.isdir(output_file):
-                    output_file = move_index(existfile=output_file, filebuffer=response_data)
-                # download file if not existing
-                if not os.path.isfile(output_file):
-                    with open(output_file, 'wb') as file:
-                        if response.getheader('Content-Encoding') == 'gzip':
-                            response_data = gzip.decompress(response_data)
-                        file.write(response_data)
-                    # check if file is downloaded
-                    if os.path.isfile(output_file):
-                        status_message.store(status="SUCCESS", type="HTTP", message=f"{response.status} - {response_status_message}")
-                else:
-                    status_message.store(status="EXISTING", type="HTTP", message=f"{response.status} - {response_status_message}")
-                status_message.store(status="", type="URL", message=download_url)
-                status_message.store(status="", type="FILE", message=output_file)
-                sc.entry_modify(snapshot_entry, "file", output_file)
-                # if convert_links:
-                #     convert.links(output_file, status_message)
-                status_message.write()
-                success = True
-                break 
+    response, response_data, response_status, response_status_message = download_response(connection, encoded_download_url, headers)
+    sc.entry_modify(snapshot_entry, "response", response_status)
+    if not no_redirect and response_status == 302:
+        status_message.store(status="REDIRECT", type="HTTP", message=f"{response.status} - {response_status_message}")
+        status_message.store(status="", type="FROM", message=download_url)
+        for _ in range(5):                   
+            response, response_data, response_status, response_status_message = download_response(connection, encoded_download_url, headers) 
+            location = response.getheader("Location")
+            if location:
+                encoded_download_url = urllib.parse.quote(urljoin(download_url, location), safe=':/')
+                status_message.store(status="", type="TO", message=location)
+                sc.entry_modify(snapshot_entry, "redirect_timestamp", url_get_timestamp(location))
+                sc.entry_modify(snapshot_entry, "redirect_url", download_url)
             else:
-                status_message.store(status="UNEXPECTED", type="HTTP", message=f"{response.status} - {response_status_message}")
-                status_message.store(status="", type="URL", message=download_url)
-                status_message.write()
                 break
-        # exception handling        
-        except (http.client.HTTPException, timeout, ConnectionRefusedError, ConnectionResetError) as e:
-            download_exception(type, e, i, max_retries, sleep_time, status_message)
-            continue
-    if not success:
-        status_message.store(status="FAILED", type="", message=f"append to failed_urls: {download_url}")
-        status_message.write()
-    return success
+    if response_status == 200:
+        output_file = sc.create_output(download_url, snapshot_entry["timestamp"], output)
+        output_path = os.path.dirname(output_file)
 
-
-
-
+        # if output_file is too long for windows, skip download
+        if check_nt() and len(output_file) > 255:
+            status_message.store(status="PATH > 255", type="HTTP", message=f"{response.status} - {response_status_message}")
+            status_message.store(status="", type="URL", message=download_url)
+            sc.entry_modify(snapshot_entry, "file", "PATH TOO LONG TO SAVE FILE")
+            #status_message.write()
+            raise Exception("Path too long to save file")
+        # case if output_path is a file, move file to temporary name, create output_path and move file into output_path
+        if os.path.isfile(output_path):
+            move_index(existpath=output_path)
+        else: 
+            os.makedirs(output_path, exist_ok=True)
+        # case if output_file is a directory, create file as index.html in this directory
+        if os.path.isdir(output_file):
+            output_file = move_index(existfile=output_file, filebuffer=response_data)
+        # download file if not existing
+        if not os.path.isfile(output_file):
+            with open(output_file, 'wb') as file:
+                if response.getheader('Content-Encoding') == 'gzip':
+                    response_data = gzip.decompress(response_data)
+                file.write(response_data)
+            # check if file is downloaded
+            if os.path.isfile(output_file):
+                status_message.store(status="SUCCESS", type="HTTP", message=f"{response.status} - {response_status_message}")
+        else:
+            status_message.store(status="EXISTING", type="HTTP", message=f"{response.status} - {response_status_message}")
+        status_message.store(status="", type="URL", message=download_url)
+        status_message.store(status="", type="FILE", message=output_file)
+        sc.entry_modify(snapshot_entry, "file", output_file)
+        # if convert_links:
+        #     convert.links(output_file, status_message)
+        #status_message.write()
+        return True
+    else:
+        status_message.store(status="UNEXPECTED", type="HTTP", message=f"{response.status} - {response_status_message}")
+        status_message.store(status="", type="URL", message=download_url)
+        #status_message.write()
+        return False
 
 def download_response(connection, encoded_download_url, headers):
     connection.request("GET", encoded_download_url, headers=headers)
@@ -386,10 +405,6 @@ def download_response(connection, encoded_download_url, headers):
     response_status = response.status
     response_status_message = parse_response_code(response_status)
     return response, response_data, response_status, response_status_message
-
-
-
-
 
 RESPONSE_CODE_DICT = {
     200: "OK",
@@ -401,15 +416,6 @@ RESPONSE_CODE_DICT = {
     500: "Internal Server Error",
     503: "Service Unavailable"
 }
-
-def download_exception(type, e, i, max_retries, sleep_time, status_message):
-    """
-    Handle exceptions during the download process.
-    """
-    type = e.__class__.__name__.upper()
-    status_message.store(status=f"{type}", type=f"({i+1}/{max_retries})", message=f"reconnect in {sleep_time} seconds...")
-    status_message.write()
-    time.sleep(sleep_time)
 
 def parse_response_code(response_code: int):
     """

@@ -5,7 +5,9 @@ import os
 class SnapshotCollection:
 
     SNAPSHOT_COLLECTION = []
-    MODE_CURRENT = 0        
+    MODE_CURRENT = 0
+
+    FILTER_TIME_URL = 0
 
     @classmethod
     def create_list(cls, cdxfile, mode):
@@ -36,9 +38,11 @@ class SnapshotCollection:
         cdxResult_list_filtered = []
         unique_timestamp_url = set()
         for snapshot in cls.SNAPSHOT_COLLECTION:
-            if (snapshot["timestamp"], snapshot["url"]) not in unique_timestamp_url:
+            if (snapshot["timestamp"], snapshot["url"]) not in unique_timestamp_url: # does not filter http / https
                 cdxResult_list_filtered.append(snapshot)
                 unique_timestamp_url.add((snapshot["timestamp"], snapshot["url"]))
+            else:
+                cls.FILTER_TIME_URL += 1
         cls.SNAPSHOT_COLLECTION = cdxResult_list_filtered
 
         if mode == "current": 
@@ -50,6 +54,8 @@ class SnapshotCollection:
                 if snapshot["url"] not in url_set:
                     cdxResult_list_filtered.append(snapshot)
                     url_set.add(snapshot["url"])
+                else:
+                    cls.FILTER_TIME_URL += 1
             cls.SNAPSHOT_COLLECTION = cdxResult_list_filtered
         # writes the index for each snapshot entry
         cls.SNAPSHOT_COLLECTION = [{"id": idx, **entry} for idx, entry in enumerate(cls.SNAPSHOT_COLLECTION)]
