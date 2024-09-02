@@ -99,7 +99,7 @@ class SnapshotCollection:
             }
             new_collection.append(collection_entry)
         cls.SNAPSHOT_COLLECTION = new_collection
-    
+ 
 
     @classmethod
     def create_output(cls, url: str, timestamp: str, output: str):
