@@ -28,6 +28,7 @@ class Arguments:
         optional.add_argument('-r', '--range', type=int, metavar="", help='range in years to search')
         optional.add_argument('--start', type=int, metavar="", help='start timestamp format: YYYYMMDDhhmmss')
         optional.add_argument('--end', type=int, metavar="", help='end timestamp format: YYYYMMDDhhmmss')
+        optional.add_argument('--filetype', type=str, metavar="", help='filetypes to download comma separated (e.g. "html,css")')
 
         special = parser.add_argument_group('manipulate behavior')
         special.add_argument('--csv', type=str, nargs='?', const=True, metavar='path', help='save a csv file with the json output - defaults to output folder')
@@ -83,6 +84,10 @@ class Configuration:
             cls.mode = "full"
         if cls.current:
             cls.mode = "current"
+
+        if cls.filetype:
+            cls.filetype = [ft.lower().strip() for ft in cls.filetype.split(",")]
+            print(cls.filetype)
 
         cls.cdxbackup = cls.output if cls.cdxbackup is None else cls.cdxbackup
 

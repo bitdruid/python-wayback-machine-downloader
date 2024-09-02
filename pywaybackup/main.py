@@ -18,7 +18,7 @@ def main():
     else:
         try:
             skipset = archive.skip_open(config.skip, config.url) if config.skip else None
-            archive.query_list(config.range, config.limit, config.start, config.end, config.explicit, config.mode, config.cdxbackup, config.cdxinject)
+            archive.query_list(config.range, config.limit, config.start, config.end, config.explicit, config.filetype, config.mode, config.cdxbackup, config.cdxinject)
             if config.list:
                 archive.print_list()
             else:

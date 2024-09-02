@@ -100,7 +100,7 @@ def print_list():
 
 # create filelist
 # timestamp format yyyyMMddhhmmss
-def query_list(queryrange: int, limit: int, start: int, end: int, explicit: bool, mode: str, cdxbackup: str, cdxinject: str):
+def query_list(queryrange: int, limit: int, start: int, end: int, explicit: bool, filter_filetype: list, mode: str, cdxbackup: str, cdxinject: str):
 
     def input_countdown():
         for i in range(10, -1, -1):
@@ -191,7 +191,7 @@ def query_list(queryrange: int, limit: int, start: int, end: int, explicit: bool
 
         abort_listener.join(timeout=1)
 
-    sc.create_list(cdxfile, mode)
+    sc.create_list(cdxfile, mode, filter_filetype)
     if not cdxbackup and not cdxinject:
         os.remove(cdxfile)
     else:

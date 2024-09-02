@@ -10,7 +10,7 @@ class SnapshotCollection:
     FILTER_TIME_URL = 0
 
     @classmethod
-    def create_list(cls, cdxfile, mode):
+    def create_list(cls, cdxfile, mode, filter_filetype):
         """
         Create the snapshot collection list from a cdx result.
 
@@ -43,6 +43,15 @@ class SnapshotCollection:
                 unique_timestamp_url.add((snapshot["timestamp"], snapshot["url"]))
             else:
                 cls.FILTER_TIME_URL += 1
+        cls.SNAPSHOT_COLLECTION = cdxResult_list_filtered
+
+        # filter entries according to filetype filter
+        cdxResult_list_filtered = []
+        for snapshot in cls.SNAPSHOT_COLLECTION:
+            for filetype in filter_filetype:
+                if snapshot["url"].endswith(filetype):
+                    cdxResult_list_filtered.append(snapshot)
+                    break
         cls.SNAPSHOT_COLLECTION = cdxResult_list_filtered
 
         if mode == "current": 
