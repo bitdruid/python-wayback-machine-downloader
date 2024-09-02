@@ -62,7 +62,7 @@ This tool allows you to download content from the Wayback Machine (archive.org).
   Defaults to `waybackup_snapshots` in the current directory. The folder where downloaded files will be saved.
 
 - **`--filetype`** `<filetype>`:<br>
-  Specify filetypes to download. Default is all filetypes. Separate multiple filetypes with a comma. Example: `--filetype html,css,js`.
+  Specify filetypes to download. Default is all filetypes. Separate multiple filetypes with a comma. Example: `--filetype html,css,js`. A filter will result in a filtered cdx-file. So if you want to download all files later, you need to query again without the filter.
 
 - **Range Selection:**<br>
   Specify the range in years or a specific timestamp either start, end, or both. If you specify the `range` argument, the `start` and `end` arguments will be ignored. Format for timestamps: YYYYMMDDhhmmss. You can only give a year or increase specificity by going through the timestamp starting on the left.<br>

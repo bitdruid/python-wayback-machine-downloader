@@ -10,7 +10,7 @@ class SnapshotCollection:
     FILTER_TIME_URL = 0
 
     @classmethod
-    def create_list(cls, cdxfile, mode, filter_filetype):
+    def create_list(cls, cdxfile, mode):
         """
         Create the snapshot collection list from a cdx result.
 

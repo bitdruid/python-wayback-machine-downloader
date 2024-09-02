@@ -147,12 +147,12 @@ def query_list(queryrange: int, limit: int, start: int, end: int, explicit: bool
         if not explicit:
             cdx_url = f"{cdx_url}/*"
 
-        limit = f"limit={limit}&" if limit else ""
+        limit = f"&limit={limit}&" if limit else ""
 
-        filter_filetype = f'filter=original:.*\\.({"|".join(filter_filetype)})$' if filter_filetype else ''
+        filter_filetype = f'&filter=original:.*\\.({"|".join(filter_filetype)})$' if filter_filetype else ''
 
         vb.write(message=f"-----> {cdx_url}")
-        cdxQuery = f"https://web.archive.org/cdx/search/cdx?output=json&url={cdx_url}{query_range}&fl=timestamp,digest,mimetype,statuscode,original&{limit}{filter_filetype}"
+        cdxQuery = f"https://web.archive.org/cdx/search/cdx?output=json&url={cdx_url}{query_range}&fl=timestamp,digest,mimetype,statuscode,original{limit}{filter_filetype}"
 
         cdxfile = os.path.join(cdxbackup, f"waybackup_{sanitize_filename(config.url)}.cdx")
 
@@ -193,7 +193,7 @@ def query_list(queryrange: int, limit: int, start: int, end: int, explicit: bool
 
         abort_listener.join(timeout=1)
 
-    sc.create_list(cdxfile, mode, filter_filetype)
+    sc.create_list(cdxfile, mode)
     if not cdxbackup and not cdxinject:
         os.remove(cdxfile)
     else:
@@ -333,12 +333,6 @@ def download(output, snapshot_entry, connection, status_message, no_redirect=Fal
     gzip decompression is used if the response is encoded.
     According to the response status, the function will write a status message to the console and append a failed URL.
     """
-    # from random import randrange
-    # random_int = randrange(1, 6)
-    # if random_int == 3:
-    #     raise timeout
-    # if random_int == 2:
-    #     raise http.client.HTTPException
     download_url = snapshot_entry["url_archive"]
     encoded_download_url = urllib.parse.quote(download_url, safe=':/') # used for GET - otherwise always download_url
     headers = {'User-Agent': f'bitdruid-python-wayback-downloader/{__version__}'}
