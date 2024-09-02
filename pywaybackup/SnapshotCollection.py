@@ -45,14 +45,14 @@ class SnapshotCollection:
                 cls.FILTER_TIME_URL += 1
         cls.SNAPSHOT_COLLECTION = cdxResult_list_filtered
 
-        # filter entries according to filetype filter
-        cdxResult_list_filtered = []
-        for snapshot in cls.SNAPSHOT_COLLECTION:
-            for filetype in filter_filetype:
-                if snapshot["url"].endswith(filetype):
-                    cdxResult_list_filtered.append(snapshot)
-                    break
-        cls.SNAPSHOT_COLLECTION = cdxResult_list_filtered
+        # # filter entries according to filetype filter
+        # cdxResult_list_filtered = []
+        # for snapshot in cls.SNAPSHOT_COLLECTION:
+        #     for filetype in filter_filetype:
+        #         if snapshot["url"].endswith(filetype):
+        #             cdxResult_list_filtered.append(snapshot)
+        #             break
+        # cls.SNAPSHOT_COLLECTION = cdxResult_list_filtered
 
         if mode == "current": 
             cls.MODE_CURRENT = 1

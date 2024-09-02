@@ -87,7 +87,6 @@ class Configuration:
 
         if cls.filetype:
             cls.filetype = [ft.lower().strip() for ft in cls.filetype.split(",")]
-            print(cls.filetype)
 
         cls.cdxbackup = cls.output if cls.cdxbackup is None else cls.cdxbackup
 

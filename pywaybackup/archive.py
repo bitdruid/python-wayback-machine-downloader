@@ -127,7 +127,7 @@ def query_list(queryrange: int, limit: int, start: int, end: int, explicit: bool
             vb.write(message="\nNo CDX file found to inject - querying snapshots...")
             return False
 
-    def query(queryrange, limit, start, end, explicit):
+    def query(queryrange, limit, filter_filetype, start, end, explicit):
         vb.write(message="\nQuerying snapshots...")
         query_range = ""
         if not queryrange:
@@ -149,8 +149,10 @@ def query_list(queryrange: int, limit: int, start: int, end: int, explicit: bool
 
         limit = f"limit={limit}&" if limit else ""
 
+        filter_filetype = f'filter=original:.*\\.({"|".join(filter_filetype)})$' if filter_filetype else ''
+
         vb.write(message=f"-----> {cdx_url}")
-        cdxQuery = f"https://web.archive.org/cdx/search/cdx?output=json&url={cdx_url}{query_range}&fl=timestamp,digest,mimetype,statuscode,original&{limit}filter!=statuscode:200"
+        cdxQuery = f"https://web.archive.org/cdx/search/cdx?output=json&url={cdx_url}{query_range}&fl=timestamp,digest,mimetype,statuscode,original&{limit}{filter_filetype}"
 
         cdxfile = os.path.join(cdxbackup, f"waybackup_{sanitize_filename(config.url)}.cdx")
 
@@ -175,7 +177,7 @@ def query_list(queryrange: int, limit: int, start: int, end: int, explicit: bool
     if cdxinject:
         cdxfile = inject(cdxinject)
     if not cdxfile:
-        cdxfile = query(queryrange, limit, start, end, explicit)
+        cdxfile = query(queryrange, limit, filter_filetype, start, end, explicit)
 
     snapshot_count = count_cdxfile(cdxfile) - 1
     if snapshot_count > 1000000:
