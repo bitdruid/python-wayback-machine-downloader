@@ -61,8 +61,8 @@ This tool allows you to download content from the Wayback Machine (archive.org).
 - **`-o`**, **`--output`**:<br>
   Defaults to `waybackup_snapshots` in the current directory. The folder where downloaded files will be saved.
 
-- **`--filetypes`** `<filetypes>`:<br>
-  Specify filetypes to download. Default is all filetypes. Separate multiple filetypes with a comma. Example: `--filetypes html,css,js`.
+- **`--filetype`** `<filetype>`:<br>
+  Specify filetypes to download. Default is all filetypes. Separate multiple filetypes with a comma. Example: `--filetype html,css,js`.
 
 - **Range Selection:**<br>
   Specify the range in years or a specific timestamp either start, end, or both. If you specify the `range` argument, the `start` and `end` arguments will be ignored. Format for timestamps: YYYYMMDDhhmmss. You can only give a year or increase specificity by going through the timestamp starting on the left.<br>
