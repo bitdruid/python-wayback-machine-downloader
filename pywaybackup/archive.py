@@ -248,7 +248,7 @@ def download_list(output, retry, no_redirect, delay, workers, skipset: set = Non
     failed = sc.count(fail=True)
     vb.write(message=f"\nFiles downloaded: {successed}")
     vb.write(message=f"Not downloaded: {failed}")
-    vb.write(message=f"Filtered snapshots: {sc.FILTER_TIME_URL}\n")
+    vb.write(message=f"Filtered duplicate snapshots: {sc.FILTER_TIME_URL}\n")
 
 
 
