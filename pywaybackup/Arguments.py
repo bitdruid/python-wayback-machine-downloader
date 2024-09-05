@@ -88,8 +88,6 @@ class Configuration:
         if cls.filetype:
             cls.filetype = [ft.lower().strip() for ft in cls.filetype.split(",")]
 
-        cls.cdxbackup = cls.output if cls.cdxbackup is None else cls.cdxbackup
-
         if cls.auto:
             cls.skip = cls.output
             cls.csv = cls.output

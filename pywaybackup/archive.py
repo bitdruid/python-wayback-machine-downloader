@@ -100,7 +100,7 @@ def print_list():
 
 # create filelist
 # timestamp format yyyyMMddhhmmss
-def query_list(queryrange: int, limit: int, start: int, end: int, explicit: bool, filter_filetype: list, mode: str, cdxbackup: str, cdxinject: str):
+def query_list(queryrange: int, limit: int, start: int, end: int, explicit: bool, filter_filetype: list, mode: str, output: str, cdxbackup: str, cdxinject: str):
 
     def input_countdown():
         for i in range(10, -1, -1):
@@ -154,7 +154,7 @@ def query_list(queryrange: int, limit: int, start: int, end: int, explicit: bool
         vb.write(message=f"-----> {cdx_url}")
         cdxQuery = f"https://web.archive.org/cdx/search/cdx?output=json&url={cdx_url}{query_range}&fl=timestamp,digest,mimetype,statuscode,original{limit}{filter_filetype}"
 
-        cdxfile = os.path.join(cdxbackup, f"waybackup_{sanitize_filename(config.url)}.cdx")
+        cdxfile = os.path.join(output, f"waybackup_{sanitize_filename(config.url)}.cdx") if cdxbackup is None else cdxbackup
 
         try:
             cdxfile_IO = open(cdxfile, "w")
