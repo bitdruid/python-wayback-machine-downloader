@@ -58,11 +58,12 @@ This tool allows you to download content from the Wayback Machine (archive.org).
   Only print the snapshots available within the specified range. Does not download the snapshots.
 - **`-e`**, **`--explicit`**:<br>
   Only download the explicit given URL. No wildcard subdomains or paths. Use e.g. to get root-only snapshots. This is recommended for explicit files like `login.html` or `?query=this`.
-- **`-o`**, **`--output`**:<br>
-  Defaults to `waybackup_snapshots` in the current directory. The folder where downloaded files will be saved.
 
 - **`--filetype`** `<filetype>`:<br>
-  Specify filetypes to download. Default is all filetypes. Separate multiple filetypes with a comma. Example: `--filetype html,css,js`. A filter will result in a filtered cdx-file. So if you want to download all files later, you need to query again without the filter.
+  Specify filetypes to download. Default is all filetypes. Separate multiple filetypes with a comma. Example: `--filetype jpg,css,js`. A filter will result in a filtered cdx-file. So if you want to download all files later, you need to query again without the filter. Filetypes are filtered as they are in the snapshot. So if there is no explicit `html` file in the path (common practice) then you cant filter them.
+
+- **`--limit`** `<count>`:<br>
+Limits the amount of snapshots to query from the CDX server. If an existing CDX file is injected (with `--cdxinject` or `--auto`), the limit will have no effect.
 
 - **Range Selection:**<br>
   Specify the range in years or a specific timestamp either start, end, or both. If you specify the `range` argument, the `start` and `end` arguments will be ignored. Format for timestamps: YYYYMMDDhhmmss. You can only give a year or increase specificity by going through the timestamp starting on the left.<br>
@@ -74,7 +75,10 @@ This tool allows you to download content from the Wayback Machine (archive.org).
    - **`--end`**:<br>
      Timestamp to end searching.
 
-### Additional behavior manipulation
+### Behavior manipulation
+
+- **`-o`**, **`--output`**:<br>
+  Defaults to `waybackup_snapshots` in the current directory. The folder where downloaded files will be saved.
   
 - **`--csv`** `<path>`:<br>
 Path defaults to output-dir. Saves a CSV file with the json-response for successfull downloads. If `--list` is set, the CSV contains the CDX list of snapshots. If `--current` or `--full` is set, CSV contains downloaded files. Named as `waybackup_<sanitized_url>.csv`.
@@ -100,9 +104,6 @@ Specifies number of retry attempts for failed downloads.
 
 - **`--delay`** `<seconds>`:<br>
 Specifies delay between download requests in seconds. Default is no delay (0).
-
-- **`--limit`** `<count>`:<br>
-Limits the amount of snapshots to query from the CDX server. If an existing CDX file is injected (with `--cdxinject` or `--auto`), the limit will have no effect.
 
 <!-- - **`--convert-links`**:<br>
 If set, all links in the downloaded files will be converted to local links. This is useful for offline browsing. The links are converted to the local path structure. Show output with `--verbosity trace`. -->
