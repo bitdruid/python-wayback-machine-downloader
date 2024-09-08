@@ -1,5 +1,6 @@
 import sqlite3
 from pywaybackup.helper import url_split
+from pywaybackup.helper import sanitize_filename
 import json
 import os
 
@@ -11,15 +12,6 @@ class SnapshotCollection:
     FILTER_TIME_URL = 0
 
     SNAPSHOT_DB = ""
-
-    cdx_table = """CREATE TABLE IF NOT EXISTS cdx (
-        id INTEGER PRIMARY KEY,
-        timestamp TEXT,
-        digest TEXT,
-        mimetype TEXT,
-        statuscode TEXT,
-        original TEXT
-    )"""
     snapshot_table = """CREATE TABLE IF NOT EXISTS snapshot (
         id INTEGER PRIMARY KEY,
         timestamp TEXT,
@@ -31,19 +23,36 @@ class SnapshotCollection:
         file TEXT
     )"""
 
-    def __init__(self, cdxfile, mode, output):
+    def __init__(self, cdxfile, mode, url, output):
         
-        self.SNAPSHOT_DB = os.path.join(output, "wayback.db")
+        self.SNAPSHOT_DB = os.path.join(output, f"waybackup_{sanitize_filename(url)}.db")
         self.conn = sqlite3.connect(self.SNAPSHOT_DB)
         self.cursor = self.conn.cursor()
-        self.cursor.execute(self.cdx_table)
         self.cursor.execute(self.snapshot_table)
+        self.insert_cdx(cdxfile, mode)
         self.conn.commit()
         
     def fini(self):
         self.conn.commit()
         self.conn.close()
         os.remove(self.SNAPSHOT_DB)
+
+    def insert_cdx(self, cdxfile, mode):
+        with open(cdxfile, "r") as f:
+            first_line = True
+            for line in f:
+                if first_line:
+                    first_line = False
+                    continue
+                line = line.strip()
+                if line.endswith("]]"): line = line.rsplit("]", 1)[0]
+                if line.endswith(","): line = line.rsplit(",", 1)[0]
+                try:
+                    line = json.loads(line)
+                    line = {"timestamp": line[0], "digest": line[1], "mimetype": line[2], "status": line[3], "url": line[4]}
+                except json.JSONDecodeError:
+                    continue
+                self.cursor.execute("")
 
     @classmethod
     def create_list(cls, cdxfile, mode):
