@@ -112,8 +112,8 @@ If set, all links in the downloaded files will be converted to local links. This
 - **`--cdxbackup`** `<path>`:<br>
 Path defaults to output-dir. Saves the result of CDX query as a file. Useful for later downloading snapshots and overcoming refused connections by CDX server due to too many queries. Named as `waybackup_<sanitized_url>.cdx`.
   
-- **`--cdxinject`** `<filepath>`:<br>
-Injects a CDX query file to download snapshots. Ensure the query matches the previous `--url` for correct folder structure.
+- **`--cdxinject`** `<path>`:<br>
+Path defaults to output-dir. Injects a CDX query file to download snapshots. Ensure the query matches the previous `--url` for correct folder structure. Named as `waybackup_<sanitized_url>.cdx`.
 
 **Auto:**
 - **`--auto`**:<br>

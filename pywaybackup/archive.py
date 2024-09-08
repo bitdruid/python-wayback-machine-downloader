@@ -147,15 +147,14 @@ def query_list(queryrange: int, limit: int, start: int, end: int, explicit: bool
         if not explicit:
             cdx_url = f"{cdx_url}/*"
 
-        limit = f"&limit={limit}&" if limit else ""
+        limit = f"&limit={limit}" if limit else ""
 
         filter_filetype = f'&filter=original:.*\\.({"|".join(filter_filetype)})$' if filter_filetype else ''
 
         vb.write(message=f"-----> {cdx_url}")
         cdxQuery = f"https://web.archive.org/cdx/search/cdx?output=json&url={cdx_url}{query_range}&fl=timestamp,digest,mimetype,statuscode,original{limit}{filter_filetype}"
 
-        cdxfile = os.path.join(output, f"waybackup_{sanitize_filename(config.url)}.cdx") if cdxbackup is None else cdxbackup
-
+        cdxfile = cdxbackup
         try:
             cdxfile_IO = open(cdxfile, "w")
             with requests.get(cdxQuery, stream=True) as r:

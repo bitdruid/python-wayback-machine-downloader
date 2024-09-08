@@ -45,12 +45,17 @@ class Arguments:
         cdx = parser.add_argument_group('cdx (one exclusive)')
         exclusive_cdx = cdx.add_mutually_exclusive_group()
         exclusive_cdx.add_argument('--cdxbackup', type=str, nargs='?', const=True, metavar='path', help='Save the cdx query-result to a file for recurent use - defaults to output folder')
-        exclusive_cdx.add_argument('--cdxinject', type=str, nargs='?', const=True, metavar='path', help='Inject a cdx backup-file to download according to the given url')
+        exclusive_cdx.add_argument('--cdxinject', type=str, nargs='?', const=True, metavar='path', help='Inject a existing cdx backup-file to download according to the given url')
 
         auto = parser.add_argument_group('auto')
         auto.add_argument('--auto', action='store_true', help='includes automatic csv, skip and cdxbackup/cdxinject to resume a stopped download')
 
         args = parser.parse_args(args=None if sys.argv[1:] else ['--help']) # if no arguments are given, print help
+
+        if args.cdxbackup and os.path.isfile(args.cdxbackup):
+            parser.error(f"Is a file: {args.cdxbackup}")
+        if args.cdxinject and os.path.isfile(args.cdxinject):
+            parser.error(f"Is a file: {args.cdxinject}")
 
         # if args.convert_links and not args.current:
         #     parser.error("--convert-links can only be used with the -c/--current option")
@@ -91,7 +96,7 @@ class Configuration:
         if cls.auto:
             cls.skip = cls.output
             cls.csv = cls.output
-            cls.cdxbackup = cls.output
+            cls.cdxbackup = os.path.join(cls.output, f"waybackup_{sanitize_filename(cls.url)}.cdx")
             cls.cdxinject = os.path.join(cls.output, f"waybackup_{sanitize_filename(cls.url)}.cdx")
         else:
             if cls.skip is True:
@@ -99,8 +104,12 @@ class Configuration:
             if cls.csv is True:
                 cls.csv = cls.output
             if cls.cdxbackup is True:
-                cls.cdxbackup = cls.output
+                cls.cdxbackup = os.path.join(cls.output, f"waybackup_{sanitize_filename(cls.url)}.cdx")
+            if not isinstance(cls.cdxbackup, bool):
+                cls.cdxbackup = os.path.join(cls.output, f"waybackup_{sanitize_filename(cls.url)}.cdx")
             if cls.cdxinject is True:
-                cls.cdxinject = cls.output
+                cls.cdxinject = os.path.join(cls.output, f"waybackup_{sanitize_filename(cls.url)}.cdx")
+            if not isinstance(cls.cdxinject, bool):
+                cls.cdxinject = os.path.join(cls.output, f"waybackup_{sanitize_filename(cls.url)}.cdx")
 
 
