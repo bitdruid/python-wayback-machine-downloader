@@ -5,12 +5,14 @@ import signal
 import pywaybackup.archive as archive
 
 from pywaybackup.Arguments import Configuration as config
+from pywaybackup.db import Database as db
 from pywaybackup.Verbosity import Verbosity as vb
 from pywaybackup.Exception import Exception as ex
 
 def main():
 
     config.init()
+    db.init(config.url, config.output)
     ex.init(config.output, config.command)
     vb.init(config.verbosity, config.log)
     if config.save:

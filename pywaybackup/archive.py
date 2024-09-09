@@ -3,7 +3,6 @@ import os
 import gzip
 import csv
 import threading
-import queue
 import time
 import urllib.parse
 import http.client
@@ -18,13 +17,13 @@ from pywaybackup.helper import url_get_timestamp, move_index, sanitize_filename,
 
 from pywaybackup.SnapshotCollection import SnapshotCollection as sc
 from pywaybackup.Arguments import Configuration as config
+from pywaybackup.db import Database
 
 from pywaybackup.__version__ import __version__
 
 from pywaybackup.Verbosity import Message
 from pywaybackup.Verbosity import Verbosity as vb
 from pywaybackup.Exception import Exception as ex
-import threading
 
 
 
@@ -102,18 +101,6 @@ def print_list():
 # timestamp format yyyyMMddhhmmss
 def query_list(queryrange: int, limit: int, start: int, end: int, explicit: bool, filter_filetype: list, mode: str, output: str, cdxbackup: str, cdxinject: str):
 
-    def input_countdown():
-        for i in range(10, -1, -1):
-            vb.write(message=f"{i}")
-            print("\033[F", end="")
-            print("\033[K", end="")           
-            time.sleep(1)
-
-    def input_detection():
-        input()
-        vb.write(message="\nExiting...")
-        os._exit(1)
-
     def count_cdxfile(cdxfile):
         with open(cdxfile, "r") as file:
             return file.read().count("\n") - 1
@@ -178,21 +165,7 @@ def query_list(queryrange: int, limit: int, start: int, end: int, explicit: bool
     if not cdxfile:
         cdxfile = query(queryrange, limit, filter_filetype, start, end, explicit)
 
-    snapshot_count = count_cdxfile(cdxfile) - 1
-    if snapshot_count > 1000000:
-        vb.write(message="\n!!!!! WARNING")
-        vb.write(message="Excessive amount of snapshots detected. System may run out of memory!")
-        vb.write(message="---> Consider splitting the query into smaller jobs (range start/end).")
-        vb.write(message="\nPress ANY key to abort...")
-
-        abort_listener = threading.Thread(target=input_detection)
-        abort_listener.start()
-
-        input_countdown()
-
-        abort_listener.join(timeout=1)
-
-    sc.init(cdxfile, mode, config.url, output)
+    sc.init(cdxfile, mode)
     if not cdxbackup and not cdxinject:
         os.remove(cdxfile)
     else:
@@ -252,14 +225,14 @@ def download_loop(output, worker, retry, no_redirect, delay, connection=None):
     """
 
     try:
-        db = sc.connect_worker()
+        db = Database()
         connection = connection or http.client.HTTPSConnection("web.archive.org")
 
         while True:
 
             snapshot = sc.get_snapshot(db)
             if not snapshot: break
-            sc.modify_snapshot(db, snapshot["id"], "status", 2)
+            sc.modify_snapshot(db, snapshot["id"], "status", 1) # mark as processed for other workers
 
             retry_attempt = 1
             retry_max_attempt = retry if retry > 0 else retry + 1
@@ -300,7 +273,6 @@ def download_loop(output, worker, retry, no_redirect, delay, connection=None):
                     if download_status:
                         status_message.write()
                         vb.progress(1)
-                        sc.modify_snapshot(db, snapshot["id"], "status", 1)
                         retry_attempt = retry_max_attempt
                         break # break all loops because of successful download
 

@@ -1,52 +1,40 @@
 import sqlite3
 from pywaybackup.helper import url_split
 from pywaybackup.helper import sanitize_filename
+from pywaybackup.db import Database
 import json
 import os
 
 class SnapshotCollection:
+    """
+    Represents the interaction with the snapshot-collection contained in the snapshot database.
+    """
 
     SNAPSHOT_AMOUNT = 0
     MODE_CURRENT = 0
 
     FILTER_TIME_URL = 0
 
-    SNAPSHOT_DB = ""
-    snapshot_table = """CREATE TABLE IF NOT EXISTS snapshot_tbl (
-        id INTEGER PRIMARY KEY,
-        timestamp TEXT,
-        url_archive TEXT,
-        url_origin TEXT,
-        redirect_url TEXT,
-        redirect_timestamp TEXT,
-        response TEXT,
-        file TEXT,
-        status boolean DEFAULT 0
-    )"""
-
-    def connect_worker() -> sqlite3.Connection:
-        return sqlite3.connect(SnapshotCollection.SNAPSHOT_DB)
-    def close_worker(connection=sqlite3.Connection):
-        sqlite3.Connection.commit()
-        sqlite3.Connection.close()
-
     @classmethod
-    def init(cls, cdxfile, mode, url, output):
-        
+    def init(cls, cdxfile, mode):
+        """
+        Initialize the snapshot collection by inserting the content of the cdx file into the snapshot table.
+        """        
         if mode == "current": 
             cls.MODE_CURRENT = 1
-        cls.SNAPSHOT_DB = os.path.join(output, f"waybackup_{sanitize_filename(url)}.db")
-        cls.conn = sqlite3.connect(cls.SNAPSHOT_DB)
-        cls.cursor = cls.conn.cursor()
-        cls.cursor.execute(cls.snapshot_table)
+
+        cls.db = Database()
         cls.insert_cdx(cdxfile)
-        cls.conn.commit()
+        cls.db.conn.commit()
         
     @classmethod
     def fini(cls):
-        cls.conn.commit()
-        cls.conn.close()
-        os.remove(cls.SNAPSHOT_DB)
+        """
+        Close the connection to the snapshot database and remove the database file.
+        """
+        cls.db.conn.commit()
+        cls.db.conn.close()
+        os.remove(cls.db.SNAPSHOT_DB)
 
     @classmethod
     def insert_cdx(cls, cdxfile):
@@ -68,8 +56,8 @@ class SnapshotCollection:
                 except json.JSONDecodeError:
                     continue
                 url_archive = f"https://web.archive.org/web/{line["timestamp"]}id_/{line["url"]}"
-                cls.cursor.execute("INSERT INTO snapshot_tbl (timestamp, url_archive, url_origin) VALUES (?, ?, ?)", (line["timestamp"], url_archive, line["url"]))
-        cls.conn.commit()
+                cls.db.cursor.execute("INSERT INTO snapshot_tbl (timestamp, url_archive, url_origin) VALUES (?, ?, ?)", (line["timestamp"], url_archive, line["url"]))
+        cls.db.conn.commit()
         cls.filter_snapshots()
 
     @classmethod
@@ -81,13 +69,9 @@ class SnapshotCollection:
         - Remove entries which have the same timestamp AND url.
         - When mode is `current`, remove entries which are not the latest snapshot of each file.
         """
-        cls.cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS snapshot_filter_tbl AS SELECT * FROM snapshot_tbl WHERE 0;
-            """
-        )
 
-        cls.cursor.execute(
+        # count the amount of snapshots that were filtered
+        cls.db.cursor.execute(
             """
             INSERT INTO snapshot_filter_tbl
             SELECT * FROM snapshot_tbl
@@ -98,9 +82,10 @@ class SnapshotCollection:
             )    
             """
         )
-        cls.FILTER_TIME_URL = cls.cursor.rowcount
+        cls.FILTER_TIME_URL = cls.db.cursor.rowcount
 
-        cls.cursor.execute(
+        # filter the snapshot table by timestamp and url
+        cls.db.cursor.execute(
             """
             DELETE FROM snapshot_tbl
             WHERE id NOT IN (
@@ -111,8 +96,9 @@ class SnapshotCollection:
             """
         )
 
+        # filter the snapshot table and keep only the latest snapshot of each file
         if cls.MODE_CURRENT:
-            cls.cursor.execute(
+            cls.db.cursor.execute(
                 """
                 DELETE FROM snapshot_tbl
                 WHERE url_origin NOT IN (
@@ -125,14 +111,14 @@ class SnapshotCollection:
             )
 
         # count snapshots
-        cls.cursor.execute(
+        cls.db.cursor.execute(
             """
             SELECT COUNT(id) FROM snapshot_tbl
             """
         )
-        cls.SNAPSHOT_AMOUNT = cls.cursor.fetchone()[0]
+        cls.SNAPSHOT_AMOUNT = cls.db.cursor.fetchone()[0]
 
-        cls.conn.commit()
+        cls.db.conn.commit()
 
     @classmethod
     def skip_snapshots(cls, skipset):
@@ -143,15 +129,15 @@ class SnapshotCollection:
         if not skipset:
             return skip_count
         for url_archive in skipset:
-            cls.cursor.execute(
+            cls.db.cursor.execute(
                 """
                 DELETE FROM snapshot_tbl
                 WHERE url_archive = ?
                 """,
                 (url_archive,)
             )
-            skip_count += cls.cursor.rowcount
-        cls.conn.commit()
+            skip_count += cls.db.cursor.rowcount
+        cls.db.conn.commit()
         return skip_count
 
     @classmethod
@@ -159,19 +145,19 @@ class SnapshotCollection:
         if collection:
             return cls.SNAPSHOT_AMOUNT
         if success:
-            cls.cursor.execute(
+            cls.db.cursor.execute(
                 """
                 SELECT COUNT(id) FROM snapshot_tbl WHERE file IS NOT NULL
                 """
             )
-            return cls.cursor.fetchone()[0]
+            return cls.db.cursor.fetchone()[0]
         if fail:
-            cls.cursor.execute(
+            cls.db.cursor.execute(
                 """
                 SELECT COUNT(id) FROM snapshot_tbl WHERE file IS NULL
                 """
             )
-            return cls.cursor.fetchone()[0]
+            return cls.db.cursor.fetchone()[0]
         return cls.SNAPSHOT_AMOUNT
 
 
@@ -182,8 +168,7 @@ class SnapshotCollection:
         """
         Modify a snapshot-row in the snapshot table.
         """
-        cursor = connection.cursor()
-        cursor.execute(
+        connection.cursor.execute(
             f"""
             UPDATE snapshot_tbl
             SET {column} = ?
@@ -191,20 +176,18 @@ class SnapshotCollection:
             """,
             (value, snapshot_id)
         )
-        connection.commit()
+        connection.conn.commit()
 
     def get_snapshot(connection):
         """
         Get a snapshot-row from the snapshot table with status = 0 (not processed).
         """
-        connection.row_factory = sqlite3.Row
-        cursor = connection.cursor()
-        cursor.execute(
+        connection.cursor.execute(
             """
             SELECT * FROM snapshot_tbl WHERE status = 0 LIMIT 1
             """
         )
-        return cursor.fetchone()
+        return connection.cursor.fetchone()
 
 
 
