@@ -258,15 +258,15 @@ def download_loop(output, worker, retry, no_redirect, delay, connection=None):
         while True:
 
             snapshot = sc.get_snapshot(db)
-            print(snapshot)
             if not snapshot: break
+            sc.modify_snapshot(db, snapshot["id"], "status", 2)
 
             retry_attempt = 1
             retry_max_attempt = retry if retry > 0 else retry + 1
             status_message = Message()
 
             while retry_attempt <= retry_max_attempt: # retry as given by user
-                status_message.store(message=f"\n-----> Worker: {worker} - Attempt: [{retry_attempt}/{retry_max_attempt}] Snapshot [{snapshot[1]}/{sc.SNAPSHOT_AMOUNT}]")
+                status_message.store(message=f"\n-----> Worker: {worker} - Attempt: [{retry_attempt}/{retry_max_attempt}] Snapshot [{snapshot["id"]}/{sc.SNAPSHOT_AMOUNT}]")
                 download_attempt = 1
                 download_max_attempt = 3
 
@@ -275,35 +275,36 @@ def download_loop(output, worker, retry, no_redirect, delay, connection=None):
 
                     try:
                         #status_message.store(message=f"attempt: {retry_attempt}, reconnect: {download_attempt}")
-                        download_status = download(output, snapshot, connection, status_message, no_redirect)
+                        download_status = download(db, output, snapshot, connection, status_message, no_redirect)
 
                     except (timeout, ConnectionRefusedError, ConnectionResetError, http.client.HTTPException, Exception) as e:
                         if isinstance(e, (timeout, ConnectionRefusedError, ConnectionResetError)):
                             if download_attempt < download_max_attempt:
                                 download_attempt += 1  # try again 2x with same connection
-                                vb.write(message=f"\n-----> Worker: {worker} - Attempt: [{retry_attempt}/{retry_max_attempt}] Snapshot [{sc.SNAPSHOT_COLLECTION.index(snapshot)+1}/{len(sc.SNAPSHOT_COLLECTION)}] - {e.__class__.__name__} - requesting again in 50 seconds...")
+                                vb.write(message=f"\n-----> Worker: {worker} - Attempt: [{retry_attempt}/{retry_max_attempt}] Snapshot [{snapshot["id"]}/{sc.SNAPSHOT_AMOUNT}] - {e.__class__.__name__} - requesting again in 50 seconds...")
                                 time.sleep(50)
                                 continue
                         elif isinstance(e, http.client.HTTPException):
                             if download_attempt < download_max_attempt:
                                 download_attempt = download_max_attempt  # try again 1x with new connection
-                                vb.write(message=f"\n-----> Worker: {worker} - Attempt: [{retry_attempt}/{retry_max_attempt}] Snapshot [{sc.SNAPSHOT_COLLECTION.index(snapshot)+1}/{len(sc.SNAPSHOT_COLLECTION)}] - {e.__class__.__name__} - renewing connection in 15 seconds...")
+                                vb.write(message=f"\n-----> Worker: {worker} - Attempt: [{retry_attempt}/{retry_max_attempt}] Snapshot [{snapshot["id"]}/{sc.SNAPSHOT_AMOUNT}] - {e.__class__.__name__} - renewing connection in 15 seconds...")
                                 time.sleep(15)
                                 connection.close()
                                 connection = http.client.HTTPSConnection("web.archive.org")
                                 continue
                         else:
-                            vb.write(message=f"\n-----> Worker: {worker} - Attempt: [{retry_attempt}/{retry_max_attempt}] Snapshot [{sc.SNAPSHOT_COLLECTION.index(snapshot)+1}/{len(sc.SNAPSHOT_COLLECTION)}] - Skipping snapshot - EXCEPTION - {e}")
+                            ex.exception(message=f"\n-----> Worker: {worker} - Attempt: [{retry_attempt}/{retry_max_attempt}] Snapshot [{snapshot["id"]}/{sc.SNAPSHOT_AMOUNT}] - EXCEPTION - {e}", e=e)
                             retry_attempt = retry_max_attempt
-                            break  # break all loops because of unexpected exception
+                            break
 
                     if download_status:
                         status_message.write()
                         vb.progress(1)
+                        sc.modify_snapshot(db, snapshot["id"], "status", 1)
                         retry_attempt = retry_max_attempt
                         break # break all loops because of successful download
 
-                    vb.write(message=f"\n-----> Worker: {worker} - Attempt: [{retry_attempt}/{retry_max_attempt}] Snapshot [{sc.SNAPSHOT_COLLECTION.index(snapshot)+1}/{len(sc.SNAPSHOT_COLLECTION)}] - Download failed - retry Timeout: 15 seconds...")
+                    vb.write(message=f"\n-----> Worker: {worker} - Attempt: [{retry_attempt}/{retry_max_attempt}] Snapshot [{snapshot["id"]}/{sc.SNAPSHOT_AMOUNT}] - Download failed - retry Timeout: 15 seconds...")
                     time.sleep(15)
                     break # break all loops and do a user-defined retry
                 
@@ -314,14 +315,13 @@ def download_loop(output, worker, retry, no_redirect, delay, connection=None):
                 time.sleep(delay)
 
     except Exception as e:
-        ex.exception(f"Worker: {worker} - Exception", e)
-        sc.modify_snapshot(snapshot["id"], "status", 0) # reset snapshot to unprocessed
+        ex.exception(f"\nWorker: {worker} - Exception", e)
 
 
 
 
 
-def download(output, snapshot_entry, connection, status_message, no_redirect=False):
+def download(db, output, snapshot_entry, connection, status_message, no_redirect=False):
     """
     Download a single URL and save it to the specified filepath.
     If there is a redirect, the function will follow the redirect and update the download URL.
@@ -332,7 +332,7 @@ def download(output, snapshot_entry, connection, status_message, no_redirect=Fal
     encoded_download_url = urllib.parse.quote(download_url, safe=':/') # used for GET - otherwise always download_url
     headers = {'User-Agent': f'bitdruid-python-wayback-downloader/{__version__}'}
     response, response_data, response_status, response_status_message = download_response(connection, encoded_download_url, headers)
-    sc.entry_modify(snapshot_entry, "response", response_status)
+    sc.modify_snapshot(db, snapshot_entry["id"], "response", response_status)
     if not no_redirect and response_status == 302:
         status_message.store(status="REDIRECT", type="HTTP", message=f"{response.status} - {response_status_message}")
         status_message.store(status="", type="FROM", message=download_url)
@@ -342,8 +342,8 @@ def download(output, snapshot_entry, connection, status_message, no_redirect=Fal
             if location:
                 encoded_download_url = urllib.parse.quote(urljoin(download_url, location), safe=':/')
                 status_message.store(status="", type="TO", message=location)
-                sc.entry_modify(snapshot_entry, "redirect_timestamp", url_get_timestamp(location))
-                sc.entry_modify(snapshot_entry, "redirect_url", download_url)
+                sc.modify_snapshot(db, snapshot_entry["id"], "redirect_timestamp", url_get_timestamp(location))
+                sc.modify_snapshot(db, snapshot_entry["id"], "redirect_url", download_url)
             else:
                 break
     if response_status == 200:
@@ -378,7 +378,7 @@ def download(output, snapshot_entry, connection, status_message, no_redirect=Fal
             status_message.store(status="EXISTING", type="HTTP", message=f"{response.status} - {response_status_message}")
         status_message.store(status="", type="URL", message=download_url)
         status_message.store(status="", type="FILE", message=output_file)
-        sc.entry_modify(snapshot_entry, "file", output_file)
+        sc.modify_snapshot(db, snapshot_entry["id"], "file", output_file)
         # if convert_links:
         #     convert.links(output_file, status_message)
         #status_message.write()

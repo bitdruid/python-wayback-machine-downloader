@@ -111,7 +111,4 @@ class Configuration:
                 cls.cdxinject = os.path.join(cls.output, f"waybackup_{sanitize_filename(cls.url)}.cdx")
             if isinstance(cls.cdxinject, str):
                 cls.cdxinject = os.path.join(cls.cdxinject, f"waybackup_{sanitize_filename(cls.url)}.cdx")
-        
-        print(f"cdxbackup: {cls.cdxbackup}")
-
 

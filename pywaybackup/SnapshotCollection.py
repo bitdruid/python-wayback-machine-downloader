@@ -197,6 +197,7 @@ class SnapshotCollection:
         """
         Get a snapshot-row from the snapshot table with status = 0 (not processed).
         """
+        connection.row_factory = sqlite3.Row
         cursor = connection.cursor()
         cursor.execute(
             """
@@ -218,14 +219,4 @@ class SnapshotCollection:
             download_dir = os.path.join(output, domain, timestamp, subdir)
         download_file = os.path.abspath(os.path.join(download_dir, filename))
         return download_file
-    
-# class DB:
 
-#     def __init__(self, db):
-#         self.db = db
-#         self.conn = sqlite3.connect(self.db)
-#         self.cursor = self.conn.cursor()
-
-#     def close(self):
-#         self.conn.commit()
-#         self.conn.close()
