@@ -154,7 +154,7 @@ def query_list(queryrange: int, limit: int, start: int, end: int, explicit: bool
         vb.write(message=f"-----> {cdx_url}")
         cdxQuery = f"https://web.archive.org/cdx/search/cdx?output=json&url={cdx_url}{query_range}&fl=timestamp,digest,mimetype,statuscode,original{limit}{filter_filetype}"
 
-        cdxfile = cdxbackup
+        cdxfile = os.path.join(output, f"waybackup_{sanitize_filename(config.url)}.cdx") if cdxbackup is None else cdxbackup
         try:
             cdxfile_IO = open(cdxfile, "w")
             with requests.get(cdxQuery, stream=True) as r:
@@ -192,14 +192,13 @@ def query_list(queryrange: int, limit: int, start: int, end: int, explicit: bool
 
         abort_listener.join(timeout=1)
 
-    sc.create_list(cdxfile, mode)
+    sc.init(cdxfile, mode, config.url, output)
     if not cdxbackup and not cdxinject:
         os.remove(cdxfile)
     else:
         vb.write(message="\n-----> CDX backup generated")
 
-    snapshot_count = sc.count(collection=True)
-    vb.write(message=f"\n-----> {snapshot_count:,} snapshots to utilize")
+    vb.write(message=f"\n-----> {sc.count_totals(collection=True):,} snapshots to utilize")
 
 
 
@@ -210,7 +209,7 @@ def download_list(output, retry, no_redirect, delay, workers, skipset: set = Non
     """
     Download a list of urls in format: [{"timestamp": "20190815104545", "url": "https://www.google.com/"}]
     """
-    if sc.count(collection=True) == 0:
+    if sc.count_totals(collection=True) == 0:
         vb.write(message="\nNothing to download");
         return
     vb.write(message="\nDownloading snapshots...",)
@@ -218,17 +217,9 @@ def download_list(output, retry, no_redirect, delay, workers, skipset: set = Non
     if workers > 1:
         vb.write(message=f"\n-----> Simultaneous downloads: {workers}")
 
-    sc.create_collection()
     vb.write(message="\n-----> Snapshots prepared")
 
-    # create queue with snapshots and skip already downloaded urls
-    snapshot_queue = queue.Queue()
-    skip_count = 0
-    for snapshot in sc.SNAPSHOT_COLLECTION:
-        if skipset is not None and skip_read(skipset, snapshot["url_archive"]):
-            skip_count += 1
-            continue
-        snapshot_queue.put(snapshot)
+    skip_count = sc.skip_snapshots(skipset)
     vb.progress(skip_count)
     if skip_count > 0:
         vb.write(message=f"\n-----> Skipped snapshots: {skip_count}")
@@ -238,13 +229,13 @@ def download_list(output, retry, no_redirect, delay, workers, skipset: set = Non
     for worker in range(workers):
         worker += 1
         vb.write(message=f"\n-----> Starting worker: {worker}")
-        thread = threading.Thread(target=download_loop, args=(snapshot_queue, output, worker, retry, no_redirect, delay))
+        thread = threading.Thread(target=download_loop, args=(output, worker, retry, no_redirect, delay))
         threads.append(thread)
         thread.start()
     for thread in threads:
         thread.join()
-    successed = sc.count(success=True)
-    failed = sc.count(fail=True)
+    successed = sc.count_totals(success=True)
+    failed = sc.count_totals(fail=True)
     vb.write(message=f"\nFiles downloaded: {successed}")
     vb.write(message=f"Not downloaded: {failed}")
     vb.write(message=f"Filtered duplicate snapshots: {sc.FILTER_TIME_URL}\n")
@@ -253,7 +244,7 @@ def download_list(output, retry, no_redirect, delay, workers, skipset: set = Non
 
 
 
-def download_loop(snapshot_queue, output, worker, retry, no_redirect, delay, connection=None):
+def download_loop(output, worker, retry, no_redirect, delay, connection=None):
     """
     Download a snapshot of the queue. If a download fails, the function will retry the download.
     The "snapshot_collection" dictionary will be updated with the download status and file information.
@@ -261,16 +252,21 @@ def download_loop(snapshot_queue, output, worker, retry, no_redirect, delay, con
     """
 
     try:
+        db = sc.connect_worker()
         connection = connection or http.client.HTTPSConnection("web.archive.org")
 
-        while not snapshot_queue.empty():
+        while True:
+
+            snapshot = sc.get_snapshot(db)
+            print(snapshot)
+            if not snapshot: break
+
             retry_attempt = 1
             retry_max_attempt = retry if retry > 0 else retry + 1
-            snapshot = snapshot_queue.get()
             status_message = Message()
 
             while retry_attempt <= retry_max_attempt: # retry as given by user
-                status_message.store(message=f"\n-----> Worker: {worker} - Attempt: [{retry_attempt}/{retry_max_attempt}] Snapshot [{sc.SNAPSHOT_COLLECTION.index(snapshot)+1}/{len(sc.SNAPSHOT_COLLECTION)}]")
+                status_message.store(message=f"\n-----> Worker: {worker} - Attempt: [{retry_attempt}/{retry_max_attempt}] Snapshot [{snapshot[1]}/{sc.SNAPSHOT_AMOUNT}]")
                 download_attempt = 1
                 download_max_attempt = 3
 
@@ -319,7 +315,7 @@ def download_loop(snapshot_queue, output, worker, retry, no_redirect, delay, con
 
     except Exception as e:
         ex.exception(f"Worker: {worker} - Exception", e)
-        snapshot_queue.put(snapshot)  # requeue snapshot if worker crashes
+        sc.modify_snapshot(snapshot["id"], "status", 0) # reset snapshot to unprocessed
 
 
 
@@ -430,7 +426,7 @@ def csv_close(csv_path: str, url: str):
     """
     try:
         csv_path = csv_filepath(csv_path, url)
-        if sc.count(collection=True) > 0:
+        if sc.count_totals(collection=True) > 0:
             new_rows = [snapshot for snapshot in sc.SNAPSHOT_COLLECTION 
                         if ("response" in snapshot and snapshot["response"] is not False and "url_archive" in snapshot) or 
                            ("digest" in snapshot)]

@@ -27,7 +27,7 @@ def main():
             print("\nInterrupted by user\n")
         finally:
             signal.signal(signal.SIGINT, signal.SIG_IGN)
-            archive.csv_close(config.csv, config.url) if config.csv else None
+            #archive.csv_close(config.csv, config.url) if config.csv else None
 
     vb.fini()
     os._exit(0) # kill all threads
