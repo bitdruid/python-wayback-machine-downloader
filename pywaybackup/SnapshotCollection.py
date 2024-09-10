@@ -1,6 +1,4 @@
-import sqlite3
 from pywaybackup.helper import url_split
-from pywaybackup.helper import sanitize_filename
 from pywaybackup.db import Database
 import json
 import os
@@ -42,6 +40,8 @@ class SnapshotCollection:
         Insert the content of the cdx file into the snapshot table while setting up the snapshot-collection columns.
         """
         with open(cdxfile, "r") as f:
+            line_batchsize = 1000
+            line_batch = []
             first_line = True
             for line in f:
                 if first_line:
@@ -53,10 +53,15 @@ class SnapshotCollection:
                 try:
                     line = json.loads(line)
                     line = {"timestamp": line[0], "digest": line[1], "mimetype": line[2], "status": line[3], "url": line[4]}
+                    url_archive = f"https://web.archive.org/web/{line["timestamp"]}id_/{line["url"]}"
+                    line_batch.append((line["timestamp"], url_archive, line["url"]))
+                    if len(line_batch) >= line_batchsize:
+                        cls.db.cursor.executemany("INSERT INTO snapshot_tbl (timestamp, url_archive, url_origin) VALUES (?, ?, ?)", line_batch)
+                        line_batch = []
                 except json.JSONDecodeError:
                     continue
-                url_archive = f"https://web.archive.org/web/{line["timestamp"]}id_/{line["url"]}"
-                cls.db.cursor.execute("INSERT INTO snapshot_tbl (timestamp, url_archive, url_origin) VALUES (?, ?, ?)", (line["timestamp"], url_archive, line["url"]))
+            if line_batch:
+                cls.db.cursor.executemany("INSERT INTO snapshot_tbl (timestamp, url_archive, url_origin) VALUES (?, ?, ?)", line_batch)
         cls.db.conn.commit()
         cls.filter_snapshots()
 
@@ -92,20 +97,20 @@ class SnapshotCollection:
                 SELECT MIN(id)
                 FROM snapshot_tbl
                 GROUP BY timestamp, url_origin
-            )
+            );
             """
         )
+        cls.db.cursor.execute("DELETE FROM snapshot_filter_tbl")
 
-        # filter the snapshot table and keep only the latest snapshot of each file
+        # filter the snapshot table and keep only the latest (timestamp) snapshot of each file
         if cls.MODE_CURRENT:
             cls.db.cursor.execute(
                 """
                 DELETE FROM snapshot_tbl
-                WHERE url_origin NOT IN (
-                    SELECT url_origin
+                WHERE timestamp NOT IN (
+                    SELECT MAX(timestamp)
                     FROM snapshot_tbl
                     GROUP BY url_origin
-                    HAVING MAX(timestamp) = timestamp
                 )
                 """
             )

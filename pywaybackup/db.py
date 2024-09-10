@@ -15,6 +15,7 @@ class Database:
     SNAPSHOT_DB = ""
     snapshot_table = """CREATE TABLE IF NOT EXISTS snapshot_tbl (
         id INTEGER PRIMARY KEY,
+        idx INTEGER,
         timestamp TEXT,
         url_archive TEXT,
         url_origin TEXT,
@@ -31,6 +32,8 @@ class Database:
         db = Database()
         db.cursor.execute(cls.snapshot_table)
         db.cursor.execute("CREATE TABLE IF NOT EXISTS snapshot_filter_tbl AS SELECT * FROM snapshot_tbl WHERE 0")
+        db.cursor.execute("CREATE INDEX IF NOT EXISTS idx_timestamp ON snapshot_tbl (timestamp)")
+        db.cursor.execute("CREATE INDEX IF NOT EXISTS idx_url_archive ON snapshot_tbl (url_archive)")
         db.conn.commit()
         db.close()
 
