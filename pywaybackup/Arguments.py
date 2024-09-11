@@ -105,11 +105,11 @@ class Configuration:
                 cls.csv = cls.output
             if cls.cdxbackup is True:
                 cls.cdxbackup = os.path.join(cls.output, f"waybackup_{sanitize_filename(cls.url)}.cdx")
-            if isinstance(cls.cdxbackup, str):
+            elif isinstance(cls.cdxbackup, str):
                 cls.cdxbackup = os.path.join(cls.cdxbackup, f"waybackup_{sanitize_filename(cls.url)}.cdx")
             if cls.cdxinject is True:
                 cls.cdxinject = os.path.join(cls.output, f"waybackup_{sanitize_filename(cls.url)}.cdx")
-            if isinstance(cls.cdxinject, str):
+            elif isinstance(cls.cdxinject, str):
                 cls.cdxinject = os.path.join(cls.cdxinject, f"waybackup_{sanitize_filename(cls.url)}.cdx")
 
 
