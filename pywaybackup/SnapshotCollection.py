@@ -54,16 +54,22 @@ class SnapshotCollection:
                 if line.endswith(","): line = line.rsplit(",", 1)[0]
                 try:
                     line = json.loads(line)
-                    line = {"timestamp": line[0], "digest": line[1], "mimetype": line[2], "status": line[3], "url": line[4]}
+                    line = {
+                        "timestamp": line[0],
+                        "digest": line[1],
+                        "mimetype": line[2],
+                        "status": line[3],
+                        "url": line[4]
+                    }
                     url_archive = f"https://web.archive.org/web/{line["timestamp"]}id_/{line["url"]}"
                     line_batch.append((line["timestamp"], url_archive, line["url"]))
                     if len(line_batch) >= line_batchsize:
-                        cls.db.cursor.executemany("INSERT INTO snapshot_tbl (timestamp, url_archive, url_origin) VALUES (?, ?, ?)", line_batch)
+                        cls.db.cursor.executemany("INSERT OR IGNORE INTO snapshot_tbl (timestamp, url_archive, url_origin) VALUES (?, ?, ?)", line_batch)
                         line_batch = []
                 except json.JSONDecodeError:
                     continue
             if line_batch:
-                cls.db.cursor.executemany("INSERT INTO snapshot_tbl (timestamp, url_archive, url_origin) VALUES (?, ?, ?)", line_batch)
+                cls.db.cursor.executemany("INSERT OR IGNORE INTO snapshot_tbl (timestamp, url_archive, url_origin) VALUES (?, ?, ?)", line_batch)
         cls.db.conn.commit()
         cls.filter_snapshots()
         cls.skip_set()
