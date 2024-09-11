@@ -31,11 +31,11 @@ class Arguments:
         optional.add_argument('--filetype', type=str, metavar="", help='filetypes to download comma separated (e.g. "html,css")')
 
         special = parser.add_argument_group('manipulate behavior')
-        special.add_argument('--csv', type=str, nargs='?', const=True, metavar='path', help='path to save a csv file with the json output - defaults to output folder')
-        special.add_argument('--skip', type=str, nargs='?', const=True, metavar='path', help='skips existing files in the output folder by checking the .csv file - defaults to output folder')
+        special.add_argument('--log', action='store_true', help='save a log file into the output folder')
+        special.add_argument('--csv', action='store_true', help='save a csv file with the json output into the output folder')
+        special.add_argument('--skip', action='store_true', help='skips existing files in the output folder by checking an existing .db-file')
         special.add_argument('--no-redirect', action='store_true', help='do not follow redirects by archive.org')
         special.add_argument('--verbosity', type=str, default="info", metavar="", help='["progress", "json"] for different output or ["trace"] for very detailed output')
-        special.add_argument('--log', type=str, nargs='?', const=True, metavar='path', help='save a log file - defaults to output folder')
         special.add_argument('--retry', type=int, default=0, metavar="", help='retry failed downloads (opt tries as int, else infinite)')
         special.add_argument('--workers', type=int, default=1, metavar="", help='number of workers (simultaneous downloads)')
         # special.add_argument('--convert-links', action='store_true', help='Convert all links in the files to local paths. Requires -c/--current')
@@ -44,8 +44,8 @@ class Arguments:
 
         cdx = parser.add_argument_group('cdx (one exclusive)')
         exclusive_cdx = cdx.add_mutually_exclusive_group()
-        exclusive_cdx.add_argument('--cdxbackup', type=str, nargs='?', const=True, metavar='path', help='Save the cdx query-result to a file for recurent use - defaults to output folder')
-        exclusive_cdx.add_argument('--cdxinject', type=str, nargs='?', const=True, metavar='path', help='Inject a existing cdx backup-file to download according to the given url')
+        exclusive_cdx.add_argument('--cdxbackup', action='store_true', help='Save the cdx query-result to a file for recurent use into the output folder')
+        exclusive_cdx.add_argument('--cdxinject', action='store_true', help='Inject a existing cdx backup-file from the output folder')
 
         auto = parser.add_argument_group('auto')
         auto.add_argument('--auto', action='store_true', help='includes automatic csv, skip and cdxbackup/cdxinject to resume a stopped download')
@@ -97,23 +97,14 @@ class Configuration:
             cls.filetype = [ft.lower().strip() for ft in cls.filetype.split(",")]
 
         if cls.auto:
-            cls.skip = cls.output
+            cls.skip = True
             cls.csv = os.path.join(cls.output, f"waybackup_{sanitize_filename(cls.url)}.csv")
             cls.cdxbackup = os.path.join(cls.output, f"waybackup_{sanitize_filename(cls.url)}.cdx")
             cls.cdxinject = os.path.join(cls.output, f"waybackup_{sanitize_filename(cls.url)}.cdx")
         else:
-            if cls.skip is True:
-                cls.skip = cls.output
             if cls.csv is True:
                 cls.csv = os.path.join(cls.output, f"waybackup_{sanitize_filename(cls.url)}.csv")
-            elif isinstance(cls.csv, str):
-                cls.csv = os.path.join(cls.csv, f"waybackup_{sanitize_filename(cls.url)}.csv")
             if cls.cdxbackup is True:
                 cls.cdxbackup = os.path.join(cls.output, f"waybackup_{sanitize_filename(cls.url)}.cdx")
-            elif isinstance(cls.cdxbackup, str):
-                cls.cdxbackup = os.path.join(cls.cdxbackup, f"waybackup_{sanitize_filename(cls.url)}.cdx")
             if cls.cdxinject is True:
                 cls.cdxinject = os.path.join(cls.output, f"waybackup_{sanitize_filename(cls.url)}.cdx")
-            elif isinstance(cls.cdxinject, str):
-                cls.cdxinject = os.path.join(cls.cdxinject, f"waybackup_{sanitize_filename(cls.url)}.cdx")
-
