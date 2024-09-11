@@ -23,10 +23,7 @@ def main():
     else:
         try:
             archive.query_list(config.range, config.limit, config.start, config.end, config.explicit, config.filetype, config.mode, config.output, config.cdxbackup, config.cdxinject)
-            if config.list:
-                archive.print_list()
-            else:
-                archive.download_list(config.output, config.retry, config.no_redirect, config.delay, config.workers)
+            archive.download_list(config.output, config.retry, config.no_redirect, config.delay, config.workers)
         except KeyboardInterrupt:
             print("\nInterrupted by user\n")
         finally:

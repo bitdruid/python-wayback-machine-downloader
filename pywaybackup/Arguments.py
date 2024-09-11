@@ -22,7 +22,6 @@ class Arguments:
         exclusive_required.add_argument('-s', '--save', action='store_true', help='save a page to the wayback machine')
 
         optional = parser.add_argument_group('optional query parameters')
-        optional.add_argument('-l', '--list', action='store_true', help='only print snapshots (opt range in y)')
         optional.add_argument('-e', '--explicit', action='store_true', help='search only for the explicit given url')
         optional.add_argument('-o', '--output', type=str, metavar="", help='output folder - defaults to current directory')
         optional.add_argument('-r', '--range', type=int, metavar="", help='range in years to search')

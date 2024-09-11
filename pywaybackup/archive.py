@@ -84,18 +84,6 @@ def save_page(url: str):
 
 
 
-def print_list():
-    vb.write(message="")
-    count = sc.count(collection=True)
-    if count == 0:
-        vb.write(message="\nNo snapshots found")
-    else:
-        __import__('pprint').pprint(sc.SNAPSHOT_COLLECTION)
-        vb.write(message=f"\n-----> {count} snapshots listed")
-
-
-
-
 
 # create filelist
 # timestamp format yyyyMMddhhmmss
@@ -232,7 +220,7 @@ def download_loop(output, worker, retry, no_redirect, delay, connection=None):
 
             snapshot = sc.get_snapshot(db)
             if not snapshot: break
-            sc.modify_snapshot(db, snapshot["id"], "response", "False") # mark as locked for other workers
+            sc.modify_snapshot(db, snapshot["id"], "response", "LOCK") # mark as locked for other workers
 
             retry_attempt = 1
             retry_max_attempt = retry if retry > 0 else retry + 1
