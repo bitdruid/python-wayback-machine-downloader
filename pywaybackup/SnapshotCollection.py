@@ -9,21 +9,23 @@ class SnapshotCollection:
     """
 
     SNAPSHOT_AMOUNT = 0
+
     MODE_CURRENT = 0
+    MODE_SKIP = 0
 
     FILTER_TIME_URL = 0
 
     @classmethod
-    def init(cls, cdxfile, mode):
+    def init(cls, mode, skip):
         """
         Initialize the snapshot collection by inserting the content of the cdx file into the snapshot table.
         """        
         if mode == "current": 
             cls.MODE_CURRENT = 1
+        if skip:
+            cls.MODE_SKIP = 1
 
         cls.db = Database()
-        cls.insert_cdx(cdxfile)
-        cls.db.conn.commit()
         
     @classmethod
     def fini(cls):
@@ -64,6 +66,34 @@ class SnapshotCollection:
                 cls.db.cursor.executemany("INSERT INTO snapshot_tbl (timestamp, url_archive, url_origin) VALUES (?, ?, ?)", line_batch)
         cls.db.conn.commit()
         cls.filter_snapshots()
+        cls.skip_set()
+
+
+
+
+
+    @classmethod
+    def csv_close(cls, csv_path):
+        import csv
+        """
+        Write a CSV file with the list of snapshots. Append new snapshots to the existing file.
+        """
+        row_batchsize = 1000
+        cls.db.cursor.execute("SELECT * FROM snapshot_tbl")
+        headers = [description[0] for description in cls.db.cursor.description]
+        with open(csv_path, "w") as f:
+            writer = csv.writer(f)
+            writer.writerow(headers)
+            while True:
+                rows = cls.db.cursor.fetchmany(row_batchsize)
+                if not rows:
+                    break
+                writer.writerows(rows)
+        cls.db.conn.commit()
+
+
+
+
 
     @classmethod
     def filter_snapshots(cls):
@@ -126,27 +156,20 @@ class SnapshotCollection:
         cls.db.conn.commit()
 
     @classmethod
-    def skip_snapshots(cls, skipset):
+    def skip_set(cls):
         """
-        Skip snapshots in the snapshot table by url_archive.
+        If --skip was not set, response is set to 'None' for all snapshots.
         """
-        skip_count = 0
-        if not skipset:
-            return skip_count
-        for url_archive in skipset:
-            cls.db.cursor.execute(
-                """
-                DELETE FROM snapshot_tbl
-                WHERE url_archive = ?
-                """,
-                (url_archive,)
-            )
-            skip_count += cls.db.cursor.rowcount
+        cls.db.cursor.execute(
+            """
+            UPDATE snapshot_tbl
+            SET response = 'None'
+            """
+        )
         cls.db.conn.commit()
-        return skip_count
 
     @classmethod
-    def count_totals(cls, collection=False, success=False, fail=False):
+    def count_totals(cls, collection=False, success=False, fail=False, skip=False):
         if collection:
             return cls.SNAPSHOT_AMOUNT
         if success:
@@ -160,6 +183,13 @@ class SnapshotCollection:
             cls.db.cursor.execute(
                 """
                 SELECT COUNT(id) FROM snapshot_tbl WHERE file IS NULL
+                """
+            )
+            return cls.db.cursor.fetchone()[0]
+        if skip:
+            cls.db.cursor.execute(
+                """
+                SELECT COUNT(id) FROM snapshot_tbl WHERE response != 'None'
                 """
             )
             return cls.db.cursor.fetchone()[0]
@@ -183,13 +213,13 @@ class SnapshotCollection:
         )
         connection.conn.commit()
 
-    def get_snapshot(connection):
+    def get_snapshot(connection, skip=False):
         """
-        Get a snapshot-row from the snapshot table with status = 0 (not processed).
+        Get a snapshot-row from the snapshot table with response 'None'. (not processed)
         """
         connection.cursor.execute(
             """
-            SELECT * FROM snapshot_tbl WHERE status = 0 LIMIT 1
+            SELECT * FROM snapshot_tbl WHERE response = 'None' LIMIT 1
             """
         )
         return connection.cursor.fetchone()

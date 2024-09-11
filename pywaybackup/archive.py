@@ -165,7 +165,7 @@ def query_list(queryrange: int, limit: int, start: int, end: int, explicit: bool
     if not cdxfile:
         cdxfile = query(queryrange, limit, filter_filetype, start, end, explicit)
 
-    sc.init(cdxfile, mode)
+    sc.insert_cdx(cdxfile)
     if not cdxbackup and not cdxinject:
         os.remove(cdxfile)
     else:
@@ -192,7 +192,7 @@ def download_list(output, retry, no_redirect, delay, workers, skipset: set = Non
 
     vb.write(message="\n-----> Snapshots prepared")
 
-    skip_count = sc.skip_snapshots(skipset)
+    skip_count = sc.count_totals(skip=True)
     vb.progress(skip_count)
     if skip_count > 0:
         vb.write(message=f"\n-----> Skipped snapshots: {skip_count}")
@@ -232,7 +232,7 @@ def download_loop(output, worker, retry, no_redirect, delay, connection=None):
 
             snapshot = sc.get_snapshot(db)
             if not snapshot: break
-            sc.modify_snapshot(db, snapshot["id"], "status", 1) # mark as processed for other workers
+            sc.modify_snapshot(db, snapshot["id"], "response", "False") # mark as locked for other workers
 
             retry_attempt = 1
             retry_max_attempt = retry if retry > 0 else retry + 1
@@ -387,83 +387,6 @@ def parse_response_code(response_code: int):
     if response_code in RESPONSE_CODE_DICT:
         return RESPONSE_CODE_DICT[response_code]
     return "Unknown response code"
-
-
-
-
-
-def csv_close(csv_path: str, url: str):
-    """
-    Write a CSV file with the list of snapshots. Append new snapshots to the existing file.
-    """
-    try:
-        csv_path = csv_filepath(csv_path, url)
-        if sc.count_totals(collection=True) > 0:
-            new_rows = [snapshot for snapshot in sc.SNAPSHOT_COLLECTION 
-                        if ("response" in snapshot and snapshot["response"] is not False and "url_archive" in snapshot) or 
-                           ("digest" in snapshot)]
-            
-            if os.path.exists(csv_path):  # append to existing file
-                existing_rows = set(csv_read(open(csv_path, mode='r', newline='')))
-                
-                with open(csv_path, mode='a', newline='') as file:  # append new rows
-                    row_writer = csv.DictWriter(file, sc.SNAPSHOT_COLLECTION[0].keys())
-                    for snapshot in new_rows:
-                        snapshot_tuple = tuple(snapshot.values())
-                        if snapshot_tuple not in existing_rows:
-                            row_writer.writerow(snapshot)
-            else:  # create new file
-                with open(csv_path, mode='w', newline='') as file:
-                    row_writer = csv.DictWriter(file, sc.SNAPSHOT_COLLECTION[0].keys())
-                    row_writer.writeheader()
-                    row_writer.writerows(new_rows)
-    except Exception as e:
-        ex.exception("Could not save CSV file", e)
-
-def csv_read(csv_file: object) -> list:
-    """
-    Read the CSV file and return a list of existing snapshot urls with a status (any status means file was handled)
-    """
-    try:
-        csv_reader = csv.reader(csv_file)
-        next(csv_reader)  # Skip the header row
-        return [row[2] for row in csv_reader]
-    except Exception as e:
-        ex.exception("Could not read CSV-file", e)
-
-def csv_filepath(csv_path: str, url: str) -> str:
-    """
-    Return the path to the CSV file.
-    """
-    return os.path.join(csv_path, f"waybackup_{sanitize_filename(url)}.csv")
-
-
-
-
-
-def skip_open(csv_path: str, url: str) -> tuple:
-    """
-    Open the CSV file and return a set of existing snapshot urls.
-    """
-    try:
-        csv_path = csv_filepath(csv_path, url)
-        if os.path.isfile(csv_path) and os.path.getsize(csv_path) > 0:
-            csv_file = open(csv_path, mode='r')
-            skipset = set(csv_read(csv_file))
-            csv_file.close()
-            return skipset
-        else:
-            vb.write(message="\nNo CSV-file or content found to load skipable URLs")
-            return None
-    except Exception as e:
-        ex.exception("Could not open CSV-file", e)
-
-def skip_read(skipset: set, archive_url: str) -> bool:
-    """
-    Check if the URL is already downloaded and contained in the set.
-    """
-    # print the whole set
-    return archive_url in skipset
     
     
     

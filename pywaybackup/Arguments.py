@@ -31,7 +31,7 @@ class Arguments:
         optional.add_argument('--filetype', type=str, metavar="", help='filetypes to download comma separated (e.g. "html,css")')
 
         special = parser.add_argument_group('manipulate behavior')
-        special.add_argument('--csv', type=str, nargs='?', const=True, metavar='path', help='save a csv file with the json output - defaults to output folder')
+        special.add_argument('--csv', type=str, nargs='?', const=True, metavar='path', help='path to save a csv file with the json output - defaults to output folder')
         special.add_argument('--skip', type=str, nargs='?', const=True, metavar='path', help='skips existing files in the output folder by checking the .csv file - defaults to output folder')
         special.add_argument('--no-redirect', action='store_true', help='do not follow redirects by archive.org')
         special.add_argument('--verbosity', type=str, default="info", metavar="", help='["progress", "json"] for different output or ["trace"] for very detailed output')
@@ -51,6 +51,9 @@ class Arguments:
         auto.add_argument('--auto', action='store_true', help='includes automatic csv, skip and cdxbackup/cdxinject to resume a stopped download')
 
         args = parser.parse_args(args=None if sys.argv[1:] else ['--help']) # if no arguments are given, print help
+
+        if args.csv and os.path.isfile(args.csv):
+            parser.error(f"Is a file: {args.csv}")
 
         if args.cdxbackup and os.path.isfile(args.cdxbackup):
             parser.error(f"Is a file: {args.cdxbackup}")
@@ -95,20 +98,22 @@ class Configuration:
 
         if cls.auto:
             cls.skip = cls.output
-            cls.csv = cls.output
+            cls.csv = os.path.join(cls.output, f"waybackup_{sanitize_filename(cls.url)}.csv")
             cls.cdxbackup = os.path.join(cls.output, f"waybackup_{sanitize_filename(cls.url)}.cdx")
             cls.cdxinject = os.path.join(cls.output, f"waybackup_{sanitize_filename(cls.url)}.cdx")
         else:
             if cls.skip is True:
                 cls.skip = cls.output
             if cls.csv is True:
-                cls.csv = cls.output
+                cls.csv = os.path.join(cls.output, f"waybackup_{sanitize_filename(cls.url)}.csv")
+            elif isinstance(cls.csv, str):
+                cls.csv = os.path.join(cls.csv, f"waybackup_{sanitize_filename(cls.url)}.csv")
             if cls.cdxbackup is True:
                 cls.cdxbackup = os.path.join(cls.output, f"waybackup_{sanitize_filename(cls.url)}.cdx")
-            if isinstance(cls.cdxbackup, str):
+            elif isinstance(cls.cdxbackup, str):
                 cls.cdxbackup = os.path.join(cls.cdxbackup, f"waybackup_{sanitize_filename(cls.url)}.cdx")
             if cls.cdxinject is True:
                 cls.cdxinject = os.path.join(cls.output, f"waybackup_{sanitize_filename(cls.url)}.cdx")
-            if isinstance(cls.cdxinject, str):
+            elif isinstance(cls.cdxinject, str):
                 cls.cdxinject = os.path.join(cls.cdxinject, f"waybackup_{sanitize_filename(cls.url)}.cdx")
 

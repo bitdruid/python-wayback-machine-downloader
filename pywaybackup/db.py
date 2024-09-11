@@ -13,17 +13,23 @@ class Database:
     """
 
     SNAPSHOT_DB = ""
+    # cdx_table = """CREATE TABLE IF NOT EXISTS cdx_tbl (
+    #     id INTEGER PRIMARY KEY,
+    #     timestamp TEXT,
+    #     digest TEXT,
+    #     mimetype TEXT,
+    #     statuscode TEXT,
+    #     original TEXT
+    # )"""
     snapshot_table = """CREATE TABLE IF NOT EXISTS snapshot_tbl (
         id INTEGER PRIMARY KEY,
-        idx INTEGER,
         timestamp TEXT,
         url_archive TEXT,
         url_origin TEXT,
         redirect_url TEXT,
         redirect_timestamp TEXT,
-        response TEXT,
-        file TEXT,
-        status boolean DEFAULT 0
+        response TEXT DEFAULT None,
+        file TEXT
     )"""
 
     @classmethod
