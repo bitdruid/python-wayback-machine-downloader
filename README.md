@@ -54,8 +54,6 @@ This tool allows you to download content from the Wayback Machine (archive.org).
 
 ### Optional query parameters
 
-- **`-l`**, **`--list`**:<br>
-  Only print the snapshots available within the specified range. Does not download the snapshots.
 - **`-e`**, **`--explicit`**:<br>
   Only download the explicit given URL. No wildcard subdomains or paths. Use e.g. to get root-only snapshots. This is recommended for explicit files like `login.html` or `?query=this`.
 
@@ -78,23 +76,22 @@ Limits the amount of snapshots to query from the CDX server. If an existing CDX 
 ### Behavior manipulation
 
 - **`-o`**, **`--output`**:<br>
-  Defaults to `waybackup_snapshots` in the current directory. The folder where downloaded files will be saved.
+Defaults to `waybackup_snapshots` in the current directory. The folder where downloaded files will be saved.
   
 - **`--csv`** `<path>`:<br>
-Path defaults to output-dir. Saves a CSV file with the json-response for successfull downloads. If `--list` is set, the CSV contains the CDX list of snapshots. If `--current` or `--full` is set, CSV contains downloaded files. Named as `waybackup_<sanitized_url>.csv`.
+Saves a CSV file with the json-response into the output-dir for successfull downloads. Named as `waybackup_<sanitized_url>.csv`.
 
 - **`--skip`** `<path>`:<br>
-Path defaults to output-dir. Checks for an existing `waybackup_<sanitized_url>.csv` for URLs to skip downloading. Useful for interrupted downloads. Files are checked by their root-domain, ensuring consistency across queries. This means that if you download `http://example.com/subdir1/` and later `http://example.com`, the second query will skip the first path.
+Checks an existing `waybackup_<sanitized_url>.db` for already handled URLs to skip downloading. Useful for interrupted downloads. Otherwise, the tool will download all files again.
   
 - **`--no-redirect`**:<br>
 Disables following redirects of snapshots. Useful for preventing timestamp-folder mismatches caused by Archive.org redirects.
   
 - **`--verbosity`** `<level>`:<br>
 Sets verbosity level. Options are `json` (prints JSON response) or `progress` (shows progress bar).
-<!-- Alternatively set verbosity level to `trace` for a very detailed output. -->
 
 - **`--log`** `<path>`:<br>
-Path defaults to output-dir. Saves a log file with the output of the tool. Named as `waybackup_<sanitized_url>.log`.
+Saves a log file into the output-dir. Named as `waybackup_<sanitized_url>.log`.
 
 - **`--workers`** `<count>`:<br>
 Sets the number of simultaneous download workers. Default is 1, safe range is about 10. Be cautious as too many workers may lead to refused connections from the Wayback Machine.
@@ -110,10 +107,10 @@ If set, all links in the downloaded files will be converted to local links. This
 
 **CDX Query Result Handling:**
 - **`--cdxbackup`** `<path>`:<br>
-Path defaults to output-dir. Saves the result of CDX query as a file. Useful for later downloading snapshots and overcoming refused connections by CDX server due to too many queries. Named as `waybackup_<sanitized_url>.cdx`.
+Saves the result of CDX query as a file into the output-dir. Useful for later downloading snapshots and overcoming refused connections by CDX server due to too many queries. Named as `waybackup_<sanitized_url>.cdx`.
   
 - **`--cdxinject`** `<path>`:<br>
-Path defaults to output-dir. Injects a CDX query file to download snapshots. Ensure the query matches the previous `--url` for correct folder structure. Named as `waybackup_<sanitized_url>.cdx`.
+Injects a CDX query file from the output-dir to download snapshots. Ensure the query matches the previous `--url` for correct folder structure. Named as `waybackup_<sanitized_url>.cdx`.
 
 **Auto:**
 - **`--auto`**:<br>
