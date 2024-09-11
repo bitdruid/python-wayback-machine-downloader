@@ -160,13 +160,14 @@ class SnapshotCollection:
         """
         If --skip was not set, response is set to 'None' for all snapshots.
         """
-        cls.db.cursor.execute(
-            """
-            UPDATE snapshot_tbl
-            SET response = 'None'
-            """
-        )
-        cls.db.conn.commit()
+        if cls.MODE_SKIP:
+            cls.db.cursor.execute(
+                """
+                UPDATE snapshot_tbl
+                SET response = 'None'
+                """
+            )
+            cls.db.conn.commit()
 
     @classmethod
     def count_totals(cls, collection=False, success=False, fail=False, skip=False):
