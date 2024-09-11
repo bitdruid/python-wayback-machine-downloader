@@ -129,7 +129,7 @@ def query_list(queryrange: int, limit: int, start: int, end: int, explicit: bool
         vb.write(message=f"-----> {cdx_url}")
         cdxQuery = f"https://web.archive.org/cdx/search/cdx?output=json&url={cdx_url}{query_range}&fl=timestamp,digest,mimetype,statuscode,original{limit}{filter_filetype}"
 
-        cdxfile = os.path.join(output, f"waybackup_{sanitize_filename(config.url)}.cdx") if cdxbackup is None else cdxbackup
+        cdxfile = os.path.join(output, f"waybackup_{sanitize_filename(config.url)}.cdx") if cdxbackup is False else cdxbackup
         try:
             cdxfile_IO = open(cdxfile, "w")
             with requests.get(cdxQuery, stream=True) as r:
@@ -184,6 +184,9 @@ def download_list(output, retry, no_redirect, delay, workers, skipset: set = Non
     vb.progress(skip_count)
     if skip_count > 0:
         vb.write(message=f"\n-----> Skipped snapshots: {skip_count}")
+    if skip_count == sc.count_totals(collection=True):
+        vb.write(message="\nNothing to download")
+        return
 
     threads = []
     worker = 0
@@ -221,13 +224,14 @@ def download_loop(output, worker, retry, no_redirect, delay, connection=None):
             snapshot = sc.get_snapshot(db)
             if not snapshot: break
             sc.modify_snapshot(db, snapshot["id"], "response", "LOCK") # mark as locked for other workers
+            sc.SNAPSHOT_DONE += 1
 
             retry_attempt = 1
             retry_max_attempt = retry if retry > 0 else retry + 1
             status_message = Message()
 
             while retry_attempt <= retry_max_attempt: # retry as given by user
-                status_message.store(message=f"\n-----> Worker: {worker} - Attempt: [{retry_attempt}/{retry_max_attempt}] Snapshot [{snapshot["id"]}/{sc.SNAPSHOT_AMOUNT}]")
+                status_message.store(message=f"\n-----> Worker: {worker} - Attempt: [{retry_attempt}/{retry_max_attempt}] Snapshot [{sc.SNAPSHOT_DONE}/{sc.SNAPSHOT_TOTAL}]")
                 download_attempt = 1
                 download_max_attempt = 3
 
@@ -242,19 +246,19 @@ def download_loop(output, worker, retry, no_redirect, delay, connection=None):
                         if isinstance(e, (timeout, ConnectionRefusedError, ConnectionResetError)):
                             if download_attempt < download_max_attempt:
                                 download_attempt += 1  # try again 2x with same connection
-                                vb.write(message=f"\n-----> Worker: {worker} - Attempt: [{retry_attempt}/{retry_max_attempt}] Snapshot [{snapshot["id"]}/{sc.SNAPSHOT_AMOUNT}] - {e.__class__.__name__} - requesting again in 50 seconds...")
+                                vb.write(message=f"\n-----> Worker: {worker} - Attempt: [{retry_attempt}/{retry_max_attempt}] Snapshot [{sc.SNAPSHOT_DONE}/{sc.SNAPSHOT_TOTAL}] - {e.__class__.__name__} - requesting again in 50 seconds...")
                                 time.sleep(50)
                                 continue
                         elif isinstance(e, http.client.HTTPException):
                             if download_attempt < download_max_attempt:
                                 download_attempt = download_max_attempt  # try again 1x with new connection
-                                vb.write(message=f"\n-----> Worker: {worker} - Attempt: [{retry_attempt}/{retry_max_attempt}] Snapshot [{snapshot["id"]}/{sc.SNAPSHOT_AMOUNT}] - {e.__class__.__name__} - renewing connection in 15 seconds...")
+                                vb.write(message=f"\n-----> Worker: {worker} - Attempt: [{retry_attempt}/{retry_max_attempt}] Snapshot [{sc.SNAPSHOT_DONE}/{sc.SNAPSHOT_TOTAL}] - {e.__class__.__name__} - renewing connection in 15 seconds...")
                                 time.sleep(15)
                                 connection.close()
                                 connection = http.client.HTTPSConnection("web.archive.org")
                                 continue
                         else:
-                            ex.exception(message=f"\n-----> Worker: {worker} - Attempt: [{retry_attempt}/{retry_max_attempt}] Snapshot [{snapshot["id"]}/{sc.SNAPSHOT_AMOUNT}] - EXCEPTION - {e}", e=e)
+                            ex.exception(message=f"\n-----> Worker: {worker} - Attempt: [{retry_attempt}/{retry_max_attempt}] Snapshot [{sc.SNAPSHOT_DONE}/{sc.SNAPSHOT_TOTAL}] - EXCEPTION - {e}", e=e)
                             retry_attempt = retry_max_attempt
                             break
 
@@ -264,11 +268,18 @@ def download_loop(output, worker, retry, no_redirect, delay, connection=None):
                         retry_attempt = retry_max_attempt
                         break # break all loops because of successful download
 
-                    vb.write(message=f"\n-----> Worker: {worker} - Attempt: [{retry_attempt}/{retry_max_attempt}] Snapshot [{snapshot["id"]}/{sc.SNAPSHOT_AMOUNT}] - Download failed - retry Timeout: 15 seconds...")
+                    vb.write(message=f"\n-----> Worker: {worker} - Attempt: [{retry_attempt}/{retry_max_attempt}] Snapshot [{sc.SNAPSHOT_DONE}/{sc.SNAPSHOT_TOTAL}] - Download failed - retry Timeout: 15 seconds...")
                     time.sleep(15)
                     break # break all loops and do a user-defined retry
                 
                 retry_attempt += 1
+                # if retry_attempt > retry_max_attempt:
+                #     status_message.store(status="FAILED", type="HTTP", message="Max retries exceeded")
+                #     status_message.store(status="", type="URL", message=snapshot["url_archive"])
+                #     status_message.write()
+                #     vb.progress(1)
+                #     sc.modify_snapshot(db, snapshot["id"], "response", "False")
+                #     break
 
             if delay > 0:
                 vb.write(message=f"\n-----> Worker: {worker} - Delay: {delay} seconds")

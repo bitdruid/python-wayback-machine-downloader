@@ -8,7 +8,8 @@ class SnapshotCollection:
     Represents the interaction with the snapshot-collection contained in the snapshot database.
     """
 
-    SNAPSHOT_AMOUNT = 0
+    SNAPSHOT_TOTAL = 0
+    SNAPSHOT_DONE = 0
 
     MODE_CURRENT = 0
     MODE_SKIP = 0
@@ -64,7 +65,7 @@ class SnapshotCollection:
                     url_archive = f"https://web.archive.org/web/{line["timestamp"]}id_/{line["url"]}"
                     line_batch.append((line["timestamp"], url_archive, line["url"]))
                     if len(line_batch) >= line_batchsize:
-                        cls.db.cursor.executemany("INSERT OR IGNORE INTO snapshot_tbl (timestamp, url_archive, url_origin) VALUES (?, ?, ?)", line_batch)
+                        cls.db.cursor.executemany("INSERT OR IGNORE INTO snapshot_tbl (timestamp, url_archive, url_origin) VALUES (?, ?, ?, ?)", line_batch)
                         line_batch = []
                 except json.JSONDecodeError:
                     continue
@@ -85,7 +86,7 @@ class SnapshotCollection:
         Write a CSV file with the list of snapshots. Append new snapshots to the existing file.
         """
         row_batchsize = 1000
-        cls.db.cursor.execute("SELECT * FROM snapshot_tbl")
+        cls.db.cursor.execute("SELECT * FROM snapshot_tbl WHERE response IS NOT NULL")
         headers = [description[0] for description in cls.db.cursor.description]
         with open(csv_path, "w") as f:
             writer = csv.writer(f)
@@ -157,20 +158,20 @@ class SnapshotCollection:
             SELECT COUNT(id) FROM snapshot_tbl
             """
         )
-        cls.SNAPSHOT_AMOUNT = cls.db.cursor.fetchone()[0]
+        cls.SNAPSHOT_TOTAL = cls.db.cursor.fetchone()[0]
 
         cls.db.conn.commit()
 
     @classmethod
     def skip_set(cls):
         """
-        If --skip was not set, response is set to 'None' for all snapshots.
+        If --skip was not set, response is set to NULL for all snapshots.
         """
-        if cls.MODE_SKIP:
+        if not cls.MODE_SKIP:
             cls.db.cursor.execute(
                 """
                 UPDATE snapshot_tbl
-                SET response = 'None'
+                SET response = NULL
                 """
             )
             cls.db.conn.commit()
@@ -178,7 +179,7 @@ class SnapshotCollection:
     @classmethod
     def count_totals(cls, collection=False, success=False, fail=False, skip=False):
         if collection:
-            return cls.SNAPSHOT_AMOUNT
+            return cls.SNAPSHOT_TOTAL
         if success:
             cls.db.cursor.execute(
                 """
@@ -200,7 +201,7 @@ class SnapshotCollection:
                 """
             )
             return cls.db.cursor.fetchone()[0]
-        return cls.SNAPSHOT_AMOUNT
+        return cls.SNAPSHOT_TOTAL
 
 
 
@@ -222,14 +223,15 @@ class SnapshotCollection:
 
     def get_snapshot(connection, skip=False):
         """
-        Get a snapshot-row from the snapshot table with response 'None'. (not processed)
+        Get a snapshot-row from the snapshot table with response NULL. (not processed)
         """
         connection.cursor.execute(
             """
-            SELECT * FROM snapshot_tbl WHERE response = 'None' LIMIT 1
+            SELECT ROWID, * FROM snapshot_tbl WHERE response IS NULL LIMIT 1
             """
         )
-        return connection.cursor.fetchone()
+        row = connection.cursor.fetchone()
+        return row
 
 
 

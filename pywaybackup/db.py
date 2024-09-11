@@ -28,7 +28,7 @@ class Database:
         url_origin TEXT,
         redirect_url TEXT,
         redirect_timestamp TEXT,
-        response TEXT DEFAULT None,
+        response TEXT,
         file TEXT
     )"""
 
