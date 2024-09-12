@@ -22,7 +22,6 @@ class Database:
     #     original TEXT
     # )"""
     snapshot_table = """CREATE TABLE IF NOT EXISTS snapshot_tbl (
-        id INTEGER PRIMARY KEY,
         timestamp TEXT,
         url_archive TEXT,
         url_origin TEXT,

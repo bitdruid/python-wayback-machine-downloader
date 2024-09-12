@@ -86,7 +86,8 @@ class SnapshotCollection:
         Write a CSV file with the list of snapshots. Append new snapshots to the existing file.
         """
         row_batchsize = 1000
-        cls.db.cursor.execute("SELECT * FROM snapshot_tbl WHERE response IS NOT NULL")
+        cls.db.cursor.execute("UPDATE snapshot_tbl SET response = NULL WHERE response = 'LOCK'") # reset locked to unprocessed
+        cls.db.cursor.execute("SELECT * FROM snapshot_tbl WHERE response IS NOT NULL") # only write processed snapshots
         headers = [description[0] for description in cls.db.cursor.description]
         with open(csv_path, "w") as f:
             writer = csv.writer(f)
@@ -117,8 +118,8 @@ class SnapshotCollection:
             """
             INSERT INTO snapshot_filter_tbl
             SELECT * FROM snapshot_tbl
-            WHERE id NOT IN (
-                SELECT MIN(id)
+            WHERE rowid NOT IN (
+                SELECT MIN(rowid)
                 FROM snapshot_tbl
                 GROUP BY timestamp, url_origin
             )    
@@ -130,8 +131,8 @@ class SnapshotCollection:
         cls.db.cursor.execute(
             """
             DELETE FROM snapshot_tbl
-            WHERE id NOT IN (
-                SELECT MIN(id)
+            WHERE rowid NOT IN (
+                SELECT MIN(rowid)
                 FROM snapshot_tbl
                 GROUP BY timestamp, url_origin
             );
@@ -155,7 +156,7 @@ class SnapshotCollection:
         # count snapshots
         cls.db.cursor.execute(
             """
-            SELECT COUNT(id) FROM snapshot_tbl
+            SELECT COUNT(rowid) FROM snapshot_tbl WHERE response IS NULL
             """
         )
         cls.SNAPSHOT_TOTAL = cls.db.cursor.fetchone()[0]
@@ -183,21 +184,21 @@ class SnapshotCollection:
         if success:
             cls.db.cursor.execute(
                 """
-                SELECT COUNT(id) FROM snapshot_tbl WHERE file IS NOT NULL
+                SELECT COUNT(rowid) FROM snapshot_tbl WHERE file IS NOT NULL
                 """
             )
             return cls.db.cursor.fetchone()[0]
         if fail:
             cls.db.cursor.execute(
                 """
-                SELECT COUNT(id) FROM snapshot_tbl WHERE file IS NULL
+                SELECT COUNT(rowid) FROM snapshot_tbl WHERE file IS NULL
                 """
             )
             return cls.db.cursor.fetchone()[0]
         if skip:
             cls.db.cursor.execute(
                 """
-                SELECT COUNT(id) FROM snapshot_tbl WHERE response != 'None'
+                SELECT COUNT(rowid) FROM snapshot_tbl WHERE response != 'None'
                 """
             )
             return cls.db.cursor.fetchone()[0]
@@ -215,19 +216,19 @@ class SnapshotCollection:
             f"""
             UPDATE snapshot_tbl
             SET {column} = ?
-            WHERE id = ?
+            WHERE rowid = ?
             """,
             (value, snapshot_id)
         )
         connection.conn.commit()
 
-    def get_snapshot(connection, skip=False):
+    def get_snapshot(connection):
         """
         Get a snapshot-row from the snapshot table with response NULL. (not processed)
         """
         connection.cursor.execute(
             """
-            SELECT ROWID, * FROM snapshot_tbl WHERE response IS NULL LIMIT 1
+            SELECT rowid, * FROM snapshot_tbl WHERE response IS NULL LIMIT 1
             """
         )
         row = connection.cursor.fetchone()

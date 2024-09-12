@@ -223,7 +223,7 @@ def download_loop(output, worker, retry, no_redirect, delay, connection=None):
 
             snapshot = sc.get_snapshot(db)
             if not snapshot: break
-            sc.modify_snapshot(db, snapshot["id"], "response", "LOCK") # mark as locked for other workers
+            sc.modify_snapshot(db, snapshot["rowid"], "response", "LOCK") # mark as locked for other workers
             sc.SNAPSHOT_DONE += 1
 
             retry_attempt = 1
@@ -278,7 +278,7 @@ def download_loop(output, worker, retry, no_redirect, delay, connection=None):
                 #     status_message.store(status="", type="URL", message=snapshot["url_archive"])
                 #     status_message.write()
                 #     vb.progress(1)
-                #     sc.modify_snapshot(db, snapshot["id"], "response", "False")
+                #     sc.modify_snapshot(db, snapshot["rowid"], "response", "False")
                 #     break
 
             if delay > 0:
@@ -303,7 +303,7 @@ def download(db, output, snapshot_entry, connection, status_message, no_redirect
     encoded_download_url = urllib.parse.quote(download_url, safe=':/') # used for GET - otherwise always download_url
     headers = {'User-Agent': f'bitdruid-python-wayback-downloader/{__version__}'}
     response, response_data, response_status, response_status_message = download_response(connection, encoded_download_url, headers)
-    sc.modify_snapshot(db, snapshot_entry["id"], "response", response_status)
+    sc.modify_snapshot(db, snapshot_entry["rowid"], "response", response_status)
     if not no_redirect and response_status == 302:
         status_message.store(status="REDIRECT", type="HTTP", message=f"{response.status} - {response_status_message}")
         status_message.store(status="", type="FROM", message=download_url)
@@ -313,8 +313,8 @@ def download(db, output, snapshot_entry, connection, status_message, no_redirect
             if location:
                 encoded_download_url = urllib.parse.quote(urljoin(download_url, location), safe=':/')
                 status_message.store(status="", type="TO", message=location)
-                sc.modify_snapshot(db, snapshot_entry["id"], "redirect_timestamp", url_get_timestamp(location))
-                sc.modify_snapshot(db, snapshot_entry["id"], "redirect_url", download_url)
+                sc.modify_snapshot(db, snapshot_entry["rowid"], "redirect_timestamp", url_get_timestamp(location))
+                sc.modify_snapshot(db, snapshot_entry["rowid"], "redirect_url", download_url)
             else:
                 break
     if response_status == 200:
@@ -349,7 +349,7 @@ def download(db, output, snapshot_entry, connection, status_message, no_redirect
             status_message.store(status="EXISTING", type="HTTP", message=f"{response.status} - {response_status_message}")
         status_message.store(status="", type="URL", message=download_url)
         status_message.store(status="", type="FILE", message=output_file)
-        sc.modify_snapshot(db, snapshot_entry["id"], "file", output_file)
+        sc.modify_snapshot(db, snapshot_entry["rowid"], "file", output_file)
         # if convert_links:
         #     convert.links(output_file, status_message)
         #status_message.write()
