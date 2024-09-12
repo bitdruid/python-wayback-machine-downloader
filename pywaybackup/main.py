@@ -22,7 +22,7 @@ def main():
         archive.save_page(config.url)
     else:
         try:
-            archive.query_list(config.range, config.limit, config.start, config.end, config.explicit, config.filetype, config.mode, config.output, config.cdxbackup, config.cdxinject)
+            archive.query_list(config.range, config.limit, config.start, config.end, config.explicit, config.filetype, config.output, config.cdxbackup, config.cdxinject)
             archive.download_list(config.output, config.retry, config.no_redirect, config.delay, config.workers)
         except KeyboardInterrupt:
             print("\nInterrupted by user\n")

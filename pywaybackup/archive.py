@@ -87,7 +87,7 @@ def save_page(url: str):
 
 # create filelist
 # timestamp format yyyyMMddhhmmss
-def query_list(queryrange: int, limit: int, start: int, end: int, explicit: bool, filter_filetype: list, mode: str, output: str, cdxbackup: str, cdxinject: str):
+def query_list(queryrange: int, limit: int, start: int, end: int, explicit: bool, filter_filetype: list, output: str, cdxbackup: str, cdxinject: str):
 
     def count_cdxfile(cdxfile):
         with open(cdxfile, "r") as file:
@@ -165,11 +165,7 @@ def query_list(queryrange: int, limit: int, start: int, end: int, explicit: bool
 
 
 
-# example download: http://web.archive.org/web/20190815104545id_/https://www.google.com/
 def download_list(output, retry, no_redirect, delay, workers, skipset: set = None):
-    """
-    Download a list of urls in format: [{"timestamp": "20190815104545", "url": "https://www.google.com/"}]
-    """
     if sc.count_totals(collection=True) == 0:
         vb.write(message="\nNothing to download");
         return
@@ -209,12 +205,6 @@ def download_list(output, retry, no_redirect, delay, workers, skipset: set = Non
 
 
 def download_loop(output, worker, retry, no_redirect, delay, connection=None):
-    """
-    Download a snapshot of the queue. If a download fails, the function will retry the download.
-    The "snapshot_collection" dictionary will be updated with the download status and file information.
-    Information for each entry is written by "create_entry" and "snapshot_dict_append" functions.
-    """
-
     try:
         db = Database()
         connection = connection or http.client.HTTPSConnection("web.archive.org")
@@ -293,12 +283,6 @@ def download_loop(output, worker, retry, no_redirect, delay, connection=None):
 
 
 def download(db, output, snapshot_entry, connection, status_message, no_redirect=False):
-    """
-    Download a single URL and save it to the specified filepath.
-    If there is a redirect, the function will follow the redirect and update the download URL.
-    gzip decompression is used if the response is encoded.
-    According to the response status, the function will write a status message to the console and append a failed URL.
-    """
     download_url = snapshot_entry["url_archive"]
     encoded_download_url = urllib.parse.quote(download_url, safe=':/') # used for GET - otherwise always download_url
     headers = {'User-Agent': f'bitdruid-python-wayback-downloader/{__version__}'}
@@ -380,9 +364,6 @@ RESPONSE_CODE_DICT = {
 }
 
 def parse_response_code(response_code: int):
-    """
-    Parse the response code of the Wayback Machine and return a human-readable message.
-    """
     if response_code in RESPONSE_CODE_DICT:
         return RESPONSE_CODE_DICT[response_code]
     return "Unknown response code"
