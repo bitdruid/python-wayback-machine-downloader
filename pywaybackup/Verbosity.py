@@ -22,10 +22,10 @@ class Verbosity:
         cls.level = verbosity if verbosity in cls.LEVELS else "info"
         cls.log = open(log, "w") if log else None
         cls.PROGRESS = progress
-        if progress:
-            cls.PROGRESS = True
-            #cls.stdout = sys.stdout
-            #sys.stdout = open(os.devnull, "w")
+        # if progress:
+        #     cls.PROGRESS = True
+        #     cls.stdout = sys.stdout
+        #     sys.stdout = open(os.devnull, "w")
 
     @classmethod
     def fini(cls):
@@ -47,7 +47,7 @@ class Verbosity:
             message (str): The message to be logged. (e.g. actual url, file path)
         """
         logline = cls.generate_logline(status=status, type=type, message=message)
-        if cls.PROGRESS is None:
+        if not cls.PROGRESS:
             if logline:
                 print(logline)
         if cls.log:
