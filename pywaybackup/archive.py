@@ -1,7 +1,7 @@
 import requests
 import os
+import sys
 import gzip
-import csv
 import threading
 import time
 import urllib.parse
@@ -134,7 +134,7 @@ def query_list(csvfile: str, queryrange: int, limit: int, start: int, end: int, 
             cdxfile_IO = open(cdxfile, "w")
             with requests.get(cdxQuery, stream=True) as r:
                 r.raise_for_status()
-                with tqdm(unit='B', unit_scale=True, desc='-----> Downloading CDX result') as pbar:
+                with tqdm(unit='B', unit_scale=True, desc='-----> Downloading CDX result', file=sys.stdout) as pbar:
                     for chunk in r.iter_content(chunk_size=8192):
                         if chunk:
                             pbar.update(len(chunk))

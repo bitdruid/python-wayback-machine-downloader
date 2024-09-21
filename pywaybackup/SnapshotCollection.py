@@ -4,6 +4,7 @@ from tqdm import tqdm
 import json
 import csv
 import os
+import sys
 
 class SnapshotCollection:
     """
@@ -45,14 +46,14 @@ class SnapshotCollection:
         """
         Insert the content of the cdx file into the snapshot table while setting up the snapshot-collection columns.
         """
-        snapshot_count = open(cdxfile).read().count("\n")
+        line_count = open(cdxfile).read().count("\n")
         with open(cdxfile, "r") as f:
             line_batchsize = 1000
             line_batch = []
             total_inserted = 0
             query = """INSERT OR IGNORE INTO snapshot_tbl (timestamp, url_archive, url_origin) VALUES (?, ?, ?)"""
             first_line = True
-            pbar = tqdm(unit="snapshots", total=snapshot_count, desc="-----> Inserting snapshots")
+            pbar = tqdm(unit="lines", total=line_count, desc="-----> Inserting cdx file", file=sys.stdout)
             for line in f:
                 if first_line:
                     first_line = False
@@ -92,8 +93,7 @@ class SnapshotCollection:
 
 
     @classmethod
-    def csv_close(cls, csv_path):
-        import csv
+    def csv_create(cls, csv_path):
         """
         Write a CSV file with the list of snapshots. Append new snapshots to the existing file.
         """

@@ -28,7 +28,7 @@ def main():
             print("\nInterrupted by user\n")
         finally:
             signal.signal(signal.SIGINT, signal.SIG_IGN)
-            sc.csv_close(config.csv) if config.csv else None
+            sc.csv_create(config.csv) if config.csv else None
 
     vb.fini()
     sc.fini()

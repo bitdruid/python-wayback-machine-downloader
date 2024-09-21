@@ -1,3 +1,5 @@
+import sys
+import os
 import tqdm
 import json
 from pywaybackup.SnapshotCollection import SnapshotCollection as sc
@@ -13,18 +15,23 @@ class Verbosity:
 
     log = None
 
+    stdout = None
+
     @classmethod
-    def init(cls, v_args: list, log=None):
+    def init(cls, v_args: str, log=None):
         cls.args = v_args
         cls.log = open(log, "w") if log else None
         if cls.args == "progress":
             cls.mode = "progress"
         elif cls.args == "json":
+            cls.stdout = sys.stdout
+            sys.stdout = open(os.devnull, "w")
             cls.mode = "json"
         cls.level = cls.args if cls.args in cls.LEVELS else "info"
 
     @classmethod
     def fini(cls):
+        sys.stdout = cls.stdout
         if cls.mode == "progress":
             if cls.pbar is not None:
                 cls.pbar.close()

@@ -34,7 +34,7 @@ class Arguments:
         special.add_argument('--csv', action='store_true', help='save a csv file with the json output into the output folder')
         special.add_argument('--skip', action='store_true', help='skips existing files in the output folder by checking an existing .db-file')
         special.add_argument('--no-redirect', action='store_true', help='do not follow redirects by archive.org')
-        special.add_argument('--verbosity', type=str, default="info", metavar="", help='["progress", "json"] for different output or ["trace"] for very detailed output')
+        special.add_argument('--verbosity', type=str, default=None, metavar="", help='["progress", "json"]')
         special.add_argument('--retry', type=int, default=0, metavar="", help='retry failed downloads (opt tries as int, else infinite)')
         special.add_argument('--workers', type=int, default=1, metavar="", help='number of workers (simultaneous downloads)')
         # special.add_argument('--convert-links', action='store_true', help='Convert all links in the files to local paths. Requires -c/--current')
