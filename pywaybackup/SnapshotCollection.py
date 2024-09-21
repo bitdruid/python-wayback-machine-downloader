@@ -1,5 +1,6 @@
 from pywaybackup.helper import url_split
 from pywaybackup.db import Database
+from tqdm import tqdm
 import json
 import csv
 import os
@@ -44,11 +45,14 @@ class SnapshotCollection:
         """
         Insert the content of the cdx file into the snapshot table while setting up the snapshot-collection columns.
         """
+        snapshot_count = open(cdxfile).read().count("\n")
         with open(cdxfile, "r") as f:
             line_batchsize = 1000
             line_batch = []
+            total_inserted = 0
             query = """INSERT OR IGNORE INTO snapshot_tbl (timestamp, url_archive, url_origin) VALUES (?, ?, ?)"""
             first_line = True
+            pbar = tqdm(unit="snapshots", total=snapshot_count, desc="-----> Inserting snapshots")
             for line in f:
                 if first_line:
                     first_line = False
@@ -68,12 +72,17 @@ class SnapshotCollection:
                     url_archive = f"https://web.archive.org/web/{line["timestamp"]}id_/{line["url"]}"
                     line_batch.append((line["timestamp"], url_archive, line["url"]))
                     if len(line_batch) >= line_batchsize:
+                        total_inserted += len(line_batch)
                         cls.db.cursor.executemany(query, line_batch)
                         line_batch = []
+                        pbar.update(line_batchsize)
                 except json.JSONDecodeError:
                     continue
             if line_batch:
+                total_inserted += len(line_batch)
                 cls.db.cursor.executemany(query, line_batch)
+                pbar.update(len(line_batch))
+            pbar.close()
         cls.db.conn.commit()
         cls.filter_snapshots() # filter: remove duplicates (timestamp, url), keep latest (timestamp) snapshot of each file
         cls.skip_set(csvfile) # set response to NULL or read csv file and set response to the value in the csv file
@@ -191,7 +200,7 @@ class SnapshotCollection:
             else:
                 with open(csvfile, "r") as f:
                     reader = csv.DictReader(f)
-                    row_batchsize = 1000
+                    row_batchsize = 5000
                     row_batch = []
                     total_skipped = 0
                     query = """UPDATE snapshot_tbl SET response = ? WHERE timestamp = ? AND url_origin = ?"""
