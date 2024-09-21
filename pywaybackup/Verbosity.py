@@ -1,7 +1,5 @@
 import sys
-import os
-import tqdm
-import json
+from tqdm import tqdm
 from pywaybackup.SnapshotCollection import SnapshotCollection as sc
 
 class Verbosity:
@@ -11,6 +9,8 @@ class Verbosity:
 
     mode = None
     args = None
+
+    PROGRESS = None
     pbar = None
 
     log = None
@@ -18,25 +18,21 @@ class Verbosity:
     stdout = None
 
     @classmethod
-    def init(cls, v_args: str, log=None):
-        cls.args = v_args
+    def init(cls, progress=None, log=None, verbosity=None):
+        cls.level = verbosity if verbosity in cls.LEVELS else "info"
         cls.log = open(log, "w") if log else None
-        if cls.args == "progress":
-            cls.mode = "progress"
-        elif cls.args == "json":
-            cls.stdout = sys.stdout
-            sys.stdout = open(os.devnull, "w")
-            cls.mode = "json"
-        cls.level = cls.args if cls.args in cls.LEVELS else "info"
+        cls.PROGRESS = progress
+        if progress:
+            cls.PROGRESS = True
+            #cls.stdout = sys.stdout
+            #sys.stdout = open(os.devnull, "w")
 
     @classmethod
     def fini(cls):
         sys.stdout = cls.stdout
-        if cls.mode == "progress":
+        if cls.PROGRESS:
             if cls.pbar is not None:
                 cls.pbar.close()
-        if cls.mode == "json":
-            print(json.dumps(sc.SNAPSHOT_COLLECTION, indent=4, sort_keys=True))
         if cls.log:
             cls.log.close()
 
@@ -51,7 +47,7 @@ class Verbosity:
             message (str): The message to be logged. (e.g. actual url, file path)
         """
         logline = cls.generate_logline(status=status, type=type, message=message)
-        if cls.mode != "progress" and cls.mode != "json":
+        if cls.PROGRESS is None:
             if logline:
                 print(logline)
         if cls.log:
@@ -60,10 +56,10 @@ class Verbosity:
 
     @classmethod
     def progress(cls, progress: int):
-        if cls.mode == "progress":
+        if cls.PROGRESS:
             if cls.pbar is None and progress == 0:
-                maxval = sc.count(collection=True)
-                cls.pbar = tqdm.tqdm(total=maxval, desc="Downloading", unit=" snapshot", ascii="░▒█")
+                maxval = sc.SNAPSHOT_TOTAL
+                cls.pbar = tqdm(total=maxval, desc="download file".ljust(15), unit=" snapshot", ascii="░▒█", bar_format='{l_bar}{bar:50}{r_bar}{bar:-10b}')
             if cls.pbar is not None and progress is not None and progress > 0:
                 cls.pbar.update(progress)
                 cls.pbar.refresh()

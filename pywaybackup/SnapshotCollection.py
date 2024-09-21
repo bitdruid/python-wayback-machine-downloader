@@ -53,7 +53,7 @@ class SnapshotCollection:
             total_inserted = 0
             query = """INSERT OR IGNORE INTO snapshot_tbl (timestamp, url_archive, url_origin) VALUES (?, ?, ?)"""
             first_line = True
-            pbar = tqdm(unit="lines", total=line_count, desc="-----> Inserting cdx file", file=sys.stdout)
+            pbar = tqdm(unit=" lines", total=line_count, desc="insert cdx".ljust(15), ascii="░▒█", bar_format='{l_bar}{bar:50}{r_bar}{bar:-10b}') # remove output: file=sys.stdout
             for line in f:
                 if first_line:
                     first_line = False

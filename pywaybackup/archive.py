@@ -134,7 +134,7 @@ def query_list(csvfile: str, queryrange: int, limit: int, start: int, end: int, 
             cdxfile_IO = open(cdxfile, "w")
             with requests.get(cdxQuery, stream=True) as r:
                 r.raise_for_status()
-                with tqdm(unit='B', unit_scale=True, desc='-----> Downloading CDX result', file=sys.stdout) as pbar:
+                with tqdm(unit='B', unit_scale=True, desc="download cdx".ljust(15), ascii="░▒█", bar_format='{l_bar}{bar:50}{r_bar}{bar:-10b}') as pbar:  # remove output: file=sys.stdout
                     for chunk in r.iter_content(chunk_size=8192):
                         if chunk:
                             pbar.update(len(chunk))
