@@ -1,6 +1,7 @@
 from pywaybackup.helper import url_split
 from pywaybackup.db import Database
 import json
+import csv
 import os
 
 class SnapshotCollection:
@@ -15,6 +16,7 @@ class SnapshotCollection:
     MODE_SKIP = 0
 
     FILTER_TIME_URL = 0
+    FILTER_SKIP = 0
 
     @classmethod
     def init(cls, mode, skip):
@@ -38,13 +40,14 @@ class SnapshotCollection:
         os.remove(cls.db.SNAPSHOT_DB)
 
     @classmethod
-    def insert_cdx(cls, cdxfile):
+    def insert_cdx(cls, cdxfile, csvfile):
         """
         Insert the content of the cdx file into the snapshot table while setting up the snapshot-collection columns.
         """
         with open(cdxfile, "r") as f:
             line_batchsize = 1000
             line_batch = []
+            query = """INSERT OR IGNORE INTO snapshot_tbl (timestamp, url_archive, url_origin) VALUES (?, ?, ?)"""
             first_line = True
             for line in f:
                 if first_line:
@@ -65,15 +68,15 @@ class SnapshotCollection:
                     url_archive = f"https://web.archive.org/web/{line["timestamp"]}id_/{line["url"]}"
                     line_batch.append((line["timestamp"], url_archive, line["url"]))
                     if len(line_batch) >= line_batchsize:
-                        cls.db.cursor.executemany("INSERT OR IGNORE INTO snapshot_tbl (timestamp, url_archive, url_origin) VALUES (?, ?, ?, ?)", line_batch)
+                        cls.db.cursor.executemany(query, line_batch)
                         line_batch = []
                 except json.JSONDecodeError:
                     continue
             if line_batch:
-                cls.db.cursor.executemany("INSERT OR IGNORE INTO snapshot_tbl (timestamp, url_archive, url_origin) VALUES (?, ?, ?)", line_batch)
+                cls.db.cursor.executemany(query, line_batch)
         cls.db.conn.commit()
-        cls.filter_snapshots()
-        cls.skip_set()
+        cls.filter_snapshots() # filter: remove duplicates (timestamp, url), keep latest (timestamp) snapshot of each file
+        cls.skip_set(csvfile) # set response to NULL or read csv file and set response to the value in the csv file
 
 
 
@@ -145,11 +148,11 @@ class SnapshotCollection:
             cls.db.cursor.execute(
                 """
                 DELETE FROM snapshot_tbl
-                WHERE timestamp NOT IN (
-                    SELECT MAX(timestamp)
+                WHERE (url_origin, timestamp) NOT IN (
+                    SELECT url_origin, MAX(timestamp)
                     FROM snapshot_tbl
                     GROUP BY url_origin
-                )
+                );
                 """
             )
 
@@ -163,10 +166,15 @@ class SnapshotCollection:
 
         cls.db.conn.commit()
 
+
+
+
+
     @classmethod
-    def skip_set(cls):
+    def skip_set(cls, csvfile):
         """
         If --skip was not set, response is set to NULL for all snapshots.
+        If --skip was set, csv file is read and db is updated with the response.
         """
         if not cls.MODE_SKIP:
             cls.db.cursor.execute(
@@ -177,8 +185,34 @@ class SnapshotCollection:
             )
             cls.db.conn.commit()
 
+        if cls.MODE_SKIP:
+            if not os.path.isfile(csvfile):
+                pass
+            else:
+                with open(csvfile, "r") as f:
+                    reader = csv.DictReader(f)
+                    row_batchsize = 1000
+                    row_batch = []
+                    total_skipped = 0
+                    query = """UPDATE snapshot_tbl SET response = ? WHERE timestamp = ? AND url_origin = ?"""
+                    for row in reader:
+                        row_batch.append((row["response"], row["timestamp"], row["url_origin"]))
+                        if len(row_batch) >= row_batchsize:
+                            total_skipped += len(row_batch)
+                            cls.db.cursor.executemany(query, row_batch)
+                            row_batch = []
+                    if row_batch:
+                        total_skipped += len(row_batch)
+                        cls.db.cursor.executemany(query, row_batch)
+                    cls.db.conn.commit()
+                    cls.FILTER_SKIP = total_skipped
+
+
+
+
+
     @classmethod
-    def count_totals(cls, collection=False, success=False, fail=False, skip=False):
+    def count_totals(cls, collection=False, success=False, fail=False):
         if collection:
             return cls.SNAPSHOT_TOTAL
         if success:
@@ -192,13 +226,6 @@ class SnapshotCollection:
             cls.db.cursor.execute(
                 """
                 SELECT COUNT(rowid) FROM snapshot_tbl WHERE file IS NULL
-                """
-            )
-            return cls.db.cursor.fetchone()[0]
-        if skip:
-            cls.db.cursor.execute(
-                """
-                SELECT COUNT(rowid) FROM snapshot_tbl WHERE response != 'None'
                 """
             )
             return cls.db.cursor.fetchone()[0]

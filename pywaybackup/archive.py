@@ -87,7 +87,7 @@ def save_page(url: str):
 
 # create filelist
 # timestamp format yyyyMMddhhmmss
-def query_list(queryrange: int, limit: int, start: int, end: int, explicit: bool, filter_filetype: list, output: str, cdxbackup: str, cdxinject: str):
+def query_list(csvfile: str, queryrange: int, limit: int, start: int, end: int, explicit: bool, filter_filetype: list, output: str, cdxbackup: str, cdxinject: str):
 
     def count_cdxfile(cdxfile):
         with open(cdxfile, "r") as file:
@@ -153,7 +153,7 @@ def query_list(queryrange: int, limit: int, start: int, end: int, explicit: bool
     if not cdxfile:
         cdxfile = query(queryrange, limit, filter_filetype, start, end, explicit)
 
-    sc.insert_cdx(cdxfile)
+    sc.insert_cdx(cdxfile, csvfile)
     if not cdxbackup and not cdxinject:
         os.remove(cdxfile)
     else:
@@ -176,7 +176,7 @@ def download_list(output, retry, no_redirect, delay, workers, skipset: set = Non
 
     vb.write(message="\n-----> Snapshots prepared")
 
-    skip_count = sc.count_totals(skip=True)
+    skip_count = sc.FILTER_SKIP
     vb.progress(skip_count)
     if skip_count > 0:
         vb.write(message=f"\n-----> Skipped snapshots: {skip_count}")
