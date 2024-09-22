@@ -46,7 +46,7 @@ class SnapshotCollection:
         """
         Insert the content of the cdx file into the snapshot table while setting up the snapshot-collection columns.
         """
-        line_count = open(cdxfile).read().count("\n")
+        line_count = open(cdxfile).read().count("\n") - 1
         with open(cdxfile, "r") as f:
             line_batchsize = 1000
             line_batch = []
@@ -200,7 +200,7 @@ class SnapshotCollection:
             else:
                 with open(csvfile, "r") as f:
                     reader = csv.DictReader(f)
-                    row_batchsize = 5000
+                    row_batchsize = 1000
                     row_batch = []
                     total_skipped = 0
                     query = """UPDATE snapshot_tbl SET response = ? WHERE timestamp = ? AND url_origin = ?"""
