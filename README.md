@@ -122,26 +122,35 @@ If set, csv, skip and cdxbackup/cdxinject are handled automatically. Keep the fi
 
 ### Examples
 
-Download latest snapshot of all files:<br>
+Download the latest snapshot of all available files:<br>
 `waybackup -u http://example.com -c`
 
-Download latest snapshot of a specific file:<br>
-`waybackup -u http://example.com/subdir/file.html -c`
+Download the latest snapshot of a specific file (e.g., a login page):<br>
+`waybackup -u http://example.com/login.html -c --explicit`
 
-Download all snapshots sorted per timestamp with a specified range and do not follow redirects:<br>
+Download all snapshots within the last 5 years and prevent redirects:<br>
 `waybackup -u http://example.com -f -r 5 --no-redirect`
 
-Download all snapshots sorted per timestamp with a specified range and save to a specified folder with 3 workers:<br>
+Download all snapshots from a specific range (2020 to December 12, 2022) with 4 workers, save as CSV, and show a progress bar:<br>
+`waybackup -u http://example.com -f --start 2020 --end 20221212 --workers 4 --csv --progress`
+
+Download all snapshots and save the output in a specific folder with 3 workers:<br>
 `waybackup -u http://example.com -f -r 5 -o /home/user/Downloads/snapshots --workers 3`
 
-Download all snapshots from 2020 to 12th of December 2022 with 4 workers, save a csv and show a progress bar:
-`waybackup -u http://example.com -f --start 2020 --end 20221212 --workers 4 --csv --verbosity progress`
+Download all snapshots but only images and CSS files, filtering for specific filetypes (jpg, css):<br>
+`waybackup -u http://example.com -f --filetype jpg,css`
 
-Download all snapshots and output a json response:<br>
-`waybackup -u http://example.com -f --verbosity json`
+Download all timestamps for a specific URL and save the result as a CSV file:<br>
+`waybackup -u http://example.com -f --csv /home/user/Downloads/snapshots.csv`
 
-List available snapshots per timestamp without downloading and save a csv file to home folder:<br>
-`waybackup -u http://example.com -f -l --csv /home/user/Downloads`
+Automatically manage CSV and cdx-backup while downloading all snapshots:<br>
+`waybackup -u http://example.com -f --auto`
+
+Download the latest snapshot, limiting to only the root of the site:<br>
+`waybackup -u http://example.com -c --explicit`
+
+Download the latest snapshot, follow no redirects and retry 3 times if any error occurs:<br>
+`waybackup -u http://example.com -c --no-redirect --retry 3`
 
 ## Output path structure
 
