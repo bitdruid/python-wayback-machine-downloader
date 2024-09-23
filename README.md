@@ -32,7 +32,7 @@ This tool allows you to download content from the Wayback Machine (archive.org).
 
 - Linux recommended: On Windows machines, the path length is limited. This can only be overcome by editing the registry. Files that exceed the path length will not be downloaded.
 - If you query an explicit file (e.g. a query-string `?query=this` or `login.html`), the `--explicit`-argument is recommended as a wildcard query may lead to an empty result.
-- The tool will inform you if your query has an immense amount of snapshots which could consume your system memory and lead to a crash. Consider splitting your query into smaller jobs by specifying a range e.g. `--start 2023 --end 2024` or `--range 1`.
+- The tool uses a sqlite database to handle snapshots. The database will only persist while the download is running.
 
 ## Arguments
 
@@ -79,10 +79,10 @@ Limits the amount of snapshots to query from the CDX server. If an existing CDX 
 Defaults to `waybackup_snapshots` in the current directory. The folder where downloaded files will be saved.
   
 - **`--csv`** `<path>`:<br>
-Saves a CSV file with the json-response into the output-dir for successfull downloads. Named as `waybackup_<sanitized_url>.csv`.
+Saves a CSV file containing the response for successfull downloads. Named as `waybackup_<sanitized_url>.csv`.
 
 - **`--skip`** `<path>`:<br>
-Checks an existing `waybackup_<sanitized_url>.db` for already handled URLs to skip downloading. Useful for interrupted downloads. Otherwise, the tool will download all files again.
+Checks an existing `waybackup_<sanitized_url>.csv` file inside the output-dir and writes the response-information for each snapshot into the `waybackup_<sanitized_url>.db`. These files will be skipped during the download. Useful for continuing a download after an interruption.
   
 - **`--no-redirect`**:<br>
 Disables following redirects of snapshots. Useful for preventing timestamp-folder mismatches caused by Archive.org redirects.
@@ -176,8 +176,9 @@ your/path/waybackup_snapshots/
     ...
 ```
 
+## CSV Output
 
-### Json Response
+Each snapshot is stored with the following keys/values. These are either stored in a sqlite database while the download is running or saved into a CSV file after the download is finished when the `--csv` argument is set.
 
 For download queries:
 
@@ -213,13 +214,13 @@ For list queries:
 ]
 ```
 
-## CSV Output
-
-The csv contains the json response in a table format.
-
 ### Debugging
 
 Exceptions will be written into `waybackup_error.log` (each run overwrites the file).
+
+### Known ToDos
+
+- [ ] currently there is no logic to handle if both a http and https version of a page is available
 
 ## Contributing
 
