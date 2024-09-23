@@ -140,8 +140,8 @@ Download all snapshots and save the output in a specific folder with 3 workers:<
 Download all snapshots but only images and CSS files, filtering for specific filetypes (jpg, css):<br>
 `waybackup -u http://example.com -f --filetype jpg,css`
 
-Download all timestamps for a specific URL and save the result as a CSV file:<br>
-`waybackup -u http://example.com -f --csv /home/user/Downloads/snapshots.csv`
+Download all timestamps for a specific URL, save the result as a CSV file and log the output:<br>
+`waybackup -u http://example.com -f --csv --log`
 
 Automatically manage CSV and cdx-backup while downloading all snapshots:<br>
 `waybackup -u http://example.com -f --auto`
