@@ -95,7 +95,7 @@ def query_list(csvfile: str, queryrange: int, limit: int, start: int, end: int, 
     def inject(cdxinject):
         if os.path.isfile(cdxinject):
             vb.write(message="\nInjecting CDX data...")
-            vb.write(message=f"\n-----> {count_cdxfile(cdxinject):,} lines injected")
+            vb.write(message=f"-----> {count_cdxfile(cdxinject):,} lines injected")
             return cdxinject
         else:
             vb.write(message="\nNo CDX file found to inject - querying snapshots...")
