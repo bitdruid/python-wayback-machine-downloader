@@ -32,6 +32,7 @@ This tool allows you to download content from the Wayback Machine (archive.org).
 
 - Linux recommended: On Windows machines, the path length is limited. This can only be overcome by editing the registry. Files that exceed the path length will not be downloaded.
 - If you query an explicit file (e.g. a query-string `?query=this` or `login.html`), the `--explicit`-argument is recommended as a wildcard query may lead to an empty result.
+- Only mess around with the arguments merged with `--auto` if you really need to. Just set it and good to go.
 - The tool uses a sqlite database to handle snapshots. The database will only persist while the download is running.
 
 ## Arguments
