@@ -164,27 +164,21 @@ def query_list(csvfile: str, queryrange: int, limit: int, start: int, end: int, 
     if sc.FILTER_CURRENT > 0: vb.write(message=f"-----> {"removed outdated".ljust(18)}: {sc.FILTER_CURRENT:,}")
     if sc.FILTER_SKIP > 0: vb.write(message=f"-----> {"skipped existing".ljust(18)}: {sc.FILTER_SKIP:,}")
 
-    vb.write(message=f"\n-----> {"to utilize".ljust(18)}: {sc.count_totals(collection=True):,}")
+    vb.write(message=f"\n-----> {"to utilize".ljust(18)}: {sc.SNAPSHOT_TOTAL:,}")
 
 
 
 
 
 def download_list(output, retry, no_redirect, delay, workers):
-    if sc.count_totals(collection=True) == 0:
+    if sc.SNAPSHOT_TOTAL == 0:
         vb.write(message="\nNothing to download");
         return
     vb.write(message="\nDownloading snapshots...",)
     vb.progress(0)
+    vb.progress(sc.FILTER_SKIP)
     if workers > 1:
         vb.write(message=f"\n-----> Simultaneous downloads: {workers}")
-
-    vb.write(message="\n-----> Snapshots prepared")
-
-    vb.progress(sc.FILTER_SKIP)
-    if sc.SNAPSHOT_TOTAL == 0:
-        vb.write(message="\nNothing to download")
-        return
 
     threads = []
     worker = 0
