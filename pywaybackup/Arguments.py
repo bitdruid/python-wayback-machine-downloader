@@ -52,14 +52,6 @@ class Arguments:
 
         args = parser.parse_args(args=None if sys.argv[1:] else ['--help']) # if no arguments are given, print help
 
-        if args.csv and os.path.isfile(args.csv):
-            parser.error(f"Is a file: {args.csv}")
-
-        if args.cdxbackup and os.path.isfile(args.cdxbackup):
-            parser.error(f"Is a file: {args.cdxbackup}")
-        if args.cdxinject and os.path.isfile(args.cdxinject):
-            parser.error(f"Is a file: {args.cdxinject}")
-
         # if args.convert_links and not args.current:
         #     parser.error("--convert-links can only be used with the -c/--current option")
 

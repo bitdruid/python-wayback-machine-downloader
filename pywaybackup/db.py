@@ -32,7 +32,6 @@ class Database:
         db.cursor.execute("CREATE INDEX IF NOT EXISTS idx_timestamp ON snapshot_tbl (timestamp)")
         db.cursor.execute("CREATE INDEX IF NOT EXISTS idx_url_archive ON snapshot_tbl (url_archive)")
         db.cursor.execute("CREATE INDEX IF NOT EXISTS idx_url_origin ON snapshot_tbl (url_origin)")
-        db.cursor.execute("CREATE INDEX IF NOT EXISTS idx_url_origin_timestamp ON snapshot_tbl (url_origin, timestamp)")
         db.conn.commit()
         db.close()
 

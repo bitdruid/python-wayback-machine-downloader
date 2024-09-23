@@ -241,7 +241,6 @@ class SnapshotCollection:
                 """
             )
             return cls.db.cursor.fetchone()[0]
-        return cls.SNAPSHOT_TOTAL
 
 
 
