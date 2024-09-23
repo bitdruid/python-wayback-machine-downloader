@@ -18,6 +18,7 @@ class SnapshotCollection:
     MODE_SKIP = 0
 
     FILTER_TIME_URL = 0
+    FILTER_CURRENT = 0
     FILTER_SKIP = 0
 
     @classmethod
@@ -87,6 +88,7 @@ class SnapshotCollection:
         cls.db.conn.commit()
         cls.filter_snapshots() # filter: remove duplicates (timestamp, url), keep latest (timestamp) snapshot of each file
         cls.skip_set(csvfile) # set response to NULL or read csv file and set response to the value in the csv file
+        cls.count_totals(collection=True) # count total snapshots
 
 
 
@@ -153,25 +155,22 @@ class SnapshotCollection:
         cls.db.cursor.execute("DELETE FROM snapshot_filter_tbl")
 
         # filter the snapshot table and keep only the latest (timestamp) snapshot of each file
+        # rows get a row number based on the timestamp per url_origin and are deleted if the row number is greater than 1
         if cls.MODE_CURRENT:
             cls.db.cursor.execute(
-                """
-                DELETE FROM snapshot_tbl
-                WHERE (url_origin, timestamp) NOT IN (
-                    SELECT url_origin, MAX(timestamp)
+            """
+            DELETE FROM snapshot_tbl
+            WHERE rowid IN (
+                SELECT rowid FROM (
+                    SELECT rowid,
+                        ROW_NUMBER() OVER (PARTITION BY url_origin ORDER BY timestamp DESC) AS rank
                     FROM snapshot_tbl
-                    GROUP BY url_origin
-                );
-                """
+                ) tmp
+                WHERE rank > 1
+            );
+            """
             )
-
-        # count snapshots
-        cls.db.cursor.execute(
-            """
-            SELECT COUNT(rowid) FROM snapshot_tbl WHERE response IS NULL
-            """
-        )
-        cls.SNAPSHOT_TOTAL = cls.db.cursor.fetchone()[0]
+            cls.FILTER_CURRENT = cls.db.cursor.rowcount
 
         cls.db.conn.commit()
 
@@ -223,7 +222,12 @@ class SnapshotCollection:
     @classmethod
     def count_totals(cls, collection=False, success=False, fail=False):
         if collection:
-            return cls.SNAPSHOT_TOTAL
+            cls.db.cursor.execute(
+                """
+                SELECT COUNT(rowid) FROM snapshot_tbl WHERE response IS NULL
+                """
+            )
+            cls.SNAPSHOT_TOTAL = cls.db.cursor.fetchone()[0]
         if success:
             cls.db.cursor.execute(
                 """

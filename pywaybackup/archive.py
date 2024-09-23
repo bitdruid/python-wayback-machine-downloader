@@ -134,7 +134,7 @@ def query_list(csvfile: str, queryrange: int, limit: int, start: int, end: int, 
             cdxfile_IO = open(cdxfile, "w")
             with requests.get(cdxQuery, stream=True) as r:
                 r.raise_for_status()
-                with tqdm(unit='B', unit_scale=True, desc="download cdx".ljust(15), ascii="░▒█", bar_format='{l_bar}{bar:50}{r_bar}{bar:-10b}') as pbar:  # remove output: file=sys.stdout
+                with tqdm(unit='B', unit_scale=True, desc="download cdx".ljust(15)) as pbar:  # remove output: file=sys.stdout
                     for chunk in r.iter_content(chunk_size=8192):
                         if chunk:
                             pbar.update(len(chunk))
@@ -160,13 +160,17 @@ def query_list(csvfile: str, queryrange: int, limit: int, start: int, end: int, 
     else:
         vb.write(message="\n-----> CDX backup generated")
 
-    vb.write(message=f"\n-----> {sc.count_totals(collection=True):,} snapshots to utilize")
+    if sc.FILTER_TIME_URL > 0: vb.write(message=f"\n-----> {"removed duplicates".ljust(18)}: {sc.FILTER_TIME_URL:,}")
+    if sc.FILTER_CURRENT > 0: vb.write(message=f"-----> {"removed outdated".ljust(18)}: {sc.FILTER_CURRENT:,}")
+    if sc.FILTER_SKIP > 0: vb.write(message=f"-----> {"skipped existing".ljust(18)}: {sc.FILTER_SKIP:,}")
+
+    vb.write(message=f"\n-----> {"to utilize".ljust(18)}: {sc.count_totals(collection=True):,}")
 
 
 
 
 
-def download_list(output, retry, no_redirect, delay, workers, skipset: set = None):
+def download_list(output, retry, no_redirect, delay, workers):
     if sc.count_totals(collection=True) == 0:
         vb.write(message="\nNothing to download");
         return
@@ -177,11 +181,8 @@ def download_list(output, retry, no_redirect, delay, workers, skipset: set = Non
 
     vb.write(message="\n-----> Snapshots prepared")
 
-    skip_count = sc.FILTER_SKIP
-    vb.progress(skip_count)
-    if skip_count > 0:
-        vb.write(message=f"\n-----> Skipped snapshots: {skip_count}")
-    if skip_count == sc.count_totals(collection=True):
+    vb.progress(sc.FILTER_SKIP)
+    if sc.SNAPSHOT_TOTAL == 0:
         vb.write(message="\nNothing to download")
         return
 
@@ -199,16 +200,15 @@ def download_list(output, retry, no_redirect, delay, workers, skipset: set = Non
     failed = sc.count_totals(fail=True)
     vb.write(message=f"\nFiles downloaded: {successed}")
     vb.write(message=f"Not downloaded: {failed}")
-    vb.write(message=f"Filtered duplicate snapshots: {sc.FILTER_TIME_URL}\n")
 
 
 
 
 
-def download_loop(output, worker, retry, no_redirect, delay, connection=None):
+def download_loop(output, worker, retry, no_redirect, delay):
     try:
         db = Database()
-        connection = connection or http.client.HTTPSConnection("web.archive.org")
+        connection = http.client.HTTPSConnection("web.archive.org")
 
         while True:
 
