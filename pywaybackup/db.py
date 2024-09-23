@@ -13,6 +13,12 @@ class Database:
     """
 
     SNAPSHOT_DB = ""
+    job_table = """CREATE TABLE IF NOT EXISTS job_tbl (
+        command TEXT,
+        insert_complete INTEGER,
+        index_complete INTEGER,
+        filter_complete INTEGER
+    )"""        
     snapshot_table = """CREATE TABLE IF NOT EXISTS snapshot_tbl (
         timestamp TEXT,
         url_archive TEXT,
@@ -27,11 +33,9 @@ class Database:
     def init(cls, url, output):
         cls.SNAPSHOT_DB = os.path.join(output, f"waybackup_{sanitize_filename(url)}.db")
         db = Database()
+        db.cursor.execute(cls.job_table)
         db.cursor.execute(cls.snapshot_table)
         db.cursor.execute("CREATE TABLE IF NOT EXISTS snapshot_filter_tbl AS SELECT * FROM snapshot_tbl WHERE 0")
-        db.cursor.execute("CREATE INDEX IF NOT EXISTS idx_timestamp ON snapshot_tbl (timestamp)")
-        db.cursor.execute("CREATE INDEX IF NOT EXISTS idx_url_archive ON snapshot_tbl (url_archive)")
-        db.cursor.execute("CREATE INDEX IF NOT EXISTS idx_url_origin ON snapshot_tbl (url_origin)")
         db.conn.commit()
         db.close()
 

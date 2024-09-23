@@ -1,6 +1,5 @@
 import sys
 from tqdm import tqdm
-from pywaybackup.SnapshotCollection import SnapshotCollection as sc
 
 class Verbosity:
 
@@ -55,10 +54,9 @@ class Verbosity:
             cls.log.flush()
 
     @classmethod
-    def progress(cls, progress: int):
+    def progress(cls, progress: int, maxval: int = None):
         if cls.PROGRESS:
             if cls.pbar is None and progress == 0:
-                maxval = sc.SNAPSHOT_TOTAL
                 cls.pbar = tqdm(total=maxval, desc="download file".ljust(15), unit=" snapshot", ascii="░▒█", bar_format='{l_bar}{bar:50}{r_bar}{bar:-10b}')
             if cls.pbar is not None and progress is not None and progress > 0:
                 cls.pbar.update(progress)

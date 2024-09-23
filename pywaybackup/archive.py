@@ -165,7 +165,7 @@ def query_list(csvfile: str, queryrange: int, limit: int, start: int, end: int, 
         vb.write(message="\n-----> CDX backup generated\n")
 
     if sc.FILTER_TIME_URL > 0: vb.write(message=f"-----> {"removed duplicates".ljust(18)}: {sc.FILTER_TIME_URL:,}")
-    if sc.FILTER_CURRENT > 0: vb.write(message=f"-----> {"removed outdated".ljust(18)}: {sc.FILTER_CURRENT:,}")
+    if sc.FILTER_CURRENT > 0: vb.write(message=f"-----> {"removed current".ljust(18)}: {sc.FILTER_CURRENT:,}")
     if sc.FILTER_SKIP > 0: vb.write(message=f"-----> {"skipped existing".ljust(18)}: {sc.FILTER_SKIP:,}")
 
     vb.write(message=f"\n-----> {"to utilize".ljust(18)}: {sc.SNAPSHOT_TOTAL:,}")
@@ -179,8 +179,8 @@ def download_list(output, retry, no_redirect, delay, workers):
         vb.write(message="\nNothing to download");
         return
     vb.write(message="\nDownloading snapshots...",)
-    vb.progress(0)
-    vb.progress(sc.FILTER_SKIP)
+    vb.progress(progress=0, maxval=sc.SNAPSHOT_TOTAL)
+    vb.progress(progress=sc.FILTER_SKIP)
     if workers > 1:
         vb.write(message=f"\n-----> Simultaneous downloads: {workers}")
 

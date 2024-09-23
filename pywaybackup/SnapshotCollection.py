@@ -1,3 +1,4 @@
+from pywaybackup.Verbosity import Verbosity as vb
 from pywaybackup.helper import url_split
 from pywaybackup.db import Database
 from tqdm import tqdm
@@ -85,6 +86,9 @@ class SnapshotCollection:
                 pbar.update(len(line_batch))
             pbar.close()
         cls.db.conn.commit()
+        vb.write(message="\nIndexing snapshots...")
+        cls.index_snapshots() # create indexes for the snapshot table
+        vb.write(message="\nFiltering snapshots...")
         cls.filter_snapshots() # filter: remove duplicates (timestamp, url), keep latest (timestamp) snapshot of each file
         cls.skip_set(csvfile) # set response to NULL or read csv file and set response to the value in the csv file
         cls.count_totals(collection=True) # count total snapshots
@@ -115,10 +119,20 @@ class SnapshotCollection:
 
 
 
+    @classmethod
+    def index_snapshots(cls):
+        """
+        Create indexes for the snapshot table.
+        """
+        # index for filtering duplicates
+        cls.db.cursor.execute("CREATE INDEX IF NOT EXISTS idx_snapshot_tbl_timestamp_url_origin ON snapshot_tbl(timestamp, url_origin)")
+        # index for filtering current snapshots
+        cls.db.cursor.execute("CREATE INDEX IF NOT EXISTS idx_snapshot_tbl_url_origin_timestamp ON snapshot_tbl(url_origin, timestamp DESC);")
+        # index for skippable snapshots
+        cls.db.cursor.execute("CREATE INDEX IF NOT EXISTS idx_snapshot_tbl_timestamp_url_origin_response ON snapshot_tbl(timestamp, url_origin);")
 
     @classmethod
     def filter_snapshots(cls):
-
         """
         Filter the snapshot table.
 
@@ -141,6 +155,7 @@ class SnapshotCollection:
         cls.FILTER_TIME_URL = cls.db.cursor.rowcount
 
         # filter the snapshot table by timestamp and url
+        vb.write(message="-----> duplicate snapshots")
         cls.db.cursor.execute(
             """
             DELETE FROM snapshot_tbl
@@ -156,6 +171,7 @@ class SnapshotCollection:
         # filter the snapshot table and keep only the latest (timestamp) snapshot of each file
         # rows get a row number based on the timestamp per url_origin and are deleted if the row number is greater than 1
         if cls.MODE_CURRENT:
+            vb.write(message="-----> current snapshots")
             cls.db.cursor.execute(
             """
             DELETE FROM snapshot_tbl
@@ -196,6 +212,7 @@ class SnapshotCollection:
             if not os.path.isfile(csvfile):
                 pass
             else:
+                vb.write(message="-----> skippable snapshots")
                 with open(csvfile, "r") as f:
                     reader = csv.DictReader(f)
                     row_batchsize = 1000
