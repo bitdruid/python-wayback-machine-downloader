@@ -78,8 +78,6 @@ Limits the amount of snapshots to query from the CDX server. If an existing CDX 
 - **`-o`**, **`--output`**:<br>
 Defaults to `waybackup_snapshots` in the current directory. The folder where downloaded files will be saved.
   
-- **`--csv`** `<path>`:<br>
-Saves a CSV file containing the response for successfull downloads. Named as `waybackup_<sanitized_url>.csv`.
 
 - **`--skip`** `<path>`:<br>
 Checks an existing `waybackup_<sanitized_url>.csv` file inside the output-dir and writes the response-information for each snapshot into the `waybackup_<sanitized_url>.db`. These files will be skipped during the download. Useful for continuing a download after an interruption.
@@ -87,11 +85,17 @@ Checks an existing `waybackup_<sanitized_url>.csv` file inside the output-dir an
 - **`--no-redirect`**:<br>
 Disables following redirects of snapshots. Useful for preventing timestamp-folder mismatches caused by Archive.org redirects.
   
-- **`--verbosity`** `<level>`:<br>
-Sets verbosity level. Options are `json` (prints JSON response) or `progress` (shows progress bar).
+<!-- - **`--verbosity`** `<level>`:<br>
+Sets verbosity level. Options are `info`and `trace`. Default is `info`. -->
 
 - **`--log`** `<path>`:<br>
 Saves a log file into the output-dir. Named as `waybackup_<sanitized_url>.log`.
+
+- **`--csv`** `<path>`:<br>
+Saves a CSV file containing the response for successfull downloads. Named as `waybackup_<sanitized_url>.csv`.
+
+- **`--progress`**:<br>
+Shows a progress bar instead of the default output.
 
 - **`--workers`** `<count>`:<br>
 Sets the number of simultaneous download workers. Default is 1, safe range is about 10. Be cautious as too many workers may lead to refused connections from the Wayback Machine.
