@@ -47,49 +47,56 @@ class SnapshotCollection:
         """
         Insert the content of the cdx file into the snapshot table while setting up the snapshot-collection columns.
         """
-        line_count = open(cdxfile).read().count("\n") - 1
-        with open(cdxfile, "r") as f:
-            line_batchsize = 1000
-            line_batch = []
-            total_inserted = 0
-            query = """INSERT OR IGNORE INTO snapshot_tbl (timestamp, url_archive, url_origin) VALUES (?, ?, ?)"""
-            first_line = True
-            pbar = tqdm(unit=" lines", total=line_count, desc="insert cdx".ljust(15), ascii="░▒█", bar_format='{l_bar}{bar:50}{r_bar}{bar:-10b}') # remove output: file=sys.stdout
-            for line in f:
-                if first_line:
-                    first_line = False
-                    continue
-                line = line.strip()
-                if line.endswith("]]"): line = line.rsplit("]", 1)[0]
-                if line.endswith(","): line = line.rsplit(",", 1)[0]
-                try:
-                    line = json.loads(line)
-                    line = {
-                        "timestamp": line[0],
-                        "digest": line[1],
-                        "mimetype": line[2],
-                        "status": line[3],
-                        "url": line[4]
-                    }
-                    url_archive = f"https://web.archive.org/web/{line["timestamp"]}id_/{line["url"]}"
-                    line_batch.append((line["timestamp"], url_archive, line["url"]))
-                    if len(line_batch) >= line_batchsize:
-                        total_inserted += len(line_batch)
-                        cls.db.cursor.executemany(query, line_batch)
-                        line_batch = []
-                        pbar.update(line_batchsize)
-                except json.JSONDecodeError:
-                    continue
-            if line_batch:
-                total_inserted += len(line_batch)
-                cls.db.cursor.executemany(query, line_batch)
-                pbar.update(len(line_batch))
-            pbar.close()
-        cls.db.conn.commit()
-        vb.write(message="\nIndexing snapshots...")
-        cls.index_snapshots() # create indexes for the snapshot table
-        vb.write(message="\nFiltering snapshots...")
-        cls.filter_snapshots() # filter: remove duplicates (timestamp, url), keep latest (timestamp) snapshot of each file
+        if not cls.db.get_insert_complete():
+            vb.write(message="\nInserting CDX data into database...")
+            line_count = open(cdxfile).read().count("\n") - 1
+            with open(cdxfile, "r") as f:
+                line_batchsize = 1000
+                line_batch = []
+                total_inserted = 0
+                query = """INSERT OR IGNORE INTO snapshot_tbl (timestamp, url_archive, url_origin) VALUES (?, ?, ?)"""
+                first_line = True
+                pbar = tqdm(unit=" lines", total=line_count, desc="insert cdx".ljust(15), ascii="░▒█", bar_format='{l_bar}{bar:50}{r_bar}{bar:-10b}') # remove output: file=sys.stdout
+                for line in f:
+                    if first_line:
+                        first_line = False
+                        continue
+                    line = line.strip()
+                    if line.endswith("]]"): line = line.rsplit("]", 1)[0]
+                    if line.endswith(","): line = line.rsplit(",", 1)[0]
+                    try:
+                        line = json.loads(line)
+                        line = {
+                            "timestamp": line[0],
+                            "digest": line[1],
+                            "mimetype": line[2],
+                            "status": line[3],
+                            "url": line[4]
+                        }
+                        url_archive = f"https://web.archive.org/web/{line["timestamp"]}id_/{line["url"]}"
+                        line_batch.append((line["timestamp"], url_archive, line["url"]))
+                        if len(line_batch) >= line_batchsize:
+                            total_inserted += len(line_batch)
+                            cls.db.cursor.executemany(query, line_batch)
+                            line_batch = []
+                            pbar.update(line_batchsize)
+                    except json.JSONDecodeError:
+                        continue
+                if line_batch:
+                    total_inserted += len(line_batch)
+                    cls.db.cursor.executemany(query, line_batch)
+                    pbar.update(len(line_batch))
+                pbar.close()
+            cls.db.conn.commit()
+            cls.db.set_insert_complete()
+        if not cls.db.get_index_complete():
+            vb.write(message="\nIndexing snapshots...")
+            cls.index_snapshots() # create indexes for the snapshot table
+            cls.db.set_index_complete()
+        if not cls.db.get_filter_complete():
+            vb.write(message="\nFiltering snapshots...")
+            cls.filter_snapshots() # filter: remove duplicates (timestamp, url), keep latest (timestamp) snapshot of each file
+            cls.db.set_filter_complete()
         cls.skip_set(csvfile) # set response to NULL or read csv file and set response to the value in the csv file
         cls.count_totals(collection=True) # count total snapshots
 

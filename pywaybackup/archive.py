@@ -157,12 +157,11 @@ def query_list(csvfile: str, queryrange: int, limit: int, start: int, end: int, 
     if not cdxfile:
         cdxfile = query(queryrange, limit, filter_filetype, start, end, explicit)
 
-    vb.write(message="\nInserting CDX data into database...")
     sc.insert_cdx(cdxfile, csvfile)
     if not cdxbackup and not cdxinject:
         os.remove(cdxfile)
     else:
-        vb.write(message="\n-----> CDX backup generated\n")
+        vb.write(message="\n-----> CDX backup generated")
 
     if sc.FILTER_TIME_URL > 0: vb.write(message=f"-----> {"removed duplicates".ljust(18)}: {sc.FILTER_TIME_URL:,}")
     if sc.FILTER_CURRENT > 0: vb.write(message=f"-----> {"removed current".ljust(18)}: {sc.FILTER_CURRENT:,}")

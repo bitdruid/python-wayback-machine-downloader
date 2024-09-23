@@ -1,6 +1,7 @@
 
 import sys
 import os
+import hashlib
 import argparse
 
 from pywaybackup.helper import url_split, sanitize_filename
@@ -23,13 +24,14 @@ class Arguments:
 
         optional = parser.add_argument_group('optional query parameters')
         optional.add_argument('-e', '--explicit', action='store_true', help='search only for the explicit given url')
-        optional.add_argument('-o', '--output', type=str, metavar="", help='output folder - defaults to current directory')
         optional.add_argument('-r', '--range', type=int, metavar="", help='range in years to search')
         optional.add_argument('--start', type=int, metavar="", help='start timestamp format: YYYYMMDDhhmmss')
         optional.add_argument('--end', type=int, metavar="", help='end timestamp format: YYYYMMDDhhmmss')
         optional.add_argument('--filetype', type=str, metavar="", help='filetypes to download comma separated (e.g. "html,css")')
+        optional.add_argument('--limit', type=int, nargs='?', const=True, metavar='int', help='limit the number of snapshots to download')
 
         special = parser.add_argument_group('manipulate behavior')
+        special.add_argument('-o', '--output', type=str, metavar="", help='output folder - defaults to current directory')
         special.add_argument('--log', action='store_true', help='save a log file into the output folder')
         special.add_argument('--csv', action='store_true', help='save a csv file with the json output into the output folder')
         special.add_argument('--progress', action='store_true', help='show a progress bar')
@@ -40,7 +42,6 @@ class Arguments:
         special.add_argument('--workers', type=int, default=1, metavar="", help='number of workers (simultaneous downloads)')
         # special.add_argument('--convert-links', action='store_true', help='Convert all links in the files to local paths. Requires -c/--current')
         special.add_argument('--delay', type=int, default=0, metavar="", help='delay between each download in seconds')
-        special.add_argument('--limit', type=int, nargs='?', const=True, metavar='int', help='limit the number of snapshots to download')
 
         cdx = parser.add_argument_group('cdx (one exclusive)')
         exclusive_cdx = cdx.add_mutually_exclusive_group()
@@ -51,6 +52,10 @@ class Arguments:
         auto.add_argument('--auto', action='store_true', help='includes automatic csv, skip and cdxbackup/cdxinject to resume a stopped download')
 
         args = parser.parse_args(args=None if sys.argv[1:] else ['--help']) # if no arguments are given, print help
+
+        required_args = {action.dest: getattr(args, action.dest) for action in exclusive_required._group_actions}
+        optional_args = {action.dest: getattr(args, action.dest) for action in optional._group_actions}
+        args.query_identifier = str(args.url) + str(required_args) + str(optional_args)
 
         # if args.convert_links and not args.current:
         #     parser.error("--convert-links can only be used with the -c/--current option")

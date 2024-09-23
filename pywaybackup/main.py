@@ -14,7 +14,7 @@ from pywaybackup.Exception import Exception as ex
 def main():
 
     config.init()
-    db.init(config.url, config.output)
+    db.init(config.url, config.output, config.query_identifier)
     sc.init(config.mode, config.skip)
     ex.init(config.output, config.command)
     vb.init(config.progress, config.log)
