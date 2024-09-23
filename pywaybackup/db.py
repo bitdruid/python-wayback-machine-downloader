@@ -13,7 +13,7 @@ class Database:
     """
 
     SNAPSHOT_DB = ""
-    job_table = """CREATE TABLE IF NOT EXISTS job_tbl (
+    waybackup_table = """CREATE TABLE IF NOT EXISTS waybackup_table (
         command TEXT,
         insert_complete INTEGER,
         index_complete INTEGER,
@@ -33,7 +33,7 @@ class Database:
     def init(cls, url, output):
         cls.SNAPSHOT_DB = os.path.join(output, f"waybackup_{sanitize_filename(url)}.db")
         db = Database()
-        db.cursor.execute(cls.job_table)
+        db.cursor.execute(cls.waybackup_table)
         db.cursor.execute(cls.snapshot_table)
         db.cursor.execute("CREATE TABLE IF NOT EXISTS snapshot_filter_tbl AS SELECT * FROM snapshot_tbl WHERE 0")
         db.conn.commit()

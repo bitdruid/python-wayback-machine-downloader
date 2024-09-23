@@ -257,8 +257,14 @@ def download_loop(output, worker, retry, no_redirect, delay):
                         retry_attempt = retry_max_attempt
                         break # break all loops because of successful download
 
-                    vb.write(message=f"\n-----> Worker: {worker} - Attempt: [{retry_attempt}/{retry_max_attempt}] Snapshot [{sc.SNAPSHOT_DONE}/{sc.SNAPSHOT_TOTAL}] - Download failed - retry Timeout: 15 seconds...")
-                    time.sleep(15)
+                    # depends on user - retries after timeout or proceed to next snapshot
+                    if retry > 0:
+                        status_message.store(message=f"\n-----> Worker: {worker} - Attempt: [{retry_attempt}/{retry_max_attempt}] Snapshot [{sc.SNAPSHOT_DONE}/{sc.SNAPSHOT_TOTAL}] - Download failed - retry Timeout: 15 seconds...")
+                        status_message.write()
+                        time.sleep(15)
+                    else:
+                        status_message.store(message=f"\n-----> Worker: {worker} - Attempt: [{retry_attempt}/{retry_max_attempt}] Snapshot [{sc.SNAPSHOT_DONE}/{sc.SNAPSHOT_TOTAL}] - Download failed")
+                        status_message.write()
                     break # break all loops and do a user-defined retry
                 
                 retry_attempt += 1
