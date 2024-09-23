@@ -162,9 +162,9 @@ def query_list(csvfile: str, queryrange: int, limit: int, start: int, end: int, 
     if not cdxbackup and not cdxinject:
         os.remove(cdxfile)
     else:
-        vb.write(message="\n-----> CDX backup generated")
+        vb.write(message="\n-----> CDX backup generated\n")
 
-    if sc.FILTER_TIME_URL > 0: vb.write(message=f"\n-----> {"removed duplicates".ljust(18)}: {sc.FILTER_TIME_URL:,}")
+    if sc.FILTER_TIME_URL > 0: vb.write(message=f"-----> {"removed duplicates".ljust(18)}: {sc.FILTER_TIME_URL:,}")
     if sc.FILTER_CURRENT > 0: vb.write(message=f"-----> {"removed outdated".ljust(18)}: {sc.FILTER_CURRENT:,}")
     if sc.FILTER_SKIP > 0: vb.write(message=f"-----> {"skipped existing".ljust(18)}: {sc.FILTER_SKIP:,}")
 
