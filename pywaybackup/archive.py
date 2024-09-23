@@ -142,6 +142,11 @@ def query_list(csvfile: str, queryrange: int, limit: int, start: int, end: int, 
             cdxfile_IO.close()
         except requests.exceptions.ConnectionError:
             vb.write(message="\nCONNECTION REFUSED -> could not query cdx server (max retries exceeded)\n")
+            os.remove(cdxfile)
+            os._exit(1)
+        except Exception as e:
+            ex.exception(message="\nEXCEPTION -> unexpected error while querying cdx server", e=e)
+            os.remove(cdxfile)
             os._exit(1)
 
         return cdxfile
