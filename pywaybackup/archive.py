@@ -1,6 +1,5 @@
 import requests
 import os
-import sys
 import gzip
 import threading
 import time

@@ -4,7 +4,6 @@ from tqdm import tqdm
 import json
 import csv
 import os
-import sys
 
 class SnapshotCollection:
     """
