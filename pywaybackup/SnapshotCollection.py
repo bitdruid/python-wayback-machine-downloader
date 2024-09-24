@@ -97,7 +97,7 @@ class SnapshotCollection:
             vb.write(message="\nFiltering snapshots...")
             cls.filter_snapshots() # filter: remove duplicates (timestamp, url), keep latest (timestamp) snapshot of each file
             cls.db.set_filter_complete()
-        cls.skip_set(csvfile) # set response to NULL or read csv file and set response to the value in the csv file
+        cls.skip_set(csvfile) # set response to NULL or read csv file and write values into db
         cls.count_totals(collection=True) # count total snapshots
 
 
@@ -221,13 +221,29 @@ class SnapshotCollection:
             else:
                 vb.write(message="-----> skippable snapshots")
                 with open(csvfile, "r") as f:
-                    reader = csv.DictReader(f)
+                    csv_content = csv.DictReader(f)
                     row_batchsize = 1000
                     row_batch = []
                     total_skipped = 0
-                    query = """UPDATE snapshot_tbl SET response = ? WHERE timestamp = ? AND url_origin = ?"""
-                    for row in reader:
-                        row_batch.append((row["response"], row["timestamp"], row["url_origin"]))
+                    query = """
+                            UPDATE snapshot_tbl SET
+                            url_archive = ?,
+                            redirect_url = ?,
+                            redirect_timestamp = ?,
+                            response = ?,
+                            file = ?
+                            WHERE timestamp = ? AND url_origin = ?
+                            """
+                    for row in csv_content:
+                        row_batch.append((
+                            row["url_archive"],
+                            row["redirect_url"],
+                            row["redirect_timestamp"],
+                            row["response"],
+                            row["file"],
+                            row["timestamp"],
+                            row["url_origin"]
+                        ))
                         if len(row_batch) >= row_batchsize:
                             total_skipped += len(row_batch)
                             cls.db.cursor.executemany(query, row_batch)
