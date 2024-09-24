@@ -14,7 +14,7 @@ class Verbosity:
 
     log = None
 
-    stdout = None
+    #stdout = None
 
     @classmethod
     def init(cls, progress=None, log=None, verbosity=None):
@@ -28,7 +28,7 @@ class Verbosity:
 
     @classmethod
     def fini(cls):
-        sys.stdout = cls.stdout
+        #sys.stdout = cls.stdout
         if cls.PROGRESS:
             if cls.pbar is not None:
                 cls.pbar.close()

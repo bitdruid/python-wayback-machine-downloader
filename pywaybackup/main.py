@@ -29,6 +29,7 @@ def main():
         finally:
             signal.signal(signal.SIGINT, signal.SIG_IGN)
             sc.csv_create(config.csv) if config.csv else None
+            os._exit(0) # kill all threads
 
     vb.fini()
     sc.fini()
