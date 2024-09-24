@@ -45,7 +45,7 @@ class SnapshotCollection:
     @classmethod
     def insert_cdx(cls, cdxfile, csvfile):
         """
-        Insert the content of the cdx file into the snapshot table while setting up the snapshot-collection columns.
+        Insert the content of the cdx file into the snapshot table.
         """
         if not cls.db.get_insert_complete():
             vb.write(message="\nInserting CDX data into database...")
@@ -107,7 +107,7 @@ class SnapshotCollection:
     @classmethod
     def csv_create(cls, csv_path):
         """
-        Write a CSV file with the list of snapshots. Append new snapshots to the existing file.
+        Write a CSV file with the list of snapshots.
         """
         row_batchsize = 1000
         cls.db.cursor.execute("UPDATE snapshot_tbl SET response = NULL WHERE response = 'LOCK'") # reset locked to unprocessed
