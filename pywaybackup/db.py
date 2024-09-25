@@ -14,7 +14,7 @@ class Database:
 
     SNAPSHOT_DB = ""
     waybackup_table = """CREATE TABLE IF NOT EXISTS waybackup_table (
-        query_identifier TEXT,
+        query_identifier TEXT PRIMARY KEY,
         insert_complete INTEGER,
         index_complete INTEGER,
         filter_complete INTEGER
@@ -26,7 +26,8 @@ class Database:
         redirect_url TEXT,
         redirect_timestamp TEXT,
         response TEXT,
-        file TEXT
+        file TEXT,
+        UNIQUE (url_archive)
     )"""
 
     @classmethod
@@ -36,7 +37,7 @@ class Database:
         db.cursor.execute(cls.waybackup_table)
         db.cursor.execute(cls.snapshot_table)
         db.cursor.execute("CREATE TABLE IF NOT EXISTS snapshot_filter_tbl AS SELECT * FROM snapshot_tbl WHERE 0")
-        db.cursor.execute("INSERT INTO waybackup_table (query_identifier) VALUES (?)", (query_identifier,))
+        db.cursor.execute("INSERT OR IGNORE INTO waybackup_table (query_identifier) VALUES (?)", (query_identifier,))
         db.conn.commit()
         db.close()
 
