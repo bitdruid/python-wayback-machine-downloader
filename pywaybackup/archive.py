@@ -94,8 +94,7 @@ def query_list(csvfile: str, queryrange: int, limit: int, start: int, end: int, 
     
     def inject(cdxinject):
         if os.path.isfile(cdxinject):
-            vb.write(message="\nInjecting CDX data...")
-            vb.write(message=f"-----> {count_cdxfile(cdxinject):,} lines injected")
+            vb.write(message="\nCDX file found to inject...")
             return cdxinject
         else:
             vb.write(message="\nNo CDX file found to inject - querying snapshots...")
@@ -145,7 +144,7 @@ def query_list(csvfile: str, queryrange: int, limit: int, start: int, end: int, 
             os.remove(cdxfile)
             os._exit(1)
         except Exception as e:
-            ex.exception(message="\nEXCEPTION -> unexpected error while querying cdx server", e=e)
+            ex.exception(message="\nUnexpected error while querying cdx server", e=e)
             os.remove(cdxfile)
             os._exit(1)
 
@@ -160,14 +159,19 @@ def query_list(csvfile: str, queryrange: int, limit: int, start: int, end: int, 
     sc.insert_cdx(cdxfile, csvfile)
     if not cdxbackup and not cdxinject:
         os.remove(cdxfile)
+        vb.write(message="\n------> removing CDX file")
     else:
-        vb.write(message="\n-----> CDX backup generated")
+        vb.write(message="\n-----> keeping CDX file")
 
+    vb.write(message="\nSnapshot calculation...")
+    vb.write(message=f"-----> {"in CDX file".ljust(18)}: {sc.CDX_TOTAL:,}")
+    if sc.FILTER_TIME_URL == 0 and sc.FILTER_CURRENT == 0:
+        vb.write(message=f"-----> {'filtered'.ljust(18)}: {(sc.CDX_TOTAL - sc.SNAPSHOT_TOTAL - sc.FILTER_SKIP):,}")
     if sc.FILTER_TIME_URL > 0: vb.write(message=f"-----> {"removed duplicates".ljust(18)}: {sc.FILTER_TIME_URL:,}")
     if sc.FILTER_CURRENT > 0: vb.write(message=f"-----> {"removed current".ljust(18)}: {sc.FILTER_CURRENT:,}")
     if sc.FILTER_SKIP > 0: vb.write(message=f"-----> {"skipped existing".ljust(18)}: {sc.FILTER_SKIP:,}")
-
     vb.write(message=f"\n-----> {"to utilize".ljust(18)}: {sc.SNAPSHOT_TOTAL:,}")
+
 
 
 
@@ -180,8 +184,6 @@ def download_list(output, retry, no_redirect, delay, workers):
     vb.write(message="\nDownloading snapshots...",)
     vb.progress(progress=0, maxval=sc.SNAPSHOT_TOTAL)
     vb.progress(progress=sc.FILTER_SKIP)
-    if workers > 1:
-        vb.write(message=f"\n-----> Simultaneous downloads: {workers}")
 
     threads = []
     worker = 0

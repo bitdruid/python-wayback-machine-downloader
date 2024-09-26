@@ -11,6 +11,8 @@ class SnapshotCollection:
     Represents the interaction with the snapshot-collection contained in the snapshot database.
     """
 
+    CDX_TOTAL = 0
+
     SNAPSHOT_TOTAL = 0
     SNAPSHOT_DONE = 0
 
@@ -47,9 +49,10 @@ class SnapshotCollection:
         """
         Insert the content of the cdx file into the snapshot table.
         """
+        line_count = sum(1 for _ in open(cdxfile)) - 1
+        cls.CDX_TOTAL = line_count
         if not cls.db.get_insert_complete():
             vb.write(message="\nInserting CDX data into database...")
-            line_count = open(cdxfile).read().count("\n") - 1
             with open(cdxfile, "r") as f:
                 line_batchsize = 1000
                 line_batch = []
@@ -73,8 +76,8 @@ class SnapshotCollection:
                             "status": line[3],
                             "url": line[4]
                         }
-                        url_archive = f"https://web.archive.org/web/{line["timestamp"]}id_/{line["url"]}"
-                        line_batch.append((line["timestamp"], url_archive, line["url"]))
+                        url_archive = f"https://web.archive.org/web/{line['timestamp']}id_/{line['url']}"
+                        line_batch.append((line['timestamp'], url_archive, line['url']))
                         if len(line_batch) >= line_batchsize:
                             total_inserted += len(line_batch)
                             cls.db.cursor.executemany(query, line_batch)
@@ -89,14 +92,17 @@ class SnapshotCollection:
                 pbar.close()
             cls.db.conn.commit()
             cls.db.set_insert_complete()
+        else: vb.write(message="\nAlready inserted CDX data into database")
         if not cls.db.get_index_complete():
             vb.write(message="\nIndexing snapshots...")
             cls.index_snapshots() # create indexes for the snapshot table
             cls.db.set_index_complete()
+        else: vb.write(message="\nAlready indexed snapshots")
         if not cls.db.get_filter_complete():
             vb.write(message="\nFiltering snapshots...")
             cls.filter_snapshots() # filter: remove duplicates (timestamp, url), keep latest (timestamp) snapshot of each file
             cls.db.set_filter_complete()
+        else: vb.write(message="\nAlready filtered snapshots")
         cls.skip_set(csvfile) # set response to NULL or read csv file and write values into db
         cls.count_totals(collection=True) # count total snapshots
 
@@ -219,7 +225,6 @@ class SnapshotCollection:
             if not os.path.isfile(csvfile):
                 pass
             else:
-                vb.write(message="-----> skippable snapshots")
                 with open(csvfile, "r") as f:
                     csv_content = csv.DictReader(f)
                     row_batchsize = 1000
