@@ -4,32 +4,35 @@ import signal
 
 import pywaybackup.archive as archive
 
+from pywaybackup.SnapshotCollection import SnapshotCollection as sc
+
 from pywaybackup.Arguments import Configuration as config
+from pywaybackup.db import Database as db
 from pywaybackup.Verbosity import Verbosity as vb
 from pywaybackup.Exception import Exception as ex
 
 def main():
 
     config.init()
+    db.init(config.url, config.output, config.query_identifier)
+    sc.init(config.mode, config.skip)
     ex.init(config.output, config.command)
-    vb.init(config.verbosity, config.log)
+    vb.init(config.progress, config.log)
     if config.save:
         archive.save_page(config.url)
     else:
         try:
-            skipset = archive.skip_open(config.skip, config.url) if config.skip else None
-            archive.query_list(config.range, config.limit, config.start, config.end, config.explicit, config.filetype, config.mode, config.output, config.cdxbackup, config.cdxinject)
-            if config.list:
-                archive.print_list()
-            else:
-                archive.download_list(config.output, config.retry, config.no_redirect, config.delay, config.workers, skipset)
+            archive.query_list(config.csv, config.range, config.limit, config.start, config.end, config.explicit, config.filetype, config.output, config.cdxbackup, config.cdxinject)
+            archive.download_list(config.output, config.retry, config.no_redirect, config.delay, config.workers)
         except KeyboardInterrupt:
             print("\nInterrupted by user\n")
         finally:
             signal.signal(signal.SIGINT, signal.SIG_IGN)
-            archive.csv_close(config.csv, config.url) if config.csv else None
+            sc.csv_create(config.csv) if config.csv else None
+            os._exit(0) # kill all threads
 
     vb.fini()
+    sc.fini()
     os._exit(0) # kill all threads
 
 if __name__ == "__main__":
