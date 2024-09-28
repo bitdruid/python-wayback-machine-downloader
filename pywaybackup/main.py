@@ -37,7 +37,7 @@ def main():
 
         finally:
             if not config.keep:
-                os.remove(db.SNAPSHOT_DB)
+                os.remove(config.dbfile)
                 os.remove(config.cdxfile)
 
             sc.csv_create(config.csvfile)
