@@ -13,16 +13,16 @@ class SnapshotCollection:
 
     CDX_TOTAL = 0
 
-    SNAPSHOT_TOTAL = 0
-    SNAPSHOT_FAULTY = 0
-    SNAPSHOT_DONE = 0
+    SNAPSHOT_TOTAL = 0      # all unhandled snapshots in the db (without response)
+    SNAPSHOT_FAULTY = 0     # snapshots which could not be loaded from cdx file into db
+    SNAPSHOT_DONE = 0       # snapshots with a response
 
-    MODE_CURRENT = 0
-    MODE_SKIP = 0
+    MODE_CURRENT = 0        # given by argument --current
+    MODE_SKIP = 0           # given by argument --skip
 
-    FILTER_DUPLICATES = 0
-    FILTER_CURRENT = 0
-    FILTER_SKIP = 0
+    FILTER_DUPLICATES = 0   # with identical url_archive
+    FILTER_CURRENT = 0      # all snapshots without the latest timestamp of each
+    FILTER_SKIP = 0         # content of the csv file
 
     @classmethod
     def init(cls, mode, skip):
