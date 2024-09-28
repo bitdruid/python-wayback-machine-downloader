@@ -121,8 +121,8 @@ Download the latest snapshot of a specific file (e.g., a login page):<br>
 Download all snapshots within the last 5 years and prevent redirects:<br>
 `waybackup -u http://example.com -f -r 5 --no-redirect`
 
-Download all snapshots from a specific range (2020 to December 12, 2022) with 4 workers, save as CSV, and show a progress bar:<br>
-`waybackup -u http://example.com -f --start 2020 --end 20221212 --workers 4 --csv --progress`
+Download all snapshots from a specific range (2020 to December 12, 2022) with 4 workers, and show a progress bar:<br>
+`waybackup -u http://example.com -f --start 2020 --end 20221212 --workers 4 --progress`
 
 Download all snapshots and save the output in a specific folder with 3 workers:<br>
 `waybackup -u http://example.com -f -r 5 -o /home/user/Downloads/snapshots --workers 3`
@@ -130,17 +130,11 @@ Download all snapshots and save the output in a specific folder with 3 workers:<
 Download all snapshots but only images and CSS files, filtering for specific filetypes (jpg, css):<br>
 `waybackup -u http://example.com -f --filetype jpg,css`
 
-Download all timestamps for a specific URL, save the result as a CSV file and log the output:<br>
-`waybackup -u http://example.com -f --csv --log`
+Download all timestamps but start over and ignore existing progress, log the output, and retry 3 times if any error occurs:<br>
+`waybackup -u http://example.com -f --log --retry 3 --reset`
 
-Automatically manage CSV and cdx-backup while downloading all snapshots:<br>
-`waybackup -u http://example.com -f --auto`
-
-Download the latest snapshot, limiting to only the root of the site:<br>
-`waybackup -u http://example.com -c --explicit`
-
-Download the latest snapshot, follow no redirects and retry 3 times if any error occurs:<br>
-`waybackup -u http://example.com -c --no-redirect --retry 3`
+Download the latest snapshot, follow no redirects but keep the database and cdx-file:<br>
+`waybackup -u http://example.com -c --no-redirect --keep`
 
 ## Output path structure
 
