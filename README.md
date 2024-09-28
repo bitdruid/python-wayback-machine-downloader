@@ -32,7 +32,6 @@ This tool allows you to download content from the Wayback Machine (archive.org).
 
 - Linux recommended: On Windows machines, the path length is limited. This can only be overcome by editing the registry. Files that exceed the path length will not be downloaded.
 - If you query an explicit file (e.g. a query-string `?query=this` or `login.html`), the `--explicit`-argument is recommended as a wildcard query may lead to an empty result.
-- Only mess around with the arguments merged with `--auto` if you really need to. Just set it and good to go.
 - The tool uses a sqlite database to handle snapshots. The database will only persist while the download is running.
 
 ## Arguments
@@ -62,7 +61,7 @@ This tool allows you to download content from the Wayback Machine (archive.org).
   Specify filetypes to download. Default is all filetypes. Separate multiple filetypes with a comma. Example: `--filetype jpg,css,js`. A filter will result in a filtered cdx-file. So if you want to download all files later, you need to query again without the filter. Filetypes are filtered as they are in the snapshot. So if there is no explicit `html` file in the path (common practice) then you cant filter them.
 
 - **`--limit`** `<count>`:<br>
-Limits the amount of snapshots to query from the CDX server. If an existing CDX file is injected (with `--cdxinject` or `--auto`), the limit will have no effect.
+Limits the amount of snapshots to query from the CDX server. If an existing CDX file is injected, the limit will have no effect. So you would need to set `--keep`.
 
 - **Range Selection:**<br>
   Specify the range in years or a specific timestamp either start, end, or both. If you specify the `range` argument, the `start` and `end` arguments will be ignored. Format for timestamps: YYYYMMDDhhmmss. You can only give a year or increase specificity by going through the timestamp starting on the left.<br>
@@ -82,14 +81,8 @@ Defaults to `waybackup_snapshots` in the current directory. The folder where dow
 <!-- - **`--verbosity`** `<level>`:<br>
 Sets verbosity level. Options are `info`and `trace`. Default is `info`. -->
 
-- **`--skip`** <!-- `<path>` -->:<br>
-Checks an existing `waybackup_<sanitized_url>.csv` file inside the output-dir and writes the response-information for each snapshot into the `waybackup_<sanitized_url>.db`. These files will be skipped during the download. Useful for continuing a download after an interruption.
-
 - **`--log`** <!-- `<path>` -->:<br>
 Saves a log file into the output-dir. Named as `waybackup_<sanitized_url>.log`.
-
-- **`--csv`** <!-- `<path>` -->:<br>
-Saves a CSV file containing the response for successfull downloads. Named as `waybackup_<sanitized_url>.csv`.
 
 - **`--progress`**:<br>
 Shows a progress bar instead of the default output.
@@ -109,16 +102,13 @@ Specifies delay between download requests in seconds. Default is no delay (0).
 <!-- - **`--convert-links`**:<br>
 If set, all links in the downloaded files will be converted to local links. This is useful for offline browsing. The links are converted to the local path structure. Show output with `--verbosity trace`. -->
 
-**CDX Query Result Handling:**
-- **`--cdxbackup`** <!-- `<path>` -->:<br>
-Saves the result of CDX query as a file into the output-dir. Useful for later downloading snapshots and overcoming refused connections by CDX server due to too many queries. Named as `waybackup_<sanitized_url>.cdx`.
-  
-- **`--cdxinject`** <!-- `<path>` -->:<br>
-Injects a CDX query file from the output-dir to download snapshots. Ensure the query matches the previous `--url` for correct folder structure. Named as `waybackup_<sanitized_url>.cdx`.
+## Special:
 
-**Auto:**
-- **`--auto`**:<br>
-If set, csv, skip and cdxbackup/cdxinject are handled automatically. Keep the files and folders as they are. Otherwise they will not be recognized when restarting a download.
+- **`--reset`**:  
+  If set, the job will be reset, and any existing `cdx`, `db`, and `csv` files will be ignored. This allows you to start the job from scratch without considering previously downloaded data.
+
+- **`--keep`**:  
+  If set, all files will be kept after the job is finished. This includes `cdx` and `db` files. Without this argument, they will be deleted if the job finished successfully.
 
 ### Examples
 
@@ -191,7 +181,7 @@ your/path/waybackup_snapshots/
 
 ## CSV Output
 
-Each snapshot is stored with the following keys/values. These are either stored in a sqlite database while the download is running or saved into a CSV file after the download is finished when the `--csv` argument is set.
+Each snapshot is stored with the following keys/values. These are either stored in a sqlite database while the download is running or saved into a CSV file after the download is finished.
 
 For download queries:
 

@@ -86,21 +86,17 @@ def save_page(url: str):
 
 # create filelist
 # timestamp format yyyyMMddhhmmss
-def query_list(csvfile: str, queryrange: int, limit: int, start: int, end: int, explicit: bool, filter_filetype: list, output: str, cdxbackup: str, cdxinject: str):
-
-    def count_cdxfile(cdxfile):
-        with open(cdxfile, "r") as file:
-            return file.read().count("\n") - 1
+def query_list(csvfile: str, cdxfile: str, queryrange: int, limit: int, start: int, end: int, explicit: bool, filter_filetype: list):
     
     def inject(cdxinject):
         if os.path.isfile(cdxinject):
             vb.write(message="\nCDX file found to inject...")
-            return cdxinject
+            return True
         else:
             vb.write(message="\nNo CDX file found to inject - querying snapshots...")
             return False
 
-    def query(queryrange, limit, filter_filetype, start, end, explicit):
+    def query(cdxfile, queryrange, limit, filter_filetype, start, end, explicit):
         vb.write(message="\nQuerying snapshots...")
         query_range = ""
         if not queryrange:
@@ -127,7 +123,6 @@ def query_list(csvfile: str, queryrange: int, limit: int, start: int, end: int, 
         vb.write(message=f"-----> {cdx_url}")
         cdxQuery = f"https://web.archive.org/cdx/search/cdx?output=json&url={cdx_url}{query_range}&fl=timestamp,digest,mimetype,statuscode,original{limit}{filter_filetype}"
 
-        cdxfile = os.path.join(output, f"waybackup_{sanitize_filename(config.url)}.cdx") if cdxbackup is False else cdxbackup
         try:
             cdxfile_IO = open(cdxfile, "w")
             with requests.get(cdxQuery, stream=True) as r:
@@ -150,18 +145,11 @@ def query_list(csvfile: str, queryrange: int, limit: int, start: int, end: int, 
 
         return cdxfile
 
-    cdxfile = None
-    if cdxinject:
-        cdxfile = inject(cdxinject)
-    if not cdxfile:
-        cdxfile = query(queryrange, limit, filter_filetype, start, end, explicit)
+    cdxinject = inject(cdxfile)
+    if not cdxinject:
+        cdxfile = query(cdxfile, queryrange, limit, filter_filetype, start, end, explicit)
 
     sc.insert_cdx(cdxfile, csvfile)
-    if not cdxbackup and not cdxinject:
-        os.remove(cdxfile)
-        vb.write(message="\n------> removing CDX file")
-    else:
-        vb.write(message="\n-----> keeping CDX file")
 
     vb.write(message="\nSnapshot calculation...")
     vb.write(message=f"-----> {"in CDX file".ljust(18)}: {sc.CDX_TOTAL:,}")
@@ -178,8 +166,9 @@ def query_list(csvfile: str, queryrange: int, limit: int, start: int, end: int, 
 
 
 def download_list(output, retry, no_redirect, delay, workers):
+    #return
     if sc.SNAPSHOT_TOTAL == 0:
-        vb.write(message="\nNothing to download");
+        vb.write(message="\nNothing to download")
         return
     vb.write(message="\nDownloading snapshots...",)
     vb.progress(progress=0, maxval=sc.SNAPSHOT_TOTAL)

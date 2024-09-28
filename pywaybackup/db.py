@@ -31,8 +31,8 @@ class Database:
     )"""
 
     @classmethod
-    def init(cls, url, output, query_identifier):
-        cls.SNAPSHOT_DB = os.path.join(output, f"waybackup_{sanitize_filename(url)}.db")
+    def init(cls, dbfile, query_identifier):
+        cls.SNAPSHOT_DB = dbfile
         db = Database()
         db.cursor.execute(cls.waybackup_table)
         db.cursor.execute(cls.snapshot_table)

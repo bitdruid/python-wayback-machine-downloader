@@ -18,21 +18,18 @@ class SnapshotCollection:
     SNAPSHOT_DONE = 0       # snapshots with a response
 
     MODE_CURRENT = 0        # given by argument --current
-    MODE_SKIP = 0           # given by argument --skip
 
     FILTER_DUPLICATES = 0   # with identical url_archive
     FILTER_CURRENT = 0      # all snapshots without the latest timestamp of each
     FILTER_SKIP = 0         # content of the csv file
 
     @classmethod
-    def init(cls, mode, skip):
+    def init(cls, mode):
         """
         Initialize the snapshot collection by inserting the content of the cdx file into the snapshot table.
         """        
         if mode == "current": 
             cls.MODE_CURRENT = 1
-        if skip:
-            cls.MODE_SKIP = 1
 
         cls.db = Database()
         
@@ -43,7 +40,6 @@ class SnapshotCollection:
         """
         cls.db.conn.commit()
         cls.db.conn.close()
-        os.remove(cls.db.SNAPSHOT_DB)
 
     @classmethod
     def insert_cdx(cls, cdxfile, csvfile):
@@ -187,55 +183,51 @@ class SnapshotCollection:
     @classmethod
     def skip_set(cls, csvfile):
         """
-        If --skip was not set, response is set to NULL for all snapshots.
         If --skip was set, csv file is read and db is updated with the response.
         """
-        if not cls.MODE_SKIP:
-            cls.db.cursor.execute(
-                """
-                UPDATE snapshot_tbl
-                SET response = NULL
-                """
-            )
-            cls.db.conn.commit()
-
-        if cls.MODE_SKIP:
-            if not os.path.isfile(csvfile):
-                pass
-            else:
-                with open(csvfile, "r") as f:
-                    csv_content = csv.DictReader(f)
-                    row_batchsize = 2500
-                    row_batch = []
-                    total_skipped = 0
-                    query = """
-                            UPDATE snapshot_tbl SET
-                            url_archive = ?,
-                            redirect_url = ?,
-                            redirect_timestamp = ?,
-                            response = ?,
-                            file = ?
-                            WHERE timestamp = ? AND url_origin = ?
-                            """
-                    for row in csv_content:
-                        row_batch.append((
-                            row["url_archive"],
-                            row["redirect_url"],
-                            row["redirect_timestamp"],
-                            row["response"],
-                            row["file"],
-                            row["timestamp"],
-                            row["url_origin"]
-                        ))
-                        if len(row_batch) >= row_batchsize:
-                            total_skipped += len(row_batch)
-                            cls.db.cursor.executemany(query, row_batch)
-                            row_batch = []
-                    if row_batch:
+        cls.db.cursor.execute(
+            """
+            UPDATE snapshot_tbl
+            SET response = NULL
+            """
+        )
+        cls.db.conn.commit()
+        if not os.path.isfile(csvfile):
+            return
+        else:
+            with open(csvfile, "r") as f:
+                csv_content = csv.DictReader(f)
+                row_batchsize = 2500
+                row_batch = []
+                total_skipped = 0
+                query = """
+                        UPDATE snapshot_tbl SET
+                        url_archive = ?,
+                        redirect_url = ?,
+                        redirect_timestamp = ?,
+                        response = ?,
+                        file = ?
+                        WHERE timestamp = ? AND url_origin = ?
+                        """
+                for row in csv_content:
+                    row_batch.append((
+                        row["url_archive"],
+                        row["redirect_url"],
+                        row["redirect_timestamp"],
+                        row["response"],
+                        row["file"],
+                        row["timestamp"],
+                        row["url_origin"]
+                    ))
+                    if len(row_batch) >= row_batchsize:
                         total_skipped += len(row_batch)
                         cls.db.cursor.executemany(query, row_batch)
-                    cls.db.conn.commit()
-                    cls.FILTER_SKIP = total_skipped
+                        row_batch = []
+                if row_batch:
+                    total_skipped += len(row_batch)
+                    cls.db.cursor.executemany(query, row_batch)
+                cls.db.conn.commit()
+                cls.FILTER_SKIP = total_skipped
 
 
 

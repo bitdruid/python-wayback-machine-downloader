@@ -30,26 +30,20 @@ class Arguments:
         optional.add_argument('--filetype', type=str, metavar="", help='filetypes to download comma separated (e.g. "html,css")')
         optional.add_argument('--limit', type=int, nargs='?', const=True, metavar='int', help='limit the number of snapshots to download')
 
-        special = parser.add_argument_group('manipulate behavior')
-        special.add_argument('-o', '--output', type=str, metavar="", help='output folder - defaults to current directory')
-        special.add_argument('--log', action='store_true', help='save a log file into the output folder')
-        special.add_argument('--csv', action='store_true', help='save a csv file with the json output into the output folder')
-        special.add_argument('--progress', action='store_true', help='show a progress bar')
-        special.add_argument('--skip', action='store_true', help='skips existing files in the output folder by checking an existing .db-file')
-        special.add_argument('--no-redirect', action='store_true', help='do not follow redirects by archive.org')
-        #special.add_argument('--verbosity', type=str, default="info", metavar="", help='verbosity level (info, trace)')
-        special.add_argument('--retry', type=int, default=0, metavar="", help='retry failed downloads (opt tries as int, else infinite)')
-        special.add_argument('--workers', type=int, default=1, metavar="", help='number of workers (simultaneous downloads)')
-        # special.add_argument('--convert-links', action='store_true', help='Convert all links in the files to local paths. Requires -c/--current')
-        special.add_argument('--delay', type=int, default=0, metavar="", help='delay between each download in seconds')
+        behavior = parser.add_argument_group('manipulate behavior')
+        behavior.add_argument('-o', '--output', type=str, metavar="", help='output folder - defaults to current directory')
+        behavior.add_argument('--log', action='store_true', help='save a log file into the output folder')
+        behavior.add_argument('--progress', action='store_true', help='show a progress bar')
+        behavior.add_argument('--no-redirect', action='store_true', help='do not follow redirects by archive.org')
+        #behavior.add_argument('--verbosity', type=str, default="info", metavar="", help='verbosity level (info, trace)')
+        behavior.add_argument('--retry', type=int, default=0, metavar="", help='retry failed downloads (opt tries as int, else infinite)')
+        behavior.add_argument('--workers', type=int, default=1, metavar="", help='number of workers (simultaneous downloads)')
+        # behavior.add_argument('--convert-links', action='store_true', help='Convert all links in the files to local paths. Requires -c/--current')
+        behavior.add_argument('--delay', type=int, default=0, metavar="", help='delay between each download in seconds')
 
-        cdx = parser.add_argument_group('cdx (one exclusive)')
-        exclusive_cdx = cdx.add_mutually_exclusive_group()
-        exclusive_cdx.add_argument('--cdxbackup', action='store_true', help='Save the cdx query-result to a file for recurent use into the output folder')
-        exclusive_cdx.add_argument('--cdxinject', action='store_true', help='Inject a existing cdx backup-file from the output folder')
-
-        auto = parser.add_argument_group('auto')
-        auto.add_argument('--auto', action='store_true', help='includes automatic csv, skip and cdxbackup/cdxinject to resume a stopped download')
+        special = parser.add_argument_group('special')
+        special.add_argument('--reset', action='store_true', help='reset the job and ignore existing cdx/db/csv files')
+        special.add_argument('--keep', action='store_true', help='keep all files after the job finished')
 
         args = parser.parse_args(args=None if sys.argv[1:] else ['--help']) # if no arguments are given, print help
 
@@ -93,15 +87,11 @@ class Configuration:
         if cls.filetype:
             cls.filetype = [ft.lower().strip() for ft in cls.filetype.split(",")]
 
-        if cls.auto:
-            cls.skip = True
-            cls.csv = os.path.join(cls.output, f"waybackup_{sanitize_filename(cls.url)}.csv")
-            cls.cdxbackup = os.path.join(cls.output, f"waybackup_{sanitize_filename(cls.url)}.cdx")
-            cls.cdxinject = os.path.join(cls.output, f"waybackup_{sanitize_filename(cls.url)}.cdx")
-        else:
-            if cls.csv is True:
-                cls.csv = os.path.join(cls.output, f"waybackup_{sanitize_filename(cls.url)}.csv")
-            if cls.cdxbackup is True:
-                cls.cdxbackup = os.path.join(cls.output, f"waybackup_{sanitize_filename(cls.url)}.cdx")
-            if cls.cdxinject is True:
-                cls.cdxinject = os.path.join(cls.output, f"waybackup_{sanitize_filename(cls.url)}.cdx")
+        cls.cdxfile = os.path.join(cls.output, f"waybackup_{sanitize_filename(cls.url)}.cdx")
+        cls.dbfile = os.path.join(cls.output, f"waybackup_{sanitize_filename(cls.url)}.db")
+        cls.csvfile = os.path.join(cls.output, f"waybackup_{sanitize_filename(cls.url)}.csv")
+
+        if cls.reset:
+            os.remove(cls.cdxfile) if os.path.isfile(cls.cdxfile) else None
+            os.remove(cls.dbfile) if os.path.isfile(cls.dbfile) else None
+            os.remove(cls.csvfile) if os.path.isfile(cls.csvfile) else None
