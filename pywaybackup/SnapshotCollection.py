@@ -14,12 +14,13 @@ class SnapshotCollection:
     CDX_TOTAL = 0
 
     SNAPSHOT_TOTAL = 0
+    SNAPSHOT_FAULTY = 0
     SNAPSHOT_DONE = 0
 
     MODE_CURRENT = 0
     MODE_SKIP = 0
 
-    FILTER_TIME_URL = 0
+    FILTER_DUPLICATES = 0
     FILTER_CURRENT = 0
     FILTER_SKIP = 0
 
@@ -48,15 +49,17 @@ class SnapshotCollection:
     def insert_cdx(cls, cdxfile, csvfile):
         """
         Insert the content of the cdx file into the snapshot table.
+        - Removes duplicates by url_archive (same timestamp and url_origin)
         """
         line_count = sum(1 for _ in open(cdxfile)) - 1
         cls.CDX_TOTAL = line_count
         if not cls.db.get_insert_complete():
             vb.write(message="\nInserting CDX data into database...")
             with open(cdxfile, "r") as f:
-                line_batchsize = 1000
+                line_batchsize = 2500
                 line_batch = []
                 total_inserted = 0
+                faulty_lines = 0
                 query = """INSERT OR IGNORE INTO snapshot_tbl (timestamp, url_archive, url_origin) VALUES (?, ?, ?)"""
                 first_line = True
                 pbar = tqdm(unit=" lines", total=line_count, desc="insert cdx".ljust(15), ascii="░▒█", bar_format='{l_bar}{bar:50}{r_bar}{bar:-10b}') # remove output: file=sys.stdout
@@ -83,14 +86,21 @@ class SnapshotCollection:
                             cls.db.cursor.executemany(query, line_batch)
                             line_batch = []
                             pbar.update(line_batchsize)
-                    except json.JSONDecodeError:
+                    except json.JSONDecodeError as e:
+                        faulty_lines += 1
+                        vb.write(message=f"JSONDecodeError: {e} on line {line_count}")
                         continue
                 if line_batch:
                     total_inserted += len(line_batch)
                     cls.db.cursor.executemany(query, line_batch)
                     pbar.update(len(line_batch))
+
                 pbar.close()
             cls.db.conn.commit()
+
+            cls.SNAPSHOT_FAULTY = faulty_lines
+            cls.FILTER_DUPLICATES = (cls.CDX_TOTAL - cls.count_totals(collection=True) + cls.SNAPSHOT_FAULTY)
+
             cls.db.set_insert_complete()
         else: vb.write(message="\nAlready inserted CDX data into database")
         if not cls.db.get_index_complete():
@@ -99,12 +109,12 @@ class SnapshotCollection:
             cls.db.set_index_complete()
         else: vb.write(message="\nAlready indexed snapshots")
         if not cls.db.get_filter_complete():
-            vb.write(message="\nFiltering snapshots...")
-            cls.filter_snapshots() # filter: remove duplicates (timestamp, url), keep latest (timestamp) snapshot of each file
+            vb.write(message="\nFiltering current snapshots...")
+            cls.filter_current() # filter: remove duplicates (timestamp, url), keep latest (timestamp) snapshot of each file
             cls.db.set_filter_complete()
-        else: vb.write(message="\nAlready filtered snapshots")
+        else: vb.write(message="\nAlready filtered current snapshots")
         cls.skip_set(csvfile) # set response to NULL or read csv file and write values into db
-        cls.count_totals(collection=True) # count total snapshots
+        cls.SNAPSHOT_TOTAL = cls.count_totals(collection=True) # count total snapshots
 
 
 
@@ -115,7 +125,7 @@ class SnapshotCollection:
         """
         Write a CSV file with the list of snapshots.
         """
-        row_batchsize = 1000
+        row_batchsize = 2500
         cls.db.cursor.execute("UPDATE snapshot_tbl SET response = NULL WHERE response = 'LOCK'") # reset locked to unprocessed
         cls.db.cursor.execute("SELECT * FROM snapshot_tbl WHERE response IS NOT NULL") # only write processed snapshots
         headers = [description[0] for description in cls.db.cursor.description]
@@ -137,54 +147,22 @@ class SnapshotCollection:
         """
         Create indexes for the snapshot table.
         """
-        # index for filtering duplicates
-        cls.db.cursor.execute("CREATE INDEX IF NOT EXISTS idx_snapshot_tbl_timestamp_url_origin ON snapshot_tbl(timestamp, url_origin)")
         # index for filtering current snapshots
         cls.db.cursor.execute("CREATE INDEX IF NOT EXISTS idx_snapshot_tbl_url_origin_timestamp ON snapshot_tbl(url_origin, timestamp DESC);")
         # index for skippable snapshots
         cls.db.cursor.execute("CREATE INDEX IF NOT EXISTS idx_snapshot_tbl_timestamp_url_origin_response ON snapshot_tbl(timestamp, url_origin);")
 
     @classmethod
-    def filter_snapshots(cls):
+    def filter_current(cls):
         """
         Filter the snapshot table.
 
-        - Remove entries which have the same timestamp AND url.
         - When mode is `current`, remove entries which are not the latest snapshot of each file.
         """
-
-        # count the amount of snapshots that were filtered
-        cls.db.cursor.execute(
-            """
-            INSERT INTO snapshot_filter_tbl
-            SELECT * FROM snapshot_tbl
-            WHERE rowid NOT IN (
-                SELECT MIN(rowid)
-                FROM snapshot_tbl
-                GROUP BY timestamp, url_origin
-            )    
-            """
-        )
-        cls.FILTER_TIME_URL = cls.db.cursor.rowcount
-
-        # filter the snapshot table by timestamp and url
-        vb.write(message="-----> duplicate snapshots")
-        cls.db.cursor.execute(
-            """
-            DELETE FROM snapshot_tbl
-            WHERE rowid NOT IN (
-                SELECT MIN(rowid)
-                FROM snapshot_tbl
-                GROUP BY timestamp, url_origin
-            );
-            """
-        )
-        cls.db.cursor.execute("DELETE FROM snapshot_filter_tbl")
 
         # filter the snapshot table and keep only the latest (timestamp) snapshot of each file
         # rows get a row number based on the timestamp per url_origin and are deleted if the row number is greater than 1
         if cls.MODE_CURRENT:
-            vb.write(message="-----> current snapshots")
             cls.db.cursor.execute(
             """
             DELETE FROM snapshot_tbl
@@ -227,7 +205,7 @@ class SnapshotCollection:
             else:
                 with open(csvfile, "r") as f:
                     csv_content = csv.DictReader(f)
-                    row_batchsize = 1000
+                    row_batchsize = 2500
                     row_batch = []
                     total_skipped = 0
                     query = """
@@ -271,7 +249,7 @@ class SnapshotCollection:
                 SELECT COUNT(rowid) FROM snapshot_tbl WHERE response IS NULL
                 """
             )
-            cls.SNAPSHOT_TOTAL = cls.db.cursor.fetchone()[0]
+            return cls.db.cursor.fetchone()[0]
         if success:
             cls.db.cursor.execute(
                 """
@@ -323,11 +301,12 @@ class SnapshotCollection:
 
     @classmethod
     def create_output(cls, url: str, timestamp: str, output: str):
+        """
+        Create a file path for the snapshot.
+        """
         domain, subdir, filename = url_split(url.split("id_/")[1], index=True)
-        if cls.MODE_CURRENT:
-            download_dir = os.path.join(output, domain, subdir)
-        else:
-            download_dir = os.path.join(output, domain, timestamp, subdir)
+        download_dir = os.path.join(output, domain, subdir) if cls.MODE_CURRENT else os.path.join(output, domain, timestamp, subdir)
         download_file = os.path.abspath(os.path.join(download_dir, filename))
         return download_file
+
 

@@ -36,7 +36,6 @@ class Database:
         db = Database()
         db.cursor.execute(cls.waybackup_table)
         db.cursor.execute(cls.snapshot_table)
-        db.cursor.execute("CREATE TABLE IF NOT EXISTS snapshot_filter_tbl AS SELECT * FROM snapshot_tbl WHERE 0")
         db.cursor.execute("INSERT OR IGNORE INTO waybackup_table (query_identifier) VALUES (?)", (query_identifier,))
         db.conn.commit()
         db.close()

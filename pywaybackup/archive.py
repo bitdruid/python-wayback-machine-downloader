@@ -165,13 +165,13 @@ def query_list(csvfile: str, queryrange: int, limit: int, start: int, end: int, 
 
     vb.write(message="\nSnapshot calculation...")
     vb.write(message=f"-----> {"in CDX file".ljust(18)}: {sc.CDX_TOTAL:,}")
-    if sc.FILTER_TIME_URL == 0 and sc.FILTER_CURRENT == 0:
-        vb.write(message=f"-----> {'filtered'.ljust(18)}: {(sc.CDX_TOTAL - sc.SNAPSHOT_TOTAL - sc.FILTER_SKIP):,}")
-    if sc.FILTER_TIME_URL > 0: vb.write(message=f"-----> {"removed duplicates".ljust(18)}: {sc.FILTER_TIME_URL:,}")
+    if sc.FILTER_DUPLICATES == 0 and sc.FILTER_CURRENT == 0:
+        vb.write(message=f"-----> {'total removals'.ljust(18)}: {(sc.CDX_TOTAL - sc.SNAPSHOT_TOTAL - sc.FILTER_SKIP):,}")
+    if sc.SNAPSHOT_FAULTY > 0: vb.write(message=f"-----> {"removed faulty".ljust(18)}: {sc.SNAPSHOT_FAULTY}")
+    if sc.FILTER_DUPLICATES > 0: vb.write(message=f"-----> {"removed duplicates".ljust(18)}: {sc.FILTER_DUPLICATES:,}")
     if sc.FILTER_CURRENT > 0: vb.write(message=f"-----> {"removed current".ljust(18)}: {sc.FILTER_CURRENT:,}")
     if sc.FILTER_SKIP > 0: vb.write(message=f"-----> {"skipped existing".ljust(18)}: {sc.FILTER_SKIP:,}")
     vb.write(message=f"\n-----> {"to utilize".ljust(18)}: {sc.SNAPSHOT_TOTAL:,}")
-
 
 
 
