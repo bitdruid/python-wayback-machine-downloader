@@ -117,7 +117,7 @@ class SnapshotCollection:
 
 
     @classmethod
-    def csv_create(cls, csv_path):
+    def csv_create(cls, csvfile):
         """
         Write a CSV file with the list of snapshots.
         """
@@ -125,7 +125,7 @@ class SnapshotCollection:
         cls.db.cursor.execute("UPDATE snapshot_tbl SET response = NULL WHERE response = 'LOCK'") # reset locked to unprocessed
         cls.db.cursor.execute("SELECT * FROM snapshot_tbl WHERE response IS NOT NULL") # only write processed snapshots
         headers = [description[0] for description in cls.db.cursor.description]
-        with open(csv_path, "w") as f:
+        with open(csvfile, "w") as f:
             writer = csv.writer(f)
             writer.writerow(headers)
             while True:
@@ -155,7 +155,6 @@ class SnapshotCollection:
 
         - When mode is `current`, remove entries which are not the latest snapshot of each file.
         """
-
         # filter the snapshot table and keep only the latest (timestamp) snapshot of each file
         # rows get a row number based on the timestamp per url_origin and are deleted if the row number is greater than 1
         if cls.MODE_CURRENT:
@@ -183,7 +182,7 @@ class SnapshotCollection:
     @classmethod
     def skip_set(cls, csvfile):
         """
-        If --skip was set, csv file is read and db is updated with the response.
+        If an existing csv-file for the job exists, the responses will be overwritten by the csv-content.
         """
         cls.db.cursor.execute(
             """
