@@ -32,7 +32,7 @@ This tool allows you to download content from the Wayback Machine (archive.org).
 
 - Linux recommended: On Windows machines, the path length is limited. This can only be overcome by editing the registry. Files that exceed the path length will not be downloaded.
 - If you query an explicit file (e.g. a query-string `?query=this` or `login.html`), the `--explicit`-argument is recommended as a wildcard query may lead to an empty result.
-- The tool will inform you if your query has an immense amount of snapshots which could consume your system memory and lead to a crash. Consider splitting your query into smaller jobs by specifying a range e.g. `--start 2023 --end 2024` or `--range 1`.
+- The tool uses a sqlite database to handle snapshots. The database will only persist while the download is running.
 
 ## Arguments
 
@@ -54,12 +54,14 @@ This tool allows you to download content from the Wayback Machine (archive.org).
 
 ### Optional query parameters
 
-- **`-l`**, **`--list`**:<br>
-  Only print the snapshots available within the specified range. Does not download the snapshots.
 - **`-e`**, **`--explicit`**:<br>
   Only download the explicit given URL. No wildcard subdomains or paths. Use e.g. to get root-only snapshots. This is recommended for explicit files like `login.html` or `?query=this`.
-- **`-o`**, **`--output`**:<br>
-  Defaults to `waybackup_snapshots` in the current directory. The folder where downloaded files will be saved.
+
+- **`--filetype`** `<filetype>`:<br>
+  Specify filetypes to download. Default is all filetypes. Separate multiple filetypes with a comma. Example: `--filetype jpg,css,js`. A filter will result in a filtered cdx-file. So if you want to download all files later, you need to query again without the filter. Filetypes are filtered as they are in the snapshot. So if there is no explicit `html` file in the path (common practice) then you cant filter them.
+
+- **`--limit`** `<count>`:<br>
+Limits the amount of snapshots to query from the CDX server. If an existing CDX file is injected, the limit will have no effect. So you would need to set `--keep`.
 
 - **Range Selection:**<br>
   Specify the range in years or a specific timestamp either start, end, or both. If you specify the `range` argument, the `start` and `end` arguments will be ignored. Format for timestamps: YYYYMMDDhhmmss. You can only give a year or increase specificity by going through the timestamp starting on the left.<br>
@@ -71,26 +73,25 @@ This tool allows you to download content from the Wayback Machine (archive.org).
    - **`--end`**:<br>
      Timestamp to end searching.
 
-### Additional behavior manipulation
-  
-- **`--csv`** `<path>`:<br>
-Path defaults to output-dir. Saves a CSV file with the json-response for successfull downloads. If `--list` is set, the CSV contains the CDX list of snapshots. If `--current` or `--full` is set, CSV contains downloaded files. Named as `waybackup_<sanitized_url>.csv`.
+### Behavior manipulation
 
-- **`--skip`** `<path>`:<br>
-Path defaults to output-dir. Checks for an existing `waybackup_<sanitized_url>.csv` for URLs to skip downloading. Useful for interrupted downloads. Files are checked by their root-domain, ensuring consistency across queries. This means that if you download `http://example.com/subdir1/` and later `http://example.com`, the second query will skip the first path.
-  
-- **`--no-redirect`**:<br>
-Disables following redirects of snapshots. Useful for preventing timestamp-folder mismatches caused by Archive.org redirects.
-  
-- **`--verbosity`** `<level>`:<br>
-Sets verbosity level. Options are `json` (prints JSON response) or `progress` (shows progress bar).
-<!-- Alternatively set verbosity level to `trace` for a very detailed output. -->
+- **`-o`**, **`--output`**:<br>
+Defaults to `waybackup_snapshots` in the current directory. The folder where downloaded files will be saved.
 
-- **`--log`** `<path>`:<br>
-Path defaults to output-dir. Saves a log file with the output of the tool. Named as `waybackup_<sanitized_url>.log`.
+<!-- - **`--verbosity`** `<level>`:<br>
+Sets verbosity level. Options are `info`and `trace`. Default is `info`. -->
+
+- **`--log`** <!-- `<path>` -->:<br>
+Saves a log file into the output-dir. Named as `waybackup_<sanitized_url>.log`.
+
+- **`--progress`**:<br>
+Shows a progress bar instead of the default output.
 
 - **`--workers`** `<count>`:<br>
 Sets the number of simultaneous download workers. Default is 1, safe range is about 10. Be cautious as too many workers may lead to refused connections from the Wayback Machine.
+
+- **`--no-redirect`**:<br>
+Disables following redirects of snapshots. Useful for preventing timestamp-folder mismatches caused by Archive.org redirects.
   
 - **`--retry`** `<attempts>`:<br>
 Specifies number of retry attempts for failed downloads.
@@ -98,45 +99,42 @@ Specifies number of retry attempts for failed downloads.
 - **`--delay`** `<seconds>`:<br>
 Specifies delay between download requests in seconds. Default is no delay (0).
 
-- **`--limit`** `<count>`:<br>
-Limits the amount of snapshots to query from the CDX server. If an existing CDX file is injected (with `--cdxinject` or `--auto`), the limit will have no effect.
-
 <!-- - **`--convert-links`**:<br>
 If set, all links in the downloaded files will be converted to local links. This is useful for offline browsing. The links are converted to the local path structure. Show output with `--verbosity trace`. -->
 
-**CDX Query Result Handling:**
-- **`--cdxbackup`** `<path>`:<br>
-Path defaults to output-dir. Saves the result of CDX query as a file. Useful for later downloading snapshots and overcoming refused connections by CDX server due to too many queries. Named as `waybackup_<sanitized_url>.cdx`.
-  
-- **`--cdxinject`** `<filepath>`:<br>
-Injects a CDX query file to download snapshots. Ensure the query matches the previous `--url` for correct folder structure.
+## Special:
 
-**Auto:**
-- **`--auto`**:<br>
-If set, csv, skip and cdxbackup/cdxinject are handled automatically. Keep the files and folders as they are. Otherwise they will not be recognized when restarting a download.
+- **`--reset`**:  
+  If set, the job will be reset, and any existing `cdx`, `db`, `csv` files will be **deleted**. This allows you to start the job from scratch without considering previously downloaded data.
+
+- **`--keep`**:  
+  If set, all files will be kept after the job is finished. This includes the `cdx` and `db` file. Without this argument, they will be deleted if the job finished successfully.
 
 ### Examples
 
-Download latest snapshot of all files:<br>
+Download the latest snapshot of all available files:<br>
 `waybackup -u http://example.com -c`
 
-Download latest snapshot of a specific file:<br>
-`waybackup -u http://example.com/subdir/file.html -c`
+Download the latest snapshot of a specific file (e.g., a login page):<br>
+`waybackup -u http://example.com/login.html -c --explicit`
 
-Download all snapshots sorted per timestamp with a specified range and do not follow redirects:<br>
+Download all snapshots within the last 5 years and prevent redirects:<br>
 `waybackup -u http://example.com -f -r 5 --no-redirect`
 
-Download all snapshots sorted per timestamp with a specified range and save to a specified folder with 3 workers:<br>
+Download all snapshots from a specific range (2020 to December 12, 2022) with 4 workers, and show a progress bar:<br>
+`waybackup -u http://example.com -f --start 2020 --end 20221212 --workers 4 --progress`
+
+Download all snapshots and save the output in a specific folder with 3 workers:<br>
 `waybackup -u http://example.com -f -r 5 -o /home/user/Downloads/snapshots --workers 3`
 
-Download all snapshots from 2020 to 12th of December 2022 with 4 workers, save a csv and show a progress bar:
-`waybackup -u http://example.com -f --start 2020 --end 20221212 --workers 4 --csv --verbosity progress`
+Download all snapshots but only images and CSS files, filtering for specific filetypes (jpg, css):<br>
+`waybackup -u http://example.com -f --filetype jpg,css`
 
-Download all snapshots and output a json response:<br>
-`waybackup -u http://example.com -f --verbosity json`
+Download all timestamps but start over and ignore existing progress, log the output, and retry 3 times if any error occurs:<br>
+`waybackup -u http://example.com -f --log --retry 3 --reset`
 
-List available snapshots per timestamp without downloading and save a csv file to home folder:<br>
-`waybackup -u http://example.com -f -l --csv /home/user/Downloads`
+Download the latest snapshot, follow no redirects but keep the database and cdx-file:<br>
+`waybackup -u http://example.com -c --no-redirect --keep`
 
 ## Output path structure
 
@@ -175,8 +173,9 @@ your/path/waybackup_snapshots/
     ...
 ```
 
+## CSV Output
 
-### Json Response
+Each snapshot is stored with the following keys/values. These are either stored in a sqlite database while the download is running or saved into a CSV file after the download is finished.
 
 For download queries:
 
@@ -212,13 +211,13 @@ For list queries:
 ]
 ```
 
-## CSV Output
-
-The csv contains the json response in a table format.
-
 ### Debugging
 
 Exceptions will be written into `waybackup_error.log` (each run overwrites the file).
+
+### Known ToDos
+
+- [ ] currently there is no logic to handle if both a http and https version of a page is available
 
 ## Contributing
 

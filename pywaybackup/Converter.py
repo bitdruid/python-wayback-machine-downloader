@@ -4,7 +4,6 @@ import magic
 from pywaybackup.helper import url_split
 
 from pywaybackup.Arguments import Configuration as config
-from pywaybackup.Verbosity import Verbosity as vb
 import re
 
 class Converter:

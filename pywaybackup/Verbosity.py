@@ -1,6 +1,5 @@
-import tqdm
-import json
-from pywaybackup.SnapshotCollection import SnapshotCollection as sc
+import sys
+from tqdm import tqdm
 
 class Verbosity:
 
@@ -9,27 +8,30 @@ class Verbosity:
 
     mode = None
     args = None
+
+    PROGRESS = None
     pbar = None
 
     log = None
 
+    #stdout = None
+
     @classmethod
-    def init(cls, v_args: list, log=None):
-        cls.args = v_args
+    def init(cls, progress=None, log=None, verbosity=None):
+        cls.level = verbosity if verbosity in cls.LEVELS else "info"
         cls.log = open(log, "w") if log else None
-        if cls.args == "progress":
-            cls.mode = "progress"
-        elif cls.args == "json":
-            cls.mode = "json"
-        cls.level = cls.args if cls.args in cls.LEVELS else "info"
+        cls.PROGRESS = progress
+        # if progress:
+        #     cls.PROGRESS = True
+        #     cls.stdout = sys.stdout
+        #     sys.stdout = open(os.devnull, "w")
 
     @classmethod
     def fini(cls):
-        if cls.mode == "progress":
+        #sys.stdout = cls.stdout
+        if cls.PROGRESS:
             if cls.pbar is not None:
                 cls.pbar.close()
-        if cls.mode == "json":
-            print(json.dumps(sc.SNAPSHOT_COLLECTION, indent=4, sort_keys=True))
         if cls.log:
             cls.log.close()
 
@@ -44,7 +46,7 @@ class Verbosity:
             message (str): The message to be logged. (e.g. actual url, file path)
         """
         logline = cls.generate_logline(status=status, type=type, message=message)
-        if cls.mode != "progress" and cls.mode != "json":
+        if not cls.PROGRESS:
             if logline:
                 print(logline)
         if cls.log:
@@ -52,21 +54,23 @@ class Verbosity:
             cls.log.flush()
 
     @classmethod
-    def progress(cls, progress: int):
-        if cls.mode == "progress":
+    def progress(cls, progress: int, maxval: int = None):
+        if cls.PROGRESS:
             if cls.pbar is None and progress == 0:
-                maxval = sc.count(collection=True)
-                cls.pbar = tqdm.tqdm(total=maxval, desc="Downloading", unit=" snapshot", ascii="░▒█")
+                cls.pbar = tqdm(total=maxval, desc="download file".ljust(15), unit=" snapshot", ascii="░▒█", bar_format='{l_bar}{bar:50}{r_bar}{bar:-10b}')
             if cls.pbar is not None and progress is not None and progress > 0:
                 cls.pbar.update(progress)
                 cls.pbar.refresh()
 
     @classmethod
     def generate_logline(cls, status: str = "", type: str = "", message: str = ""):
+        """
+        STATUS     -> TYPE: MESSAGE
+        """
 
         if not status and not type:
             return message
-
+        
         status_length = 11
         type_length = 5
 
