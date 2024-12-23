@@ -152,7 +152,7 @@ When a job is interrupted (by any reason), `pywaybackup` is designed to resume t
 The output path is currently structured as follows by an example for the query:<br>
 `http://example.com/subdir1/subdir2/assets/`:
 <br><br>
-For the current version (`-c`):
+For the first and last version (`-f` or `-l`):
 - The requested path will only include all files/folders starting from your query-path.
 ```
 your/path/waybackup_snapshots/
@@ -164,7 +164,7 @@ your/path/waybackup_snapshots/
                 ├── style.css
                 ...
 ```
-For all versions (`-f`):
+For all versions (`-a`):
 - Will currently create a folder named as the root of your query. Inside this folder, you will find all timestamps and per timestamp the path you requested.
 ```
 your/path/waybackup_snapshots/
