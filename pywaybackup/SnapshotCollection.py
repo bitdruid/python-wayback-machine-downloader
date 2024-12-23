@@ -11,7 +11,8 @@ class SnapshotCollection:
     Represents the interaction with the snapshot-collection contained in the snapshot database.
     """
 
-    MODE_CURRENT = 0        # given by argument --current
+    MODE_LAST = 0           # given by argument --last
+    MODE_FIRST = 0          # given by --first
 
     CDX_TOTAL = 0           # absolute amount of snapshots in cdx file
     SNAPSHOT_TOTAL = 0      # absolute amount of snapshots in db
@@ -21,7 +22,7 @@ class SnapshotCollection:
 
     SNAPSHOT_FAULTY = 0     # snapshots which could not be loaded from cdx file into db
     FILTER_DUPLICATES = 0   # with identical url_archive
-    FILTER_CURRENT = 0      # all snapshots without the latest timestamp of each
+    FILTER_MODE = 0         # all snapshots filtered by the MODE (last or first)
     FILTER_SKIP = 0         # content of the csv file
 
     @classmethod
@@ -29,8 +30,10 @@ class SnapshotCollection:
         """
         Initialize the snapshot collection by inserting the content of the cdx file into the snapshot table.
         """        
-        if mode == "current": 
-            cls.MODE_CURRENT = 1
+        if mode == "first": 
+            cls.MODE_FIRST = 1
+        if mode == "last":
+            cls.MODE_LAST = 1
 
         cls.db = Database()
 
@@ -66,12 +69,13 @@ class SnapshotCollection:
             cls.db.set_index_complete()
         else: 
             vb.write(message="\nAlready indexed snapshots")
-        if not cls.db.get_filter_complete():
-            vb.write(message="\nFiltering current snapshots...")
-            cls.filter_current() # filter: remove duplicates (timestamp, url), keep latest (timestamp) snapshot of each file
-            cls.db.set_filter_complete()
-        else: 
-            vb.write(message="\nAlready filtered current snapshots")
+        if cls.MODE_LAST or cls.MODE_FIRST:
+            if not cls.db.get_filter_complete():
+                vb.write(message="\nFiltering snapshots (last or first version)...")
+                cls.filter_snapshots() # filter: keep newest or oldest based on MODE
+                cls.db.set_filter_complete()
+            else: 
+                vb.write(message="\nAlready filtered snapshots (last or first version)")
         cls.skip_set(csvfile) # set response to NULL or read csv file and write values into db
         cls.SNAPSHOT_UNHANDLED = cls.count_totals(unhandled=True)   # count all unhandled in db
         cls.SNAPSHOT_HANDLED = cls.count_totals(handled=True)       # count all handled in db
@@ -89,7 +93,7 @@ class SnapshotCollection:
             line_batch = []
             total_inserted = 0
             faulty_lines = 0
-            query = """INSERT OR IGNORE INTO snapshot_tbl (timestamp, url_archive, url_origin) VALUES (?, ?, ?)"""
+            query = """INSERT OR IGNORE INTO snapshot_tbl (timestamp, url_archive, url_origin) VALUES (?, ?, ?)""" # this line filters DUPLICATES
             first_line = True
             pbar = tqdm(unit=" lines", total=cls.CDX_TOTAL, desc="insert cdx".ljust(15), ascii="░▒█", bar_format='{l_bar}{bar:50}{r_bar}{bar:-10b}') # remove output: file=sys.stdout
             for line in f:
@@ -168,29 +172,31 @@ class SnapshotCollection:
         cls.db.cursor.execute("CREATE INDEX IF NOT EXISTS idx_snapshot_tbl_timestamp_url_origin_response ON snapshot_tbl(timestamp, url_origin);")
 
     @classmethod
-    def filter_current(cls):
+    def filter_snapshots(cls):
         """
         Filter the snapshot table.
 
-        - When mode is `current`, remove entries which are not the latest snapshot of each file.
-        """
-        # filter the snapshot table and keep only the latest (timestamp) snapshot of each file
-        # rows get a row number based on the timestamp per url_origin and are deleted if the row number is greater than 1
-        if cls.MODE_CURRENT:
+        - When mode is `MODE_LAST`, keep only the latest snapshot (highest timestamp) for each file.
+        - When mode is `MODE_FIRST`, keep only the earliest snapshot (lowest timestamp) for each file.
+        """        
+        # rows get a row number based on the timestamp per url_origin and are deleted if the row number is greater / lower than 1
+        if cls.MODE_LAST or cls.MODE_FIRST:
+            if cls.MODE_LAST: ordering = "DESC"
+            if cls.MODE_FIRST: ordering = "ASC"
             cls.db.cursor.execute(
-            """
-            DELETE FROM snapshot_tbl
-            WHERE rowid IN (
-                SELECT rowid FROM (
-                    SELECT rowid,
-                        ROW_NUMBER() OVER (PARTITION BY url_origin ORDER BY timestamp DESC) AS rank
-                    FROM snapshot_tbl
-                ) tmp
-                WHERE rank > 1
-            );
-            """
+                f"""
+                DELETE FROM snapshot_tbl
+                WHERE rowid IN (
+                    SELECT rowid FROM (
+                        SELECT rowid,
+                            ROW_NUMBER() OVER (PARTITION BY url_origin ORDER BY timestamp {ordering}) AS ranking
+                        FROM snapshot_tbl
+                    ) tmp
+                    WHERE ranking > 1
+                );
+                """
             )
-            cls.FILTER_CURRENT = cls.db.cursor.rowcount
+            cls.FILTER_MODE = cls.db.cursor.rowcount
 
         cls.db.conn.commit()
 
@@ -298,8 +304,18 @@ class SnapshotCollection:
     def create_output(cls, url: str, timestamp: str, output: str):
         """
         Create a file path for the snapshot.
+
+        - If MODE_LAST or MODE_FIRST is enabled, the path does not include the timestamp.
+        - Otherwise, include the timestamp in the path.
         """
         domain, subdir, filename = url_split(url.split("id_/")[1], index=True)
-        download_dir = os.path.join(output, domain, subdir) if cls.MODE_CURRENT else os.path.join(output, domain, timestamp, subdir)
+
+        if cls.MODE_LAST or cls.MODE_FIRST:
+            download_dir = os.path.join(output, domain, subdir)
+        else:
+            download_dir = os.path.join(output, domain, timestamp, subdir)
+
         download_file = os.path.abspath(os.path.join(download_dir, filename))
+
         return download_file
+

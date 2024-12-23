@@ -7,7 +7,7 @@ import traceback
 
 import re
 
-from pywaybackup.__version__ import __version__
+from importlib.metadata import version
 
 class Exception:
 
@@ -59,7 +59,7 @@ class Exception:
             cls.new_debug = False
             f = open(debug_file, "w")
             f.write("-------------------------\n")
-            f.write(f"Version: {__version__}\n")
+            f.write(f"Version: {version("pywaybackup")}\n")
             f.write("-------------------------\n")
             f.write(f"Command: {cls.command}\n")
             f.write("-------------------------\n\n")

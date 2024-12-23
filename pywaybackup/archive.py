@@ -18,7 +18,7 @@ from pywaybackup.SnapshotCollection import SnapshotCollection as sc
 from pywaybackup.Arguments import Configuration as config
 from pywaybackup.db import Database
 
-from pywaybackup.__version__ import __version__
+from importlib.metadata import version
 
 from pywaybackup.Verbosity import Message
 from pywaybackup.Verbosity import Verbosity as vb
@@ -86,7 +86,7 @@ def save_page(url: str):
 
 def startup():
     try:
-        vb.write(message=f"\n<<< python-wayback-machine-downloader v{__version__} >>>")
+        vb.write(message=f"\n<<< python-wayback-machine-downloader v{version("pywaybackup")} >>>")
         
         if Database.QUERY_EXIST:
             vb.write(message=f"\nExisting query snapshots processed: {Database.QUERY_PROGRESS}\nResuming download... (to reset the job use '--reset')\n")
@@ -117,7 +117,7 @@ def query_list(csvfile: str, cdxfile: str, queryrange: int, limit: int, start: i
         else:
             vb.write(message="\nNo CDX file found to inject - querying snapshots...")
             return False
-
+    
     def query(cdxfile, queryrange, limit, filter_filetype, start, end, explicit):
         vb.write(message="\nQuerying snapshots...")
         query_range = ""
@@ -126,7 +126,7 @@ def query_list(csvfile: str, cdxfile: str, queryrange: int, limit: int, start: i
             if end: query_range = query_range + f"&to={end}"
         else: 
             query_range = "&from=" + str(datetime.now().year - queryrange)
-
+        
         if config.domain and not config.subdir and not config.filename:
             cdx_url = f"{config.domain}"
         if config.domain and config.subdir and not config.filename:
@@ -137,14 +137,14 @@ def query_list(csvfile: str, cdxfile: str, queryrange: int, limit: int, start: i
             cdx_url = f"{config.domain}/{config.filename}"
         if not explicit:
             cdx_url = f"{cdx_url}/*"
-
+        
         limit = f"&limit={limit}" if limit else ""
-
+        
         filter_filetype = f'&filter=original:.*\\.({"|".join(filter_filetype)})$' if filter_filetype else ''
-
+        
         vb.write(message=f"-----> {cdx_url}")
         cdxQuery = f"https://web.archive.org/cdx/search/cdx?output=json&url={cdx_url}{query_range}&fl=timestamp,digest,mimetype,statuscode,original{limit}{filter_filetype}"
-
+        
         try:
             cdxfile_IO = open(cdxfile, "w")
             with requests.get(cdxQuery, stream=True) as r:
@@ -164,24 +164,24 @@ def query_list(csvfile: str, cdxfile: str, queryrange: int, limit: int, start: i
             ex.exception(message="\nUnexpected error while querying cdx server", e=e)
             os.remove(cdxfile)
             os._exit(1)
-
+        
         return cdxfile
-
+    
     cdxinject = inject(cdxfile)
     if not cdxinject:
         cdxfile = query(cdxfile, queryrange, limit, filter_filetype, start, end, explicit)
-
+    
     sc.process_cdx(cdxfile, csvfile)
-
+    
     vb.write(message="\nSnapshot calculation...")
-    vb.write(message=f"-----> {"in CDX file".ljust(18)}: {sc.CDX_TOTAL:,}")
-    if sc.FILTER_DUPLICATES == 0 and sc.FILTER_CURRENT == 0:
+    vb.write(message=f"-----> {'in CDX file'.ljust(18)}: {sc.CDX_TOTAL:,}")
+    if sc.FILTER_DUPLICATES == 0 and sc.FILTER_MODE == 0:
         vb.write(message=f"-----> {'total removals'.ljust(18)}: {(sc.CDX_TOTAL - sc.SNAPSHOT_UNHANDLED - sc.FILTER_SKIP):,}")
-    if sc.SNAPSHOT_FAULTY > 0: vb.write(message=f"-----> {"removed faulty".ljust(18)}: {sc.SNAPSHOT_FAULTY}")
-    if sc.FILTER_DUPLICATES > 0: vb.write(message=f"-----> {"removed duplicates".ljust(18)}: {sc.FILTER_DUPLICATES:,}")
-    if sc.FILTER_CURRENT > 0: vb.write(message=f"-----> {"removed current".ljust(18)}: {sc.FILTER_CURRENT:,}")
-    if sc.FILTER_SKIP > 0: vb.write(message=f"-----> {"skipped existing".ljust(18)}: {sc.FILTER_SKIP:,}")
-    vb.write(message=f"\n-----> {"to utilize".ljust(18)}: {sc.SNAPSHOT_UNHANDLED:,}")
+    if sc.SNAPSHOT_FAULTY > 0: vb.write(message=f"-----> {'removed faulty'.ljust(18)}: {sc.SNAPSHOT_FAULTY}")
+    if sc.FILTER_DUPLICATES > 0: vb.write(message=f"-----> {'removed duplicates'.ljust(18)}: {sc.FILTER_DUPLICATES:,}")
+    if sc.FILTER_MODE > 0: vb.write(message=f"-----> {'removed versions'.ljust(18)}: {sc.FILTER_MODE:,}")
+    if sc.FILTER_SKIP > 0: vb.write(message=f"-----> {'skipped existing'.ljust(18)}: {sc.FILTER_SKIP:,}")
+    vb.write(message=f"\n-----> {'to utilize'.ljust(18)}: {sc.SNAPSHOT_UNHANDLED:,}")
 
 
 
@@ -195,7 +195,7 @@ def download_list(output, retry, no_redirect, delay, workers):
     vb.write(message="\nDownloading snapshots...",)
     vb.progress(progress=0, maxval=sc.SNAPSHOT_UNHANDLED)
     vb.progress(progress=sc.FILTER_SKIP)
-
+    
     threads = []
     worker = 0
     for worker in range(workers):
@@ -219,30 +219,30 @@ def download_loop(output, worker, retry, no_redirect, delay):
     try:
         db = Database()
         connection = http.client.HTTPSConnection("web.archive.org")
-
+        
         while True:
-
+            
             snapshot = sc.get_snapshot(db)
             if not snapshot: break
             sc.modify_snapshot(db, snapshot["rowid"], "response", "LOCK") # mark as locked for other workers
             SNAPSHOT_CURRENT = sc.SNAPSHOT_HANDLED + 1
-
+            
             retry_attempt = 1
             retry_max_attempt = retry if retry > 0 else retry + 1
             status_message = Message()
-
+            
             while retry_attempt <= retry_max_attempt: # retry as given by user
                 status_message.store(message=f"\n-----> Worker: {worker} - Attempt: [{retry_attempt}/{retry_max_attempt}] Snapshot [{SNAPSHOT_CURRENT}/{sc.SNAPSHOT_TOTAL}]")
                 download_attempt = 1
                 download_max_attempt = 3
-
+                
                 while download_attempt <= download_max_attempt: # reconnect as given by system
                     download_status = False
-
+                    
                     try:
                         #status_message.store(message=f"attempt: {retry_attempt}, reconnect: {download_attempt}")
                         download_status = download(db, output, snapshot, connection, status_message, no_redirect)
-
+                    
                     except (timeout, ConnectionRefusedError, ConnectionResetError, http.client.HTTPException, Exception) as e:
                         if isinstance(e, (timeout, ConnectionRefusedError, ConnectionResetError)):
                             if download_attempt < download_max_attempt:
@@ -269,7 +269,7 @@ def download_loop(output, worker, retry, no_redirect, delay):
                         retry_attempt = retry_max_attempt
                         sc.SNAPSHOT_HANDLED += 1
                         break # break all loops because of successful download
-
+                    
                     # depends on user - retries after timeout or proceed to next snapshot
                     if retry > 0:
                         status_message.store(message=f"\n-----> Worker: {worker} - Attempt: [{retry_attempt}/{retry_max_attempt}] Snapshot [{SNAPSHOT_CURRENT}/{sc.SNAPSHOT_TOTAL}] - Download failed - retry Timeout: 15 seconds...")
@@ -289,11 +289,11 @@ def download_loop(output, worker, retry, no_redirect, delay):
                 #     vb.progress(1)
                 #     sc.modify_snapshot(db, snapshot["rowid"], "response", "False")
                 #     break
-
+            
             if delay > 0:
                 vb.write(message=f"\n-----> Worker: {worker} - Delay: {delay} seconds")
                 time.sleep(delay)
-
+    
     except Exception as e:
         ex.exception(f"\nWorker: {worker} - Exception", e)
 
@@ -304,7 +304,7 @@ def download_loop(output, worker, retry, no_redirect, delay):
 def download(db, output, snapshot_entry, connection, status_message, no_redirect=False):
     download_url = snapshot_entry["url_archive"]
     encoded_download_url = urllib.parse.quote(download_url, safe=':/') # used for GET - otherwise always download_url
-    headers = {'User-Agent': f'bitdruid-python-wayback-downloader/{__version__}'}
+    headers = {'User-Agent': f'bitdruid-python-wayback-downloader/{version("pywaybackup")}'}
     response, response_data, response_status, response_status_message = download_response(connection, encoded_download_url, headers)
     sc.modify_snapshot(db, snapshot_entry["rowid"], "response", response_status)
     if not no_redirect and response_status == 302:
@@ -323,7 +323,7 @@ def download(db, output, snapshot_entry, connection, status_message, no_redirect
     if response_status == 200:
         output_file = sc.create_output(download_url, snapshot_entry["timestamp"], output)
         output_path = os.path.dirname(output_file)
-
+        
         # if output_file is too long for windows, skip download
         if check_nt() and len(output_file) > 255:
             status_message.store(status="PATH > 255", type="HTTP", message=f"{response.status} - {response_status_message}")

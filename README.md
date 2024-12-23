@@ -2,7 +2,8 @@
 
 [![PyPI](https://img.shields.io/pypi/v/pywaybackup)](https://pypi.org/project/pywaybackup/)
 [![PyPI - Downloads](https://img.shields.io/pypi/dm/pywaybackup)](https://pypi.org/project/pywaybackup/)
-![Python Version](https://img.shields.io/badge/Python-3.6-blue)
+![Python Version](https://img.shields.io/badge/Python-3.8-blue)
+![Python_Sqlite3 Version](https://img.shields.io/badge/Python_Sqlite3-3.25-blue)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 Downloading archived web pages from the [Wayback Machine](https://archive.org/web/).
@@ -37,7 +38,7 @@ This tool allows you to download content from the Wayback Machine (archive.org).
 ## Arguments
 
 - `-h`, `--help`: Show the help message and exit.
-- `-a`, `--about`: Show information about the tool and exit.
+- `-v`, `--version`: Show information about the tool and exit.
 
 ### Required
 
@@ -45,10 +46,12 @@ This tool allows you to download content from the Wayback Machine (archive.org).
   The URL of the web page to download. This argument is required.
 
 #### Mode Selection (Choose One)
-- **`-c`**, **`--current`**:<br>
-  Download the latest version of each file snapshot. You will get a rebuild of the current website with all available files (but not any original state because new and old versions are mixed).
-- **`-f`**, **`--full`**:<br>
+- **`-a`**, **`--all`**:<br>
   Download snapshots of all timestamps. You will get a folder per timestamp with the files available at that time.
+- **`-l`**, **`--last`**:<br>
+  Download the last version of each file snapshot. You will get one directory with a rebuild of the page. It contains the last version of each file of your specified `--range`.
+- **`-f`**, **`--first`**:<br>
+  Download the first version of each file snapshot. You will get one directory with a rebuild of the page. It contains the first version of each file of your specified `--range`.
 - **`-s`**, **`--save`**:<br>
   Save a page to the Wayback Machine. (beta)
 
@@ -65,7 +68,7 @@ Limits the amount of snapshots to query from the CDX server. If an existing CDX 
 
 - **Range Selection:**<br>
   Specify the range in years or a specific timestamp either start, end, or both. If you specify the `range` argument, the `start` and `end` arguments will be ignored. Format for timestamps: YYYYMMDDhhmmss. You can only give a year or increase specificity by going through the timestamp starting on the left.<br>
-  (year 2019, year+month 201901, year+month+day 20190101, year+month+day+hour 2019010112)
+  (year 2019, year 2019, year+month+day 20190101, year+month+day+hour 2019010112)
    - **`-r`**, **`--range`**:<br>
      Specify the range in years for which to search and download snapshots.
    - **`--start`**:<br>
@@ -102,7 +105,7 @@ Specifies delay between download requests in seconds. Default is no delay (0).
 <!-- - **`--convert-links`**:<br>
 If set, all links in the downloaded files will be converted to local links. This is useful for offline browsing. The links are converted to the local path structure. Show output with `--verbosity trace`. -->
 
-## Special:
+### Special:
 
 - **`--reset`**:  
   If set, the job will be reset, and any existing `cdx`, `db`, `csv` files will be **deleted**. This allows you to start the job from scratch without considering previously downloaded data.
@@ -110,31 +113,39 @@ If set, all links in the downloaded files will be converted to local links. This
 - **`--keep`**:  
   If set, all files will be kept after the job is finished. This includes the `cdx` and `db` file. Without this argument, they will be deleted if the job finished successfully.
 
-### Examples
+# Usage 
 
-Download the latest snapshot of all available files:<br>
-`waybackup -u http://example.com -c`
+### Handling Interrupted Jobs
+When a job is interrupted (by any reason), `pywaybackup` is designed to resume the job from where it left off. It automatically detects existing job data (based on the URL and <u>**optional query parameters**</u> - including output directory) and resumes the process without requiring manual intervention. Here's how the tool handles different scenarios:
 
-Download the latest snapshot of a specific file (e.g., a login page):<br>
-`waybackup -u http://example.com/login.html -c --explicit`
+- **Default Behavior:** 
+  - On restarting the same job (same URL, <u>**optional query parameters**</u>, and output directory), the tool will:
+    - Reuse the existing `.cdx` and `.db` files.
+    - Resume downloading snapshots from the last successful point.
+    - Skip previously downloaded files to save time and resources.
 
-Download all snapshots within the last 5 years and prevent redirects:<br>
-`waybackup -u http://example.com -f -r 5 --no-redirect`
+- **Manual Reset with `--reset`:** 
+  - This command deletes any existing `.cdx` and `.db` files associated with the job and starts the process from scratch.
+  - Useful if:
+    - The previous data is corrupted.
+    - You want to re-query the snapshots without considering previously downloaded data.
 
-Download all snapshots from a specific range (2020 to December 12, 2022) with 4 workers, and show a progress bar:<br>
-`waybackup -u http://example.com -f --start 2020 --end 20221212 --workers 4 --progress`
+- **Preserving Job Data with `--keep`:** 
+  - Normally, `.cdx` and `.db` files are deleted after the job finishes successfully.
+  - Use `--keep` to retain these files for future use (e.g., re-analysis or extending the query later).
 
-Download all snapshots and save the output in a specific folder with 3 workers:<br>
-`waybackup -u http://example.com -f -r 5 -o /home/user/Downloads/snapshots --workers 3`
+> **Note1:** The resumption process only works if the output directory remains the same as the one used during the initial job.
+> 
+> **Note2:** `--reset` will NOT delete the already downloaded files for now. You have to remove them 'by hand'.
+  
+### Example
 
-Download all snapshots but only images and CSS files, filtering for specific filetypes (jpg, css):<br>
-`waybackup -u http://example.com -f --filetype jpg,css`
-
-Download all timestamps but start over and ignore existing progress, log the output, and retry 3 times if any error occurs:<br>
-`waybackup -u http://example.com -f --log --retry 3 --reset`
-
-Download the latest snapshot, follow no redirects but keep the database and cdx-file:<br>
-`waybackup -u http://example.com -c --no-redirect --keep`
+1. Start downloading all available snapshots:<br>`waybackup -u https://example.com -a`
+2. Interrupt the process `CTRL+C`<br>
+3. The tool will detect the existing job data and resume downloading from the last completed point:<br>`waybackup -u https://example.com -a`
+> **Important:** `waybackup -u https://example.com -c` -> The tool will NOT resume because a necessary identifier-changed
+4. This deletes any existing .cdx and .db files associated with the job and starts the process from scratch:<br>`waybackup -u https://example.com -a --reset`
+5. This ensures all job-related files are kept for future use, such as re-analysis or extending the query later:<br>`waybackup -u https://example.com -a --keep`
 
 ## Output path structure
 
@@ -192,22 +203,6 @@ For download queries:
       "url_origin": "http://example.com/"
    },
     ...
-]
-```
-
-For list queries:
-
-```
-[
-   {
-      "digest": "DIGESTOFSNAPSHOT",
-      "id": 1,
-      "mimetype": "text/html",
-      "status": "200",
-      "timestamp": "yyyymmddhhmmss",
-      "url": "http://example.com/"
-   },
-   ...
 ]
 ```
 

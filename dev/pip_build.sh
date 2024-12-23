@@ -4,13 +4,9 @@
 SCRIPT_PATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 TARGET_PATH="$SCRIPT_PATH/.."
 
-# install dependencies
-pip install twine wheel setuptools
+pip install build twine
 
-# build 
-python $TARGET_PATH/setup.py sdist bdist_wheel --verbose
-python -m twine upload dist/*
-#pip install -e $TARGET_PATH
+python -m build
+twine upload dist/*
 
-# clean up
-rm -rf $TARGET_PATH/build $TARGET_PATH/dist # $TARGET_PATH/*.egg-info
+rm -rf $TARGET_PATH/build $TARGET_PATH/dist $TARGET_PATH/*.egg-info
