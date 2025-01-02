@@ -59,7 +59,7 @@ class Exception:
             cls.new_debug = False
             f = open(debug_file, "w")
             f.write("-------------------------\n")
-            f.write(f"Version: {version("pywaybackup")}\n")
+            f.write(f"Version: {version('pywaybackup')}\n")
             f.write("-------------------------\n")
             f.write(f"Command: {cls.command}\n")
             f.write("-------------------------\n\n")

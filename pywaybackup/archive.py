@@ -86,7 +86,7 @@ def save_page(url: str):
 
 def startup():
     try:
-        vb.write(message=f"\n<<< python-wayback-machine-downloader v{version("pywaybackup")} >>>")
+        vb.write(message=f"\n<<< python-wayback-machine-downloader v{version('pywaybackup')} >>>")
         
         if Database.QUERY_EXIST:
             vb.write(message=f"\nExisting query snapshots processed: {Database.QUERY_PROGRESS}\nResuming download... (to reset the job use '--reset')\n")
@@ -304,7 +304,7 @@ def download_loop(output, worker, retry, no_redirect, delay):
 def download(db, output, snapshot_entry, connection, status_message, no_redirect=False):
     download_url = snapshot_entry["url_archive"]
     encoded_download_url = urllib.parse.quote(download_url, safe=':/') # used for GET - otherwise always download_url
-    headers = {'User-Agent': f'bitdruid-python-wayback-downloader/{version("pywaybackup")}'}
+    headers = {"User-Agent": f"bitdruid-python-wayback-downloader/{version('pywaybackup')}"}
     response, response_data, response_status, response_status_message = download_response(connection, encoded_download_url, headers)
     sc.modify_snapshot(db, snapshot_entry["rowid"], "response", response_status)
     if not no_redirect and response_status == 302:
