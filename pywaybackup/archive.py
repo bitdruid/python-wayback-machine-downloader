@@ -86,7 +86,7 @@ def save_page(url: str):
 
 def startup():
     try:
-        vb.write(message=f"\n<<< python-wayback-machine-downloader v{version("pywaybackup")} >>>")
+        vb.write(message=f"\n<<< python-wayback-machine-downloader v{version('pywaybackup')} >>>")
         
         if Database.QUERY_EXIST:
             vb.write(message=f"\nExisting query snapshots processed: {Database.QUERY_PROGRESS}\nResuming download... (to reset the job use '--reset')\n")
