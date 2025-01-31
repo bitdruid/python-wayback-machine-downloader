@@ -5,6 +5,9 @@ from tqdm import tqdm
 import json
 import csv
 import os
+import threading
+
+LOCK = threading.Lock() # thread safe lock
 
 class SnapshotCollection:
     """
@@ -278,27 +281,31 @@ class SnapshotCollection:
         """
         Modify a snapshot-row in the snapshot table.
         """
-        connection.cursor.execute(
-            f"""
-            UPDATE snapshot_tbl
-            SET {column} = ?
-            WHERE rowid = ?
-            """,
-            (value, snapshot_id)
-        )
-        connection.conn.commit()
+        global LOCK
+        with LOCK:
+            connection.cursor.execute(
+                f"""
+                UPDATE snapshot_tbl
+                SET {column} = ?
+                WHERE rowid = ?
+                """,
+                (value, snapshot_id)
+            )
+            connection.conn.commit()
 
     def get_snapshot(connection):
         """
         Get a snapshot-row from the snapshot table with response NULL. (not processed)
         """
-        connection.cursor.execute(
-            """
-            SELECT rowid, * FROM snapshot_tbl WHERE response IS NULL LIMIT 1
-            """
-        )
-        row = connection.cursor.fetchone()
-        return row
+        global LOCK
+        with LOCK:
+            connection.cursor.execute(
+                """
+                SELECT rowid, * FROM snapshot_tbl WHERE response IS NULL LIMIT 1
+                """
+            )
+            row = connection.cursor.fetchone()
+            return row
 
     @classmethod
     def create_output(cls, url: str, timestamp: str, output: str):
