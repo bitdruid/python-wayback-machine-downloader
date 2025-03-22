@@ -1,4 +1,4 @@
-import sqlite3
+import pysqlite3 as sqlite3
 
 class Database:
 
@@ -40,7 +40,6 @@ class Database:
         db.cursor.execute(cls.snapshot_table)
         db.cursor.execute("SELECT query_identifier FROM waybackup_table WHERE query_identifier = ?", (query_identifier,))
         if db.cursor.fetchone():
-            print("found")
             cls.QUERY_EXIST = True
             cls.QUERY_PROGRESS = db.get_progress()
         else:

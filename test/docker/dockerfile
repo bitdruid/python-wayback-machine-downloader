@@ -1,0 +1,10 @@
+FROM python:3.13.2-slim AS base
+
+RUN apt-get -y update && apt-get -y install libmagic1 --no-install-recommends && pip install --upgrade pip && pip install pywaybackup
+
+COPY start.sh /start.sh
+RUN chmod +x /start.sh
+
+VOLUME [ "/waybackup_snapshots" ]
+
+ENTRYPOINT [ "/start.sh" ]

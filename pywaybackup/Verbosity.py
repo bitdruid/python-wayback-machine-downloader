@@ -1,4 +1,3 @@
-import sys
 from tqdm import tqdm
 
 class Verbosity:
@@ -63,21 +62,24 @@ class Verbosity:
                 cls.pbar.refresh()
 
     @classmethod
-    def generate_logline(cls, status: str = "", type: str = "", message: str = ""):
+    def generate_logline(cls, status: str, type: str, message: str):
         """
-        STATUS     -> TYPE: MESSAGE
+        STATUS     ➔ TYPE: MESSAGE
         """
 
         if not status and not type:
             return message
         
-        status_length = 11
+        status_length = 10
         type_length = 5
 
         status = status.ljust(status_length)
-        type = type.ljust(type_length)
+        status = f"{status} -> "
 
-        log_entry = f"{status} -> {type}: {message}"
+        type = type.ljust(type_length)
+        type = f"{type}: " if type.strip() else ""
+
+        log_entry = f"{status}{type}{message}"
 
         return log_entry
 

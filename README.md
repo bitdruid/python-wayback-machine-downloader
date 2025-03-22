@@ -3,7 +3,6 @@
 [![PyPI](https://img.shields.io/pypi/v/pywaybackup)](https://pypi.org/project/pywaybackup/)
 [![PyPI - Downloads](https://img.shields.io/pypi/dm/pywaybackup)](https://pypi.org/project/pywaybackup/)
 ![Python Version](https://img.shields.io/badge/Python-3.8-blue)
-![Python_Sqlite3 Version](https://img.shields.io/badge/Python_Sqlite3-3.25-blue)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 Downloading archived web pages from the [Wayback Machine](https://archive.org/web/).
@@ -29,11 +28,14 @@ This tool allows you to download content from the Wayback Machine (archive.org).
    ```pip install .```
    - in a virtual env or use `--break-system-package`
 
-## Usage infos - important notes
+## Important notes
 
 - Linux recommended: On Windows machines, the path length is limited. This can only be overcome by editing the registry. Files that exceed the path length will not be downloaded.
 - If you query an explicit file (e.g. a query-string `?query=this` or `login.html`), the `--explicit`-argument is recommended as a wildcard query may lead to an empty result.
 - The tool uses a sqlite database to handle snapshots. The database will only persist while the download is running.
+
+<br>
+<br>
 
 ## Arguments
 
@@ -55,7 +57,7 @@ This tool allows you to download content from the Wayback Machine (archive.org).
 - **`-s`**, **`--save`**:<br>
   Save a page to the Wayback Machine. (beta)
 
-### Optional query parameters
+#### Optional query parameters
 
 - **`-e`**, **`--explicit`**:<br>
   Only download the explicit given URL. No wildcard subdomains or paths. Use e.g. to get root-only snapshots. This is recommended for explicit files like `login.html` or `?query=this`.
@@ -76,7 +78,9 @@ Limits the amount of snapshots to query from the CDX server. If an existing CDX 
    - **`--end`**:<br>
      Timestamp to end searching.
 
-### Behavior manipulation
+### Optional
+
+#### Behavior Manipulation
 
 - **`-o`**, **`--output`**:<br>
 Defaults to `waybackup_snapshots` in the current directory. The folder where downloaded files will be saved.
@@ -105,7 +109,7 @@ Specifies delay between download requests in seconds. Default is no delay (0).
 <!-- - **`--convert-links`**:<br>
 If set, all links in the downloaded files will be converted to local links. This is useful for offline browsing. The links are converted to the local path structure. Show output with `--verbosity trace`. -->
 
-### Special:
+#### Job Handling:
 
 - **`--reset`**:  
   If set, the job will be reset, and any existing `cdx`, `db`, `csv` files will be **deleted**. This allows you to start the job from scratch without considering previously downloaded data.
@@ -113,47 +117,56 @@ If set, all links in the downloaded files will be converted to local links. This
 - **`--keep`**:  
   If set, all files will be kept after the job is finished. This includes the `cdx` and `db` file. Without this argument, they will be deleted if the job finished successfully.
 
-# Usage 
+<br>
+<br>
+
+## Usage
 
 ### Handling Interrupted Jobs
-When a job is interrupted (by any reason), `pywaybackup` is designed to resume the job from where it left off. It automatically detects existing job data (based on the URL and <u>**optional query parameters**</u> - including output directory) and resumes the process without requiring manual intervention. Here's how the tool handles different scenarios:
 
-- **Default Behavior:** 
-  - On restarting the same job (same URL, <u>**optional query parameters**</u>, and output directory), the tool will:
-    - Reuse the existing `.cdx` and `.db` files.
-    - Resume downloading snapshots from the last successful point.
-    - Skip previously downloaded files to save time and resources.
+`pywaybackup` resumes interrupted jobs. The tool automatically continues from where it left off.
 
-- **Manual Reset with `--reset`:** 
-  - This command deletes any existing `.cdx` and `.db` files associated with the job and starts the process from scratch.
-  - Useful if:
-    - The previous data is corrupted.
-    - You want to re-query the snapshots without considering previously downloaded data.
+- Detects existing `.cdx` and `.db` files in an `output dir` to resume downloading from the last successful point.
+- Compares `URL`, `mode`, and `optional query parameters` to ensure automatic resumption.
+- Skips previously downloaded files to save time.
+> **Note:** Changing URL, mode selection, query parameters or output prevents automatic resumption.
 
-- **Preserving Job Data with `--keep`:** 
-  - Normally, `.cdx` and `.db` files are deleted after the job finishes successfully.
-  - Use `--keep` to retain these files for future use (e.g., re-analysis or extending the query later).
+#### Resetting a Job (`--reset`)
+- Deletes `.cdx` and `.db` files and restarts the process from scratch.
+- Does **not** remove already downloaded files.
+- `waybackup -u https://example.com -a --reset`
 
-> **Note1:** The resumption process only works if the output directory remains the same as the one used during the initial job.
-> 
-> **Note2:** `--reset` will NOT delete the already downloaded files for now. You have to remove them 'by hand'.
-  
-### Example
+#### Keeping Job Data (`--keep`)
+- Normally, `.cdx` and `.db` files are deleted after a successful job.
+- `--keep` preserves them for future re-analysis or extending the query.
+- `waybackup -u https://example.com -a --keep`
 
-1. Start downloading all available snapshots:<br>`waybackup -u https://example.com -a`
-2. Interrupt the process `CTRL+C`<br>
-3. The tool will detect the existing job data and resume downloading from the last completed point:<br>`waybackup -u https://example.com -a`
-> **Important:** `waybackup -u https://example.com -c` -> The tool will NOT resume because a necessary identifier-changed
-4. This deletes any existing .cdx and .db files associated with the job and starts the process from scratch:<br>`waybackup -u https://example.com -a --reset`
-5. This ensures all job-related files are kept for future use, such as re-analysis or extending the query later:<br>`waybackup -u https://example.com -a --keep`
+<br>
+<br>
 
-## Output path structure
+## Examples
+
+1. Download a specific single snapshot of all available files (starting from root):<br>
+`waybackup -u https://example.com -a --start 20210101000000 --end 20210101000000`
+2. Download a specific single snapshot of all available files (starting from a subdirectory):<br>
+`waybackup -u https://example.com/subdir1/subdir2/assets/ -a --start 20210101000000 --end 20210101000000`
+3. Download a specific single snapshot of the exact given URL (no subdirs):<br>
+`waybackup -u https://example.com -a --start 20210101000000 --end 20210101000000 --explicit`
+4. Download all snapshots of all available files in the given range:<br>
+`waybackup -u https://example.com -a --start 20210101000000 --end 20231122000000`
+
+<br>
+<br>
+
+## Output
+
+### Path Structure
 
 The output path is currently structured as follows by an example for the query:<br>
-`http://example.com/subdir1/subdir2/assets/`:
+`http://example.com/subdir1/subdir2/assets/`
 <br><br>
 For the first and last version (`-f` or `-l`):
-- The requested path will only include all files/folders starting from your query-path.
+- Will only include all files/folders starting from your query-path.
 ```
 your/path/waybackup_snapshots/
 └── the_root_of_your_query/ (example.com/)
@@ -165,7 +178,7 @@ your/path/waybackup_snapshots/
                 ...
 ```
 For all versions (`-a`):
-- Will currently create a folder named as the root of your query. Inside this folder, you will find all timestamps and per timestamp the path you requested.
+- Will create a folder named as the root of your query. Inside this folder, you will find all timestamps and per timestamp the path you requested.
 ```
 your/path/waybackup_snapshots/
 └── the_root_of_your_query/ (example.com/)
@@ -184,7 +197,7 @@ your/path/waybackup_snapshots/
     ...
 ```
 
-## CSV Output
+### CSV
 
 Each snapshot is stored with the following keys/values. These are either stored in a sqlite database while the download is running or saved into a CSV file after the download is finished.
 
@@ -210,11 +223,12 @@ For download queries:
 
 Exceptions will be written into `waybackup_error.log` (each run overwrites the file).
 
-### Known ToDos
-
-- [ ] currently there is no logic to handle if both a http and https version of a page is available
+<br>
+<br>
 
 ## Contributing
 
 I'm always happy for some feature requests to improve the usability of this tool.
 Feel free to give suggestions and report issues. Project is still far from being perfect.
+
+> Please PR from dev into dev.

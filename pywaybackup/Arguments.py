@@ -2,9 +2,11 @@
 import sys
 import os
 import argparse
+
 from importlib.metadata import version
 
 from pywaybackup.helper import url_split, sanitize_filename
+from pywaybackup.Exception import Exception as ex
 
 class Arguments:
     
@@ -73,7 +75,7 @@ class Configuration:
         
         if cls.output is None:
             cls.output = os.path.join(os.getcwd(), "waybackup_snapshots")
-        os.makedirs(cls.output, exist_ok=True)
+        os.makedirs(cls.output, exist_ok=True) if not cls.save else None
         
         if cls.log is True:
             cls.log = os.path.join(cls.output, f"waybackup_{sanitize_filename(cls.url)}.log")
@@ -84,6 +86,8 @@ class Configuration:
             cls.mode = "last"
         if cls.first:
             cls.mode = "first"
+        if cls.save:
+            cls.mode = "save"
         
         if cls.filetype:
             cls.filetype = [ft.lower().strip() for ft in cls.filetype.split(",")]

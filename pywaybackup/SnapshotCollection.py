@@ -1,10 +1,12 @@
-from pywaybackup.Verbosity import Verbosity as vb
-from pywaybackup.helper import url_split
-from pywaybackup.db import Database
-from tqdm import tqdm
 import json
 import csv
 import os
+
+from tqdm import tqdm
+
+from pywaybackup.Verbosity import Verbosity as vb
+from pywaybackup.helper import url_split
+from pywaybackup.db import Database
 
 class SnapshotCollection:
     """
@@ -292,12 +294,21 @@ class SnapshotCollection:
         """
         Get a snapshot-row from the snapshot table with response NULL. (not processed)
         """
+        # mark as locked for other workers // only visual because get_snapshot fetches by NULL
         connection.cursor.execute(
             """
-            SELECT rowid, * FROM snapshot_tbl WHERE response IS NULL LIMIT 1
+            UPDATE snapshot_tbl
+            SET response = 'LOCK'
+            WHERE rowid = (
+                SELECT rowid FROM snapshot_tbl 
+                WHERE response IS NULL
+                LIMIT 1
+            )
+            RETURNING rowid, *;
             """
         )
         row = connection.cursor.fetchone()
+        connection.conn.commit()
         return row
 
     @classmethod

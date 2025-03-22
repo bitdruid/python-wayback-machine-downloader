@@ -1,4 +1,3 @@
-
 import os
 import shutil
 import magic
@@ -15,11 +14,12 @@ def sanitize_filename(input: str) -> str:
     """
     Sanitize a string to be used as (part of) a filename.
     """
-    disallowed = ['<', '>', ':', '"', '/', '\\', '|', '?', '*']
+    disallowed = ["<", ">", ":", '"', "/", "\\", "|", "?", "*"]
     for char in disallowed:
         input = input.replace(char, ".")
-    input = '.'.join(filter(None, input.split('.')))
+    input = ".".join(filter(None, input.split(".")))
     return input
+
 
 def sanitize_url(input: str) -> str:
     """
@@ -32,12 +32,13 @@ def sanitize_url(input: str) -> str:
 
 
 def url_get_timestamp(url):
-        """
-        Extract the timestamp from a wayback machine URL.
-        """
-        timestamp = url.split("web/")[1].split("/")[0]
-        if "id_" in url: timestamp = timestamp.split("id_")[0]            
-        return timestamp
+    """
+    Extract the timestamp from a wayback machine URL.
+    """
+    timestamp = url.split("web/")[1].split("/")[0]
+    if "id_" in url:
+        timestamp = timestamp.split("id_")[0]
+    return timestamp
 
 
 def url_split(url, index=False):
@@ -52,8 +53,8 @@ def url_split(url, index=False):
     if "://" in url:
         url = url.split("://")[1]
     domain = url.split("/")[0]
-    path = url[len(domain):]
-    domain = domain.split("@")[-1].split(":")[0] # remove mailto and port
+    path = url[len(domain) :]
+    domain = domain.split("@")[-1].split(":")[0]  # remove mailto and port
     path_parts = path.split("/")
     path_end = path_parts[-1]
     if not url.endswith("/") or "." in path_end:
@@ -87,17 +88,21 @@ def move_index(existpath: str = None, existfile: str = None, filebuffer: bytes =
         shutil.move(existpath, existpath + "_exist")
         os.makedirs(existpath, exist_ok=True)
         if not check_index_mime(existpath):
-            new_file = os.path.join(existpath, os.path.basename(os.path.normpath(existpath)))
+            new_file = os.path.join(
+                existpath, os.path.basename(os.path.normpath(existpath))
+            )
         else:
             new_file = os.path.join(existpath, "index.html")
         shutil.move(existpath + "_exist", new_file)
     elif existfile:
         if filebuffer:
             if not check_index_mime(filebuffer):
-                return os.path.join(existfile, os.path.basename(os.path.normpath(existfile)))
+                return os.path.join(
+                    existfile, os.path.basename(os.path.normpath(existfile))
+                )
             else:
                 return os.path.join(existfile, "index.html")
-    
+
 
 def check_index_mime(filebuffer: bytes) -> bool:
     mime = magic.Magic(mime=True)
