@@ -88,7 +88,7 @@ def query_list(csvfile: str, cdxfile: str, queryrange: int, limit: int, start: i
         cdxQuery = f"https://web.archive.org/cdx/search/cdx?output=json&url={cdx_url}{query_range}&fl=timestamp,digest,mimetype,statuscode,original{limit}{filter_filetype}"
         
         try:
-            cdxfile_IO = open(cdxfile, "w")
+            cdxfile_IO = open(cdxfile, "w", encoding="utf-8")
             with requests.get(cdxQuery, stream=True) as r:
                 r.raise_for_status()
                 with tqdm(unit='B', unit_scale=True, desc="download cdx".ljust(15)) as pbar:  # remove output: file=sys.stdout

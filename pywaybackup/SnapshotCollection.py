@@ -58,7 +58,7 @@ class SnapshotCollection:
         Insert the content of the cdx file into the snapshot table.
         - Removes duplicates by url_archive (same timestamp and url_origin)
         """
-        line_count = sum(1 for _ in open(cdxfile)) - 1
+        line_count = sum(1 for _ in open(cdxfile, encoding="utf-8")) - 1
         cls.CDX_TOTAL = line_count
         if not cls.db.get_insert_complete():
             cls.insert_cdx(cdxfile)
@@ -90,7 +90,7 @@ class SnapshotCollection:
     @classmethod
     def insert_cdx(cls, cdxfile):
         vb.write(message="\nInserting CDX data into database...")
-        with open(cdxfile, "r") as f:
+        with open(cdxfile, "r", encoding="utf-8") as f:
             line_batchsize = 2500
             line_batch = []
             total_inserted = 0
@@ -149,7 +149,7 @@ class SnapshotCollection:
         cls.db.cursor.execute("UPDATE snapshot_tbl SET response = NULL WHERE response = 'LOCK'") # reset locked to unprocessed
         cls.db.cursor.execute("SELECT * FROM snapshot_tbl WHERE response IS NOT NULL") # only write processed snapshots
         headers = [description[0] for description in cls.db.cursor.description]
-        with open(csvfile, "w") as f:
+        with open(csvfile, "w", encoding="utf-8") as f:
             writer = csv.writer(f)
             writer.writerow(headers)
             while True:
@@ -221,7 +221,7 @@ class SnapshotCollection:
         if not os.path.isfile(csvfile):
             return
         else:
-            with open(csvfile, "r") as f:
+            with open(csvfile, "r", encoding="utf-8") as f:
                 csv_content = csv.DictReader(f)
                 row_batchsize = 2500
                 row_batch = []

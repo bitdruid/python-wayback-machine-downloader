@@ -161,7 +161,7 @@ class Converter:
                 status_message.trace(status="Error", type="", message="JS-file is not supported")
                 return
             try:
-                with open(filepath, "r") as file:
+                with open(filepath, "r", encoding="utf-8") as file:
                     domain = config.domain
                     content = file.read()
                     links = extract_urls(content)
@@ -174,7 +174,7 @@ class Converter:
                             status_message.trace(status="CONV", type=f"{count}/{len(links)}", message=new_link)
                         content = content.replace(original_link, new_link)
                         count += 1
-                    file = open(filepath, "w")
+                    file = open(filepath, "w", encoding="utf-8")
                     file.write(content)
                     file.close()
             except UnicodeDecodeError:
