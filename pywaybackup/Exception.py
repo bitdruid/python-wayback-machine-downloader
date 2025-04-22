@@ -53,14 +53,14 @@ class Exception:
         # print(f"Full traceback:\n{original_tb}")
         if cls.new_debug:  # new run, overwrite file
             cls.new_debug = False
-            f = open(debug_file, "w")
+            f = open(debug_file, "w", encoding="utf-8")
             f.write("-------------------------\n")
             f.write(f"Version: {version('pywaybackup')}\n")
             f.write("-------------------------\n")
             f.write(f"Command: {cls.command}\n")
             f.write("-------------------------\n\n")
         else:  # current run, append to file
-            f = open(debug_file, "a")
+            f = open(debug_file, "a", encoding="utf-8")
         f.write(datetime.now().strftime("%Y-%m-%d %H:%M:%S") + "\n")
         f.write(exception_message + "\n")
         f.write("!-- Local Variables:\n")

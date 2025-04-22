@@ -16,7 +16,8 @@ license = { file = "LICENSE" }
 readme = "README.md"
 requires-python = ">=3.8"
 dependencies = [
-    "pysqlite3-binary==0.5.4",
+    "pysqlite3-binary==0.5.4; sys_platform == 'linux'",
+    "pysqlite-binary; sys_platform == 'win32'",
     "requests==2.31.0",
     "tqdm==4.66.2",
     "python-magic==0.4.27; sys_platform == 'linux'",
