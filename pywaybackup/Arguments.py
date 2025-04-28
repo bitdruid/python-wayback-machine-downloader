@@ -36,7 +36,7 @@ class Arguments:
         behavior.add_argument('--log', action='store_true', help='save a log file into the output folder')
         behavior.add_argument('--progress', action='store_true', help='show a progress bar')
         behavior.add_argument('--no-redirect', action='store_true', help='do not follow redirects by archive.org')
-        #behavior.add_argument('--verbosity', type=str, default="info", metavar="", help='verbosity level (info, trace)')
+        behavior.add_argument('--verbose', action='store_true', help='overwritten by progress - gives detailed output')
         behavior.add_argument('--retry', type=int, default=0, metavar="", help='retry failed downloads (opt tries as int, else infinite)')
         behavior.add_argument('--workers', type=int, default=1, metavar="", help='number of workers (simultaneous downloads)')
         # behavior.add_argument('--convert-links', action='store_true', help='Convert all links in the files to local paths. Requires -c/--current')

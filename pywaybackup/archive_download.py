@@ -213,19 +213,19 @@ def download_loop(output, worker, retry, no_redirect, delay):
                     
                     # depends on user - retries after timeout or proceed to next snapshot
                     if retry > 0:
-                        status_message.store(status="FAILED", message="retry timeout: 15 seconds...")
+                        status_message.store(info="FAILED", message="retry timeout: 15 seconds...")
                         status_message.write()
                         time.sleep(15)
                     else:
-                        status_message.store(status="FAILED", message="no attempt left")
+                        status_message.store(info="FAILED", message="no attempt left")
                         status_message.write()
                     sc.SNAPSHOT_HANDLED += 1
                     break # break all loops and do a user-defined retry
                 
                 retry_attempt += 1
                 # if retry_attempt > retry_max_attempt:
-                #     status_message.store(status="FAILED", message="Max retries exceeded")
-                #     status_message.store(status="", type="URL", message=snapshot["url_archive"])
+                #     status_message.store(info="FAILED", message="Max retries exceeded")
+                #     status_message.store(info="", type="URL", message=snapshot["url_archive"])
                 #     status_message.write()
                 #     vb.progress(1)
                 #     sc.modify_snapshot(db, snapshot["rowid"], "response", "False")
@@ -249,14 +249,14 @@ def download(db, output, snapshot_entry, connection, status_message, no_redirect
     response, response_data, response_status, response_status_message = download_response(connection, encoded_download_url, headers)
     sc.modify_snapshot(db, snapshot_entry["rowid"], "response", response_status)
     if not no_redirect and response_status == 302:
-        status_message.store(status="REDIRECT", message=f"{response.status} - {response_status_message}")
-        status_message.store(status="", type="FROM", message=download_url)
+        status_message.store(info="REDIRECT", message=f"{response.status} - {response_status_message}")
+        status_message.store(info="", type="FROM", message=download_url)
         for _ in range(5):                   
             response, response_data, response_status, response_status_message = download_response(connection, encoded_download_url, headers) 
             location = response.getheader("Location")
             if location:
                 encoded_download_url = urllib.parse.quote(urljoin(download_url, location), safe=':/')
-                status_message.store(status="", type="TO", message=location)
+                status_message.store(info="", type="TO", message=location)
                 sc.modify_snapshot(db, snapshot_entry["rowid"], "redirect_timestamp", url_get_timestamp(location))
                 sc.modify_snapshot(db, snapshot_entry["rowid"], "redirect_url", download_url)
             else:
@@ -267,8 +267,8 @@ def download(db, output, snapshot_entry, connection, status_message, no_redirect
         
         # if output_file is too long for windows, skip download
         if check_nt() and len(output_file) > 255:
-            status_message.store(status="PATH > 255", message=f"{response.status} - {response_status_message}")
-            status_message.store(status="", type="URL", message=download_url)
+            status_message.store(info="PATH > 255", message=f"{response.status} - {response_status_message}")
+            status_message.store(info="", type="URL", message=download_url)
             sc.entry_modify(snapshot_entry, "file", "PATH TOO LONG TO SAVE FILE")
             #status_message.write()
             raise Exception("Path too long to save file")
@@ -288,19 +288,19 @@ def download(db, output, snapshot_entry, connection, status_message, no_redirect
                 file.write(response_data)
             # check if file is downloaded
             if os.path.isfile(output_file):
-                status_message.store(status="SUCCESS", message=f"{response.status} - {response_status_message}")
+                status_message.store(info="SUCCESS", message=f"{response.status} - {response_status_message}")
         else:
-            status_message.store(status="EXISTING", message=f"{response.status} - {response_status_message}")
-        status_message.store(status="", type="URL", message=download_url)
-        status_message.store(status="", type="FILE", message=output_file)
+            status_message.store(info="EXISTING", message=f"{response.status} - {response_status_message}")
+        status_message.store(info="", type="URL", message=download_url)
+        status_message.store(info="", type="FILE", message=output_file)
         sc.modify_snapshot(db, snapshot_entry["rowid"], "file", output_file)
         # if convert_links:
         #     convert.links(output_file, status_message)
         #status_message.write()
         return True
     else:
-        status_message.store(status="UNEXPECTED", message=f"{response.status} - {response_status_message}")
-        status_message.store(status="", type="URL", message=download_url)
+        status_message.store(info="UNEXPECTED", message=f"{response.status} - {response_status_message}")
+        status_message.store(info="", type="URL", message=download_url)
         #status_message.write()
         return False
 

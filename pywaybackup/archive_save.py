@@ -57,12 +57,12 @@ def save_page(url: str):
 
             if timestamp_difference < 1:
                 vb.write(message="\n-----> Response: 302 (new snapshot)")
-                vb.write(status="SNAPSHOT", type="URL", message=f"{location}")
+                vb.write(info="SNAPSHOT", type="URL", message=f"{location}")
             elif timestamp_difference >= 1:
                 vb.write(message=f"\n-----> Response: 302 (existing snapshot - wait for {60 - timestamp_difference} minutes)")
-                vb.write(status="SNAPSHOT", type="URL", message=f"{location}")
-                vb.write(status="WAYBACK", type="TIME", message=f"{snapshot_timestamp}")
-                vb.write(status="REQUEST", type="TIME", message=f"{current_timestamp}")
+                vb.write(info="SNAPSHOT", type="URL", message=f"{location}")
+                vb.write(info="WAYBACK", type="TIME", message=f"{snapshot_timestamp}")
+                vb.write(info="REQUEST", type="TIME", message=f"{current_timestamp}")
 
         elif response_status == 429:
             vb.write(message="\n-----> Response: 429 (too many requests)")

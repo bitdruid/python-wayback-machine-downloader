@@ -14,7 +14,7 @@ def main():
 
     config.init()
     ex.init(config.output, config.command)
-    vb.init(config.progress, config.log)
+    vb.init(config.verbose, config.progress, config.log)
 
     if config.save:
         archive_save.save_page(config.url)

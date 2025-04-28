@@ -165,7 +165,7 @@ class Converter:
                     domain = config.domain
                     content = file.read()
                     links = extract_urls(content)
-                    status_message.store(message=f"\n-----> Convert: [{len(links)}] links in file")
+                    status_message.store(verbose=True, message=f"\n-----> Convert: [{len(links)}] links in file")
                     count = 1
                     for original_link in links:
                         status_message.trace(status="ORIG", type=f"{count}/{len(links)}", message=original_link)

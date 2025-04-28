@@ -2,8 +2,7 @@ from tqdm import tqdm
 
 class Verbosity:
 
-    LEVELS = ["trace", "info"]
-    level = None
+    verbose = False
 
     mode = None
     args = None
@@ -16,8 +15,8 @@ class Verbosity:
     #stdout = None
 
     @classmethod
-    def init(cls, progress=None, log=None, verbosity=None):
-        cls.level = verbosity if verbosity in cls.LEVELS else "info"
+    def init(cls, verbose: bool = False, progress=None, log=None):
+        cls.verbose = verbose
         cls.log = open(log, "w") if log else None
         cls.PROGRESS = progress
         # if progress:
@@ -35,22 +34,24 @@ class Verbosity:
             cls.log.close()
 
     @classmethod
-    def write(cls, status="", type="", message=""):
+    def write(cls, info="", type="", message=""):
         """
-        Write a log line based on the provided status, type, and message.
+        Write a log line based on the provided info, type, and message.
         
         Args:
-            status (str): The status of the log line. (e.g. "SUCCESS", "REDIRECT")
-            type (str): The type of the log line. (e.g. "URL", "FILE")
-            message (str): The message to be logged. (e.g. actual url, file path)
+            info (str): "SUCCESS", "REDIRECT", ...
+            type (str): "URL", "FILE", ...
+            message (str): actual url, file path, ...
         """
-        logline = cls.generate_logline(status=status, type=type, message=message)
+
+        #mode = 0 if cls.verbose else 1
+        logline = cls.generate_logline(info, type, message)
         if not cls.PROGRESS:
             if logline:
                 print(logline)
-        if cls.log:
-            cls.log.write(logline + "\n")
-            cls.log.flush()
+            if cls.log:
+                cls.log.write(logline + "\n")
+                cls.log.flush()
 
     @classmethod
     def progress(cls, progress: int, maxval: int = None):
@@ -62,26 +63,28 @@ class Verbosity:
                 cls.pbar.refresh()
 
     @classmethod
-    def generate_logline(cls, status: str, type: str, message: str):
+    def generate_logline(cls, info: str, type: str, message: str):
         """
-        STATUS     ➔ TYPE: MESSAGE
+        mode 0:
+        [INFO]     ➔ [TYPE]: [MESSAGE]
         """
 
-        if not status and not type:
+        if not info and not type:
             return message
-        
-        status_length = 10
+            
+        info_length = 10
         type_length = 5
 
-        status = status.ljust(status_length)
-        status = f"{status} -> "
+        info = info.ljust(info_length)
+        info = f"{info} -> "
 
         type = type.ljust(type_length)
         type = f"{type}: " if type.strip() else ""
 
-        log_entry = f"{status}{type}{message}"
+        log_entry = f"{info}{type}{message}"
 
         return log_entry
+
 
 class Message(Verbosity):
     """
@@ -91,31 +94,19 @@ class Message(Verbosity):
     """
 
     def __init__(self):
-        self.message = {}
+        self.message = []
 
     def __str__(self):
         return str(self.message)
 
-    def store(self, status: str = "", type: str = "", message: str = "", level: str = "info"):
-        if level not in self.message:
-            self.message[level] = []
-        self.message[level].append(super().generate_logline(status, type, message))
-        #super().write(message=f"Stored message: {status} -> {type}: {message}")
+    def store(self, info: str = "", type: str = "", message: str = ""):
+        #mode = 0 if super().verbose else 1
+        self.message.append(super().generate_logline(info, type, message))
 
     def clear(self):
-        self.message = {}
+        self.message = []
 
     def write(self):
-        for level in self.message:
-            if self.check_level(level):
-                for message in self.message[level]:
-                    super().write(message=message)
+        for message in self.message:
+            super().write(message=message)
         self.clear()
-            
-    def check_level(self, level: str):
-        return super().LEVELS.index(level) >= super().LEVELS.index(self.level)
-
-    def trace(self, status: str = "", type: str = "", message: str = ""):
-        self.store(status, type, message, "trace")
-
-        
