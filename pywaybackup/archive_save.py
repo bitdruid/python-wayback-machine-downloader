@@ -8,19 +8,19 @@ from pywaybackup.Verbosity import Verbosity as vb
 
 # def startup():
 #     try:
-#         vb.write(message=f"\n<<< python-wayback-machine-downloader v{version('pywaybackup')} >>>")
+#         vb.write(verbose=None, content=f"\n<<< python-wayback-machine-downloader v{version('pywaybackup')} >>>")
         
 #         if Database.QUERY_EXIST:
-#             vb.write(message=f"\nSAVE job exist - processed {Database.QUERY_PROGRESS}\nResuming save... (to reset the job use '--reset')\n")
+#             vb.write(verbose=None, content=f"\nSAVE job exist - processed {Database.QUERY_PROGRESS}\nResuming save... (to reset the job use '--reset')\n")
 
 #             for i in range(5, -1, -1):
-#                 vb.write(message=f"\r{i}...")
+#                 vb.write(verbose=None, content=f"\r{i}...")
 #                 print("\033[F", end="")
 #                 print("\033[K", end="")           
 
 #                 time.sleep(1)
 
-#             #vb.write(message="\n")
+#             #vb.write(verbose=None, content="\n")
 #     except KeyboardInterrupt:
 #         os._exit(1)
 
@@ -42,9 +42,9 @@ def save_page(url: str):
     try:
         connection = http.client.HTTPSConnection("web.archive.org")
         headers = {"User-Agent": f"bitdruid-python-wayback-downloader/{version('pywaybackup')}"}
-        vb.write(message="\nSaving page to the Wayback Machine...")
+        vb.write(verbose=None, content="\nSaving page to the Wayback Machine...")
         connection.request("GET", f"https://web.archive.org/save/{url}", headers=headers)
-        vb.write(message=f"\n-----> Request sent -> URL: {url}")
+        vb.write(verbose=None, content=f"\n-----> Request sent -> URL: {url}")
         response = connection.getresponse()
         response_status = response.status
 
@@ -56,26 +56,26 @@ def save_page(url: str):
             timestamp_difference = int(round(timestamp_difference, 0))
 
             if timestamp_difference < 1:
-                vb.write(message="\n-----> Response: 302 (new snapshot)")
-                vb.write(info="SNAPSHOT", type="URL", message=f"{location}")
+                vb.write(verbose=None, content="\n-----> Response: 302 (new snapshot)")
+                vb.write(verbose=None, content=f"SNAPSHOT URL: {location}")
             elif timestamp_difference >= 1:
-                vb.write(message=f"\n-----> Response: 302 (existing snapshot - wait for {60 - timestamp_difference} minutes)")
-                vb.write(info="SNAPSHOT", type="URL", message=f"{location}")
-                vb.write(info="WAYBACK", type="TIME", message=f"{snapshot_timestamp}")
-                vb.write(info="REQUEST", type="TIME", message=f"{current_timestamp}")
+                vb.write(verbose=None, content=f"\n-----> Response: 302 (existing snapshot - wait for {60 - timestamp_difference} minutes)")
+                vb.write(verbose=None, content=f"SNAPSHOT URL: {location}")
+                vb.write(verbose=None, content=f"WAYBACK TIME: {snapshot_timestamp}")
+                vb.write(verbose=None, content=f"REQUEST TIME: {current_timestamp}")
 
         elif response_status == 429:
-            vb.write(message="\n-----> Response: 429 (too many requests)")
-            vb.write(message="- no simultaneous allowed")
-            vb.write(message="- 15 per 5 minutes\n")
+            vb.write(verbose=None, content="\n-----> Response: 429 (too many requests)")
+            vb.write(verbose=None, content="- no simultaneous allowed")
+            vb.write(verbose=None, content="- 15 per 5 minutes\n")
         elif response_status == 520:
-            vb.write(message="\n-----> Response: 520 (job failed)")
+            vb.write(verbose=None, content="\n-----> Response: 520 (job failed)")
         elif response_status == 404:
-            vb.write(message="\n-----> Response: 404 (not found)")
+            vb.write(verbose=None, content="\n-----> Response: 404 (not found)")
         else:
-            vb.write(message=f"\n-----> Response: {response_status} - UNHANDLED")
+            vb.write(verbose=None, content=f"\n-----> Response: {response_status} - UNHANDLED")
 
         connection.close()
     except ConnectionRefusedError:
-        vb.write(message="\nCONNECTION REFUSED -> could not connect to wayback machine")
+        vb.write(verbose=None, content="\nCONNECTION REFUSED -> could not connect to wayback machine")
 

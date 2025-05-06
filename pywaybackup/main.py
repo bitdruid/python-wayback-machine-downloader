@@ -38,7 +38,7 @@ def main():
 
         except Exception as e:
             config.keep = True
-            ex.exception(message="", e=e)
+            ex.exception(content="", e=e)
 
         finally:
             sc.csv_create(config.csvfile)

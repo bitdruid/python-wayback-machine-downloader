@@ -10,25 +10,25 @@ def check_nt():
     return os.name == "nt"
 
 
-def sanitize_filename(input: str) -> str:
+def sanitize_filename(filename: str) -> str:
     """
     Sanitize a string to be used as (part of) a filename.
     """
     disallowed = ["<", ">", ":", '"', "/", "\\", "|", "?", "*"]
     for char in disallowed:
-        input = input.replace(char, ".")
-    input = ".".join(filter(None, input.split(".")))
-    return input
+        filename = filename.replace(char, ".")
+    filename = ".".join(filter(None, filename.split(".")))
+    return filename
 
 
-def sanitize_url(input: str) -> str:
+def sanitize_url(url: str) -> str:
     """
     Sanitize a url by encoding special characters.
     """
     special_chars = [":", "*", "?", "&", "=", "<", ">", "\\", "|"]
     for char in special_chars:
-        input = input.replace(char, f"%{ord(char):02x}")
-    return input
+        url = url.replace(char, f"%{ord(char):02x}")
+    return url
 
 
 def url_get_timestamp(url):

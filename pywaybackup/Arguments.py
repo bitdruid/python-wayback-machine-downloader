@@ -6,15 +6,14 @@ import argparse
 from importlib.metadata import version
 
 from pywaybackup.helper import url_split, sanitize_filename
-from pywaybackup.Exception import Exception as ex
 
 class Arguments:
-    
+
     def __init__(self):
-        
+
         parser = argparse.ArgumentParser(description='Download from wayback machine (archive.org)')
         parser.add_argument('-v', '--version', action='version', version='%(prog)s ' + version("pywaybackup") + ' by @bitdruid -> https://github.com/bitdruid')
-        
+
         required = parser.add_argument_group('required (one exclusive)')
         required.add_argument('-u', '--url', type=str, metavar="", help='url (with subdir/subdomain) to download')
         exclusive_required = required.add_mutually_exclusive_group(required=True)
@@ -41,7 +40,7 @@ class Arguments:
         behavior.add_argument('--workers', type=int, default=1, metavar="", help='number of workers (simultaneous downloads)')
         # behavior.add_argument('--convert-links', action='store_true', help='Convert all links in the files to local paths. Requires -c/--current')
         behavior.add_argument('--delay', type=int, default=0, metavar="", help='delay between each download in seconds')
-        
+
         special = parser.add_argument_group('special')
         special.add_argument('--reset', action='store_true', help='reset the job and ignore existing cdx/db/csv files')
         special.add_argument('--keep', action='store_true', help='keep all files after the job finished')
