@@ -31,7 +31,8 @@ class Arguments:
         optional.add_argument('--limit', type=int, nargs='?', const=True, metavar='int', help='limit the number of snapshots to download')
         
         behavior = parser.add_argument_group('manipulate behavior')
-        behavior.add_argument('-o', '--output', type=str, metavar="", help='output folder - defaults to current directory')
+        behavior.add_argument('-o', '--output', type=str, metavar="", help='output for all files - defaults to current directory')
+        behavior.add_argument('-m', '--metadata', type=str, metavar="", help='change directory for db/cdx/csv/log files')
         behavior.add_argument('--log', action='store_true', help='save a log file into the output folder')
         behavior.add_argument('--progress', action='store_true', help='show a progress bar')
         behavior.add_argument('--no-redirect', action='store_true', help='do not follow redirects by archive.org')
@@ -74,11 +75,11 @@ class Configuration:
         
         if cls.output is None:
             cls.output = os.path.join(os.getcwd(), "waybackup_snapshots")
+        if cls.metadata is None:
+            cls.metadata = cls.output
         os.makedirs(cls.output, exist_ok=True) if not cls.save else None
-        
-        if cls.log is True:
-            cls.log = os.path.join(cls.output, f"waybackup_{sanitize_filename(cls.url)}.log")
-        
+        os.makedirs(cls.metadata, exist_ok=True) if not cls.save else None
+                
         if cls.all:
             cls.mode = "all"
         if cls.last:
@@ -90,10 +91,13 @@ class Configuration:
         
         if cls.filetype:
             cls.filetype = [ft.lower().strip() for ft in cls.filetype.split(",")]
-        
-        cls.cdxfile = os.path.join(cls.output, f"waybackup_{sanitize_filename(cls.url)}.cdx")
-        cls.dbfile = os.path.join(cls.output, f"waybackup_{sanitize_filename(cls.url)}.db")
-        cls.csvfile = os.path.join(cls.output, f"waybackup_{sanitize_filename(cls.url)}.csv")
+
+        base_path = cls.metadata
+        base_name = f"waybackup_{sanitize_filename(cls.url)}"
+        cls.cdxfile = os.path.join(base_path, f"{base_name}.cdx")
+        cls.dbfile = os.path.join(base_path, f"{base_name}.db")
+        cls.csvfile = os.path.join(base_path, f"{base_name}.csv")
+        cls.log = os.path.join(base_path, f"{base_name}.log") if cls.log else None
         
         if cls.reset:
             os.remove(cls.cdxfile) if os.path.isfile(cls.cdxfile) else None

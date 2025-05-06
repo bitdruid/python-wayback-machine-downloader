@@ -85,6 +85,9 @@ Limits the amount of snapshots to query from the CDX server. If an existing CDX 
 - **`-o`**, **`--output`**:<br>
 Defaults to `waybackup_snapshots` in the current directory. The folder where downloaded files will be saved.
 
+- **`-m`**, **`--metadata`**<br>
+Change the folder where metadata will be saved (`cdx`/`db`/`csv`/`log`). Especially if you are downloading into a network share, you SHOULD set this to a local path because sqlite locking mechanism may cause issues with network shares.
+
 <!-- - **`--verbosity`** `<level>`:<br>
 Sets verbosity level. Options are `info`and `trace`. Default is `info`. -->
 
