@@ -28,11 +28,12 @@ This tool allows you to download content from the Wayback Machine (archive.org).
    ```pip install .```
    - in a virtual env or use `--break-system-package`
 
-## Important notes
+## notes / issues / hints
 
-- Linux recommended: On Windows machines, the path length is limited. This can only be overcome by editing the registry. Files that exceed the path length will not be downloaded.
-- If you query an explicit file (e.g. a query-string `?query=this` or `login.html`), the `--explicit`-argument is recommended as a wildcard query may lead to an empty result.
+- Linux recommended: On Windows machines, the path length is limited. Files that exceed the path length will not be downloaded.
 - The tool uses a sqlite database to handle snapshots. The database will only persist while the download is running.
+- If you query an explicit file (e.g. a query-string `?query=this` or `login.html`), the `--explicit`-argument is recommended as a wildcard query may lead to an empty result.
+- Downloading directly into a network share is not recommended. The sqlite locking mechanism may cause issues. If you need to download into a network share, set the `--metadata` argument to a local path.
 
 <br>
 <br>
@@ -102,12 +103,26 @@ Sets the number of simultaneous download workers. Default is 1, safe range is ab
 
 - **`--no-redirect`**:<br>
 Disables following redirects of snapshots. Useful for preventing timestamp-folder mismatches caused by Archive.org redirects.
-  
+
 - **`--retry`** `<attempts>`:<br>
 Specifies number of retry attempts for failed downloads.
 
 - **`--delay`** `<seconds>`:<br>
 Specifies delay between download requests in seconds. Default is no delay (0).
+
+- **`--verbose`**:<br>
+Increase output verbosity.
+  - non-verbose:
+  ```
+  -----> Worker: 2 - Attempt: [1/1] Snapshot ID: [23/81]
+  SUCCESS    -> 200 OK
+            -> URL:  https://web.archive.org/web/20240225193302id_/https://example.com/assets/css/custom-styles.css
+            -> FILE: /home/manjaro/Stuff/python-wayback-machine-downloader/waybackup_snapshots/example.com/20240225193302id_/assets/css/custom-styles.css
+  ```
+  - verbose:
+  ```
+  55/81 - W:2 - SUCCESS - 20240225193302 - https://example.com/assets/css/custom-styles.css
+  ```
 
 <!-- - **`--convert-links`**:<br>
 If set, all links in the downloaded files will be converted to local links. This is useful for offline browsing. The links are converted to the local path structure. Show output with `--verbosity trace`. -->

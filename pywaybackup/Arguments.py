@@ -36,11 +36,11 @@ class Arguments:
         behavior.add_argument('--log', action='store_true', help='save a log file into the output folder')
         behavior.add_argument('--progress', action='store_true', help='show a progress bar')
         behavior.add_argument('--no-redirect', action='store_true', help='do not follow redirects by archive.org')
-        behavior.add_argument('--verbose', action='store_true', help='overwritten by progress - gives detailed output')
         behavior.add_argument('--retry', type=int, default=0, metavar="", help='retry failed downloads (opt tries as int, else infinite)')
         behavior.add_argument('--workers', type=int, default=1, metavar="", help='number of workers (simultaneous downloads)')
         # behavior.add_argument('--convert-links', action='store_true', help='Convert all links in the files to local paths. Requires -c/--current')
         behavior.add_argument('--delay', type=int, default=0, metavar="", help='delay between each download in seconds')
+        behavior.add_argument('--verbose', action='store_true', help='overwritten by progress - gives detailed output')
 
         special = parser.add_argument_group('special')
         special.add_argument('--reset', action='store_true', help='reset the job and ignore existing cdx/db/csv files')
