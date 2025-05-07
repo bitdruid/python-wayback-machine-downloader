@@ -112,14 +112,14 @@ Specifies delay between download requests in seconds. Default is no delay (0).
 
 - **`--verbose`**:<br>
 Increase output verbosity.
-  - non-verbose:
+  - verbose:
   ```
   -----> Worker: 2 - Attempt: [1/1] Snapshot ID: [23/81]
-  SUCCESS    -> 200 OK
+  SUCCESS   -> 200 OK
             -> URL:  https://web.archive.org/web/20240225193302id_/https://example.com/assets/css/custom-styles.css
             -> FILE: /home/manjaro/Stuff/python-wayback-machine-downloader/waybackup_snapshots/example.com/20240225193302id_/assets/css/custom-styles.css
   ```
-  - verbose:
+  - non-verbose:
   ```
   55/81 - W:2 - SUCCESS - 20240225193302 - https://example.com/assets/css/custom-styles.css
   ```
