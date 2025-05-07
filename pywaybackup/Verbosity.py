@@ -1,4 +1,6 @@
 from tqdm import tqdm
+from typing import Union 
+
 
 
 class Verbosity:
@@ -28,7 +30,7 @@ class Verbosity:
             cls.log.close()
 
     @classmethod
-    def write(cls, verbose: bool = None, content: str | list = None):
+    def write(cls, verbose: bool = None, content: Union[str, list] = None):
         """
         Writes log entries to stdout or logfile based on verbosity level and progress-bar status.
 
