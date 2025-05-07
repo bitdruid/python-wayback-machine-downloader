@@ -90,7 +90,7 @@ def query_list(csvfile: str, cdxfile: str,queryrange: int,limit: int,start: int,
     def run_query(cdxfile: str, cdxquery: str) -> None:
         try:
             with open(cdxfile, "w", encoding="utf-8") as cdxfile_io:
-                with requests.get(cdxquery, stream=True, timeout=10) as r:
+                with requests.get(cdxquery, stream=True) as r:
                     r.raise_for_status()
                     with tqdm(unit="B", unit_scale=True, desc="download cdx".ljust(15)) as pbar:
                         for chunk in r.iter_content(chunk_size=8192):
