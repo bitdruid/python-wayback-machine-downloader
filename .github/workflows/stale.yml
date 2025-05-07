@@ -16,5 +16,6 @@ jobs:
           days-before-issue-stale: 30
           days-before-issue-close: 14
           stale-issue-label: "stale"
+          exempt-all-assignees: true
           stale-issue-message: "This issue is marked as stale because there was no activity for 30 days."
           close-issue-message: "This issue has been closed because there has been no activity for 14 days while it was marked as stale."
