@@ -29,7 +29,7 @@ class Converter:
 
 
     @classmethod
-    def links(cls, filepath, status_message=None):
+    def links(cls, filepath, status_content=None):
         """
         Convert all links in a HTML / CSS / JS file to local paths.
         """
@@ -72,7 +72,7 @@ class Converter:
             if original_url.startswith("//"):
                 external = True
             if external:
-                status_message.trace(status="", type=f"{count}/{len(links)}", message="External url")
+                status_message.trace(status="", info=f"{count}/{len(links)}", content="External url")
                 return original_url
 
             # convert the url to a relative path to the local root (download dir) if it's a valid path, else return the original url
@@ -87,7 +87,7 @@ class Converter:
                 if original_url.startswith("../"): # if file is already ../ check if it's not too many steps up
                     original_url = f"{cls.define_root_steps(filepath)}{original_url.split('../')[-1].lstrip('/')}"
             else:
-                status_message.trace(status="", type="", message=f"{count}/{len(links)}: URL is not a valid path")
+                status_message.trace(status="", info="", content=f"{count}/{len(links)}: URL is not a valid path")
 
             return original_url
 
@@ -158,24 +158,24 @@ class Converter:
 
         if os.path.isfile(filepath):
             if magic.from_file(filepath, mime=True).split("/")[1] == "javascript":
-                status_message.trace(status="Error", type="", message="JS-file is not supported")
+                status_message.trace(status="Error", info="", content="JS-file is not supported")
                 return
             try:
-                with open(filepath, "r") as file:
+                with open(filepath, "r", encoding="utf-8") as file:
                     domain = config.domain
                     content = file.read()
                     links = extract_urls(content)
-                    status_message.store(message=f"\n-----> Convert: [{len(links)}] links in file")
+                    status_message.store(verbose=True, content=f"\n-----> Convert: [{len(links)}] links in file")
                     count = 1
                     for original_link in links:
-                        status_message.trace(status="ORIG", type=f"{count}/{len(links)}", message=original_link)
+                        status_message.trace(status="ORIG", info=f"{count}/{len(links)}", content=original_link)
                         new_link = local_url(original_link, domain, count)
                         if new_link != original_link:
-                            status_message.trace(status="CONV", type=f"{count}/{len(links)}", message=new_link)
+                            status_message.trace(status="CONV", info=f"{count}/{len(links)}", content=new_link)
                         content = content.replace(original_link, new_link)
                         count += 1
-                    file = open(filepath, "w")
+                    file = open(filepath, "w", encoding="utf-8")
                     file.write(content)
                     file.close()
             except UnicodeDecodeError:
-                status_message.trace(status="Error", type="", message="Could not decode file to convert links")
+                status_message.trace(status="Error", info="", content="Could not decode file to convert links")

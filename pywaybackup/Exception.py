@@ -15,19 +15,16 @@ class Exception:
 
     @classmethod
     def init(cls, output=None, command=None):
-        sys.excepthook = (
-            cls.exception_handler
-        )  # set custom exception handler (uncaught exceptions)
+        sys.excepthook = cls.exception_handler  # set custom exception handler (uncaught exceptions)
         cls.output = output
         cls.command = command
 
     @classmethod
     def exception(cls, message: str, e: Exception, tb=None):
         custom_tb = sys.exc_info()[-1] if tb is None else tb
-        original_tb = cls.relativate_path(
-            "".join(traceback.format_exception(type(e), e, e.__traceback__))
-        )
+        original_tb = cls.relativate_path("".join(traceback.format_exception(type(e), e, e.__traceback__)))
         exception_message = f"-------------------------\n!-- Exception: {message}\n"
+        local_vars = {}
         if custom_tb is not None:
             while custom_tb.tb_next:  # loop to last traceback frame
                 custom_tb = custom_tb.tb_next
@@ -53,14 +50,14 @@ class Exception:
         # print(f"Full traceback:\n{original_tb}")
         if cls.new_debug:  # new run, overwrite file
             cls.new_debug = False
-            f = open(debug_file, "w")
+            f = open(debug_file, "w", encoding="utf-8")
             f.write("-------------------------\n")
             f.write(f"Version: {version('pywaybackup')}\n")
             f.write("-------------------------\n")
             f.write(f"Command: {cls.command}\n")
             f.write("-------------------------\n\n")
         else:  # current run, append to file
-            f = open(debug_file, "a")
+            f = open(debug_file, "a", encoding="utf-8")
         f.write(datetime.now().strftime("%Y-%m-%d %H:%M:%S") + "\n")
         f.write(exception_message + "\n")
         f.write("!-- Local Variables:\n")
@@ -75,16 +72,16 @@ class Exception:
         f.close()
 
     @classmethod
-    def relativate_path(cls, input: str) -> str:
+    def relativate_path(cls, input_str: str) -> str:
         try:
             path_pattern = re.compile(r'File "([^"]+)"')
-            if os.path.isfile(input):  # case single path
-                return os.path.relpath(input, os.getcwd())
+            if os.path.isfile(input_str):  # case single path
+                return os.path.relpath(input_str, os.getcwd())
             input_modified = ""
-            input_lines = input.split("\n")
+            input_lines = input_str.split("\n")
             if len(input_lines) == 1:  # case single line
-                return input
-            for line in input.split("\n"):  # case multiple lines
+                return input_str
+            for line in input_str.split("\n"):  # case multiple lines
                 match = path_pattern.search(line)
                 if match:
                     original_path = match.group(1)
@@ -93,13 +90,11 @@ class Exception:
                 input_modified += line + "\n"
             return input_modified
         except ValueError:
-            return input
+            return input_str
 
     @staticmethod
     def exception_handler(exception_type, exception, traceback):
         if issubclass(exception_type, KeyboardInterrupt):
             sys.__excepthook__(exception_type, exception, traceback)
             return
-        Exception.exception(
-            "UNCAUGHT EXCEPTION", exception, traceback
-        )  # uncaught exceptions also with custom scheme
+        Exception.exception("UNCAUGHT EXCEPTION", exception, traceback)  # uncaught exceptions also with custom scheme

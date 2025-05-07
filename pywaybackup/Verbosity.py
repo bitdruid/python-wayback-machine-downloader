@@ -1,33 +1,26 @@
 from tqdm import tqdm
 
+
 class Verbosity:
+    """
+    A class to manage verbosity levels, logging, progress and output.
+    """
 
-    LEVELS = ["trace", "info"]
-    level = None
-
-    mode = None
-    args = None
+    verbose = False
 
     PROGRESS = None
     pbar = None
 
     log = None
 
-    #stdout = None
-
     @classmethod
-    def init(cls, progress=None, log=None, verbosity=None):
-        cls.level = verbosity if verbosity in cls.LEVELS else "info"
-        cls.log = open(log, "w") if log else None
+    def init(cls, verbose: bool = False, progress=None, log=None):
+        cls.verbose = verbose
+        cls.log = open(log, "w", encoding="utf-8") if log else None
         cls.PROGRESS = progress
-        # if progress:
-        #     cls.PROGRESS = True
-        #     cls.stdout = sys.stdout
-        #     sys.stdout = open(os.devnull, "w")
 
     @classmethod
     def fini(cls):
-        #sys.stdout = cls.stdout
         if cls.PROGRESS:
             if cls.pbar is not None:
                 cls.pbar.close()
@@ -35,87 +28,63 @@ class Verbosity:
             cls.log.close()
 
     @classmethod
-    def write(cls, status="", type="", message=""):
+    def write(cls, verbose: bool = None, content: str | list = None):
         """
-        Write a log line based on the provided status, type, and message.
+        Writes log entries to stdout or logfile based on verbosity level and progress-bar status.
+
+        Determines if the message should be printed based on verbosity level.
+        - If None, the message is always printed.
         
-        Args:
-            status (str): The status of the log line. (e.g. "SUCCESS", "REDIRECT")
-            type (str): The type of the log line. (e.g. "URL", "FILE")
-            message (str): The message to be logged. (e.g. actual url, file path)
+        Content is a list and is filtered and concatenated to a single block of loglines.
+        It should contain dictionaries with keys:
+        - 'verbose': The verbosity level of the message (True/False).
+        - 'content': The actual message to be logged.
         """
-        logline = cls.generate_logline(status=status, type=type, message=message)
-        if not cls.PROGRESS:
-            if logline:
+        if isinstance(content, str):
+            content = [{"verbose": verbose, "content": content}]
+        logline = cls.filter_verbosity(content)
+        if logline:
+            if cls.log:
+                cls.log.write(logline + "\n")
+                cls.log.flush()
+            if not cls.PROGRESS:
                 print(logline)
-        if cls.log:
-            cls.log.write(logline + "\n")
-            cls.log.flush()
 
     @classmethod
     def progress(cls, progress: int, maxval: int = None):
+        """
+        Updates the progress bar.
+
+        - bar is initialized if calling with progress=0
+        - bar is updated if calling with progress > 0
+
+        """
         if cls.PROGRESS:
             if cls.pbar is None and progress == 0:
-                cls.pbar = tqdm(total=maxval, desc="download file".ljust(15), unit=" snapshot", ascii="░▒█", bar_format='{l_bar}{bar:50}{r_bar}{bar:-10b}')
+                cls.pbar = tqdm(
+                    total=maxval,
+                    desc="download file".ljust(15),
+                    unit=" snapshot",
+                    ascii="░▒█",
+                    bar_format="{l_bar}{bar:50}{r_bar}{bar:-10b}",
+                )
             if cls.pbar is not None and progress is not None and progress > 0:
                 cls.pbar.update(progress)
                 cls.pbar.refresh()
 
     @classmethod
-    def generate_logline(cls, status: str, type: str, message: str):
+    def filter_verbosity(cls, message: list):
         """
-        STATUS     ➔ TYPE: MESSAGE
+        Removes messages from the list that do not match the verbosity level.
+
+        - True if message is verbose None (print always)
+        - True if message has same verbosity as configured
+
+        Returns a string containing the filtered messages, joined by newlines.
         """
-
-        if not status and not type:
-            return message
-        
-        status_length = 10
-        type_length = 5
-
-        status = status.ljust(status_length)
-        status = f"{status} -> "
-
-        type = type.ljust(type_length)
-        type = f"{type}: " if type.strip() else ""
-
-        log_entry = f"{status}{type}{message}"
-
-        return log_entry
-
-class Message(Verbosity):
-    """
-    Message class representing a message-buffer for the Verbosity class.
-
-    If a message should be stored and stacked for later output.
-    """
-
-    def __init__(self):
-        self.message = {}
-
-    def __str__(self):
-        return str(self.message)
-
-    def store(self, status: str = "", type: str = "", message: str = "", level: str = "info"):
-        if level not in self.message:
-            self.message[level] = []
-        self.message[level].append(super().generate_logline(status, type, message))
-        #super().write(message=f"Stored message: {status} -> {type}: {message}")
-
-    def clear(self):
-        self.message = {}
-
-    def write(self):
-        for level in self.message:
-            if self.check_level(level):
-                for message in self.message[level]:
-                    super().write(message=message)
-        self.clear()
-            
-    def check_level(self, level: str):
-        return super().LEVELS.index(level) >= super().LEVELS.index(self.level)
-
-    def trace(self, status: str = "", type: str = "", message: str = ""):
-        self.store(status, type, message, "trace")
-
-        
+        filtered_message = []
+        for msg in message:
+            verbose = msg.get("verbose", None)
+            if verbose is None or verbose == cls.verbose:
+                filtered_message.append(msg["content"])
+        return "\n".join(filtered_message)
