@@ -47,7 +47,7 @@ def startup():
 
 
 
-def query_list(csvfile: str, cdxfile: str,queryrange: int,limit: int,start: int,end: int,explicit: bool,filter_filetype: list):
+def query_list(csvfile: str, cdxfile: str,queryrange: int,limit: int,start: int,end: int,explicit: bool,filter_filetype: list,filter_statuscode: list):
     
     def inject(cdxinject: str) -> bool:
         if os.path.isfile(cdxinject):
@@ -60,7 +60,7 @@ def query_list(csvfile: str, cdxfile: str,queryrange: int,limit: int,start: int,
             )
             return False
         
-    def create_query(queryrange: int, limit: int, filter_filetype: list, start: int, end: int, explicit: bool) -> str:
+    def create_query(queryrange: int, limit: int, filter_filetype: list, filter_statuscode: list, start: int, end: int, explicit: bool) -> str:
         if queryrange:
             query_range = f"&from={datetime.now().year - queryrange}"
         else:
@@ -81,9 +81,10 @@ def query_list(csvfile: str, cdxfile: str,queryrange: int,limit: int,start: int,
 
         limit = f"&limit={limit}" if limit else ""
 
+        filter_statuscode = (f"&filter=statuscode:({'|'.join(filter_statuscode)})$" if filter_statuscode else "")
         filter_filetype = (f"&filter=original:.*\\.({'|'.join(filter_filetype)})$" if filter_filetype else "")
 
-        cdxquery = f"https://web.archive.org/cdx/search/cdx?output=json&url={cdx_url}{query_range}&fl=timestamp,digest,mimetype,statuscode,original{limit}{filter_filetype}"
+        cdxquery = f"https://web.archive.org/cdx/search/cdx?output=json&url={cdx_url}{query_range}&fl=timestamp,digest,mimetype,statuscode,original{limit}{filter_filetype}{filter_statuscode}"
 
         return cdxquery
     
@@ -111,7 +112,7 @@ def query_list(csvfile: str, cdxfile: str,queryrange: int,limit: int,start: int,
 
     cdxinject = inject(cdxfile)
     if not cdxinject:
-        cdxquery = create_query(queryrange, limit, filter_filetype, start, end, explicit)
+        cdxquery = create_query(queryrange, limit, filter_filetype, filter_statuscode, start, end, explicit)
         cdxfile =  run_query(cdxfile, cdxquery)
     sc.process_cdx(cdxfile, csvfile)
 
@@ -131,7 +132,7 @@ def download_list(output, retry, no_redirect, delay, workers):
     threads = []
     for i in range(workers):
         worker = Worker(id=i + 1)
-        vb.write(verbose=True, content=f"\n-----> Starting worker: {worker.id}")
+        vb.write(verbose=True, content=f"\n-----> Starting Worker: {worker.id}")
         thread = threading.Thread(target=download_loop, args=(worker, output, retry, no_redirect, delay))
         threads.append(thread)
         thread.start()
@@ -163,7 +164,7 @@ def download_loop(worker, output, retry, no_redirect, delay):
             
             while worker.attempt <= retry_max_attempt: # retry as given by user
 
-                worker.message.store(verbose=True, content=f"\n-----> Worker: {worker.id} - Attempt: [{worker.attempt}/{retry_max_attempt}] Snapshot ID: [{worker.rowid}/{sc.SNAPSHOT_TOTAL}]")
+                worker.message.store(verbose=True, content=f"\n-----> Worker: {worker.id} - Attempt: [{worker.attempt}/{retry_max_attempt}] Snapshot ID: [{worker.counter}/{sc.SNAPSHOT_TOTAL}]")
                 download_attempt = 1
                 download_max_attempt = 3
                 
@@ -180,11 +181,11 @@ def download_loop(worker, output, retry, no_redirect, delay):
                                 download_attempt += 1  # try again 2x with same connection
                                 vb.write(
                                     verbose=True,
-                                    content=f"\n-----> Worker: {worker.id} - Attempt: [{worker.attempt}/{retry_max_attempt}] Snapshot ID: [{worker.rowid}/{sc.SNAPSHOT_TOTAL}] - {e.__class__.__name__} - requesting again in 50 seconds...",
+                                    content=f"\n-----> Worker: {worker.id} - Attempt: [{worker.attempt}/{retry_max_attempt}] Snapshot ID: [{worker.counter}/{sc.SNAPSHOT_TOTAL}] - {e.__class__.__name__} - requesting again in 50 seconds...",
                                 )
                                 vb.write(
                                     verbose=False,
-                                    content=f"Worker: {worker.id} - Snapshot {worker.rowid}/{sc.SNAPSHOT_TOTAL} - requesting again in 50 seconds...",
+                                    content=f"Worker: {worker.id} - Snapshot {worker.counter}/{sc.SNAPSHOT_TOTAL} - requesting again in 50 seconds...",
                                 )
                                 time.sleep(50)
                                 continue
@@ -195,17 +196,17 @@ def download_loop(worker, output, retry, no_redirect, delay):
                                 download_attempt = download_max_attempt  # try again 1x with new connection
                                 vb.write(
                                     verbose=True,
-                                    content=f"\n-----> Worker: {worker.id} - Attempt: [{worker.attempt}/{retry_max_attempt}] Snapshot ID: [{worker.rowid}/{sc.SNAPSHOT_TOTAL}] - {e.__class__.__name__} - renewing connection in 15 seconds...",
+                                    content=f"\n-----> Worker: {worker.id} - Attempt: [{worker.attempt}/{retry_max_attempt}] Snapshot ID: [{worker.counter}/{sc.SNAPSHOT_TOTAL}] - {e.__class__.__name__} - renewing connection in 15 seconds...",
                                 )
                                 vb.write(
                                     verbose=False,
-                                    content=f"Worker: {worker.id} - Snapshot {worker.rowid}/{sc.SNAPSHOT_TOTAL} - renewing connection in 15 seconds...",
+                                    content=f"Worker: {worker.id} - Snapshot {worker.counter}/{sc.SNAPSHOT_TOTAL} - renewing connection in 15 seconds...",
                                 )
                                 time.sleep(15)
                                 worker.refresh_connection()
                                 continue
                         else:
-                            ex.exception(f"\n-----> Worker: {worker.id} - Attempt: [{worker.attempt}/{retry_max_attempt}] Snapshot ID: [{worker.rowid}/{sc.SNAPSHOT_TOTAL}] - EXCEPTION - {e}", e=e)
+                            ex.exception(f"\n-----> Worker: {worker.id} - Attempt: [{worker.attempt}/{retry_max_attempt}] Snapshot ID: [{worker.counter}/{sc.SNAPSHOT_TOTAL}] - EXCEPTION - {e}", e=e)
                             worker.attempt = retry_max_attempt
                             break
 

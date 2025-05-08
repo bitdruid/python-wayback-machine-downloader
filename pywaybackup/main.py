@@ -29,7 +29,7 @@ def main():
         archive_download.startup()
 
         try:
-            archive_download.query_list(config.csvfile, config.cdxfile, config.range, config.limit, config.start, config.end, config.explicit, config.filetype)
+            archive_download.query_list(config.csvfile, config.cdxfile, config.range, config.limit, config.start, config.end, config.explicit, config.filetype, config.statuscode)
             archive_download.download_list(config.output, config.retry, config.no_redirect, config.delay, config.workers)
         except KeyboardInterrupt:
             print("\nInterrupted by user\n")
@@ -38,7 +38,7 @@ def main():
 
         except Exception as e:
             config.keep = True
-            ex.exception(content="", e=e)
+            ex.exception(message="", e=e)
 
         finally:
             sc.csv_create(config.csvfile)

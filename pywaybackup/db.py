@@ -19,6 +19,7 @@ class Database:
         filter_complete INTEGER
     )"""        
     snapshot_table = """CREATE TABLE IF NOT EXISTS snapshot_tbl (
+        counter INT,
         timestamp TEXT,
         url_archive TEXT,
         url_origin TEXT,
@@ -28,6 +29,18 @@ class Database:
         file TEXT,
         UNIQUE (url_archive)
     )"""
+    csv_view = """CREATE VIEW IF NOT EXISTS csv_view
+        AS
+            SELECT 
+                timestamp AS timestamp,
+                url_archive AS url_archive,
+                url_origin AS url_origin,
+                redirect_url AS redirect_url,
+                redirect_timestamp AS redirect_timestamp,
+                response AS response,
+                file AS file
+        FROM snapshot_tbl;
+    """
 
     QUERY_EXIST = False
     QUERY_PROGRESS = "0 / 0"
@@ -38,6 +51,7 @@ class Database:
         db = Database()
         db.cursor.execute(cls.waybackup_table)
         db.cursor.execute(cls.snapshot_table)
+        db.cursor.execute(cls.csv_view)
         db.cursor.execute("SELECT query_identifier FROM waybackup_table WHERE query_identifier = ?", (query_identifier,))
         if db.cursor.fetchone():
             cls.QUERY_EXIST = True

@@ -22,11 +22,10 @@ class SnapshotCollection:
     SNAPSHOT_UNHANDLED = 0  # all unhandled snapshots in the db (without response)
     SNAPSHOT_HANDLED = 0    # snapshots with a response
 
-    SNAPSHOT_REMOVALS = 0   # not to be utilized (total - unhandled - skip)
-    SNAPSHOT_FAULTY = 0     # snapshots which could not be loaded from cdx file into db
     FILTER_DUPLICATES = 0   # with identical url_archive
     FILTER_MODE = 0         # all snapshots filtered by the MODE (last or first)
     FILTER_SKIP = 0         # content of the csv file
+    FILTER_RESPONSE = 0     # snapshots which could not be loaded from cdx file into db or 404
 
     @classmethod
     def init(cls, mode):
@@ -83,21 +82,19 @@ class SnapshotCollection:
         cls.SNAPSHOT_UNHANDLED = cls.count_totals(unhandled=True)  # count all unhandled in db
         cls.SNAPSHOT_HANDLED = cls.count_totals(handled=True)  # count all handled in db
         cls.SNAPSHOT_TOTAL = cls.count_totals(total=True)  # count all in db
-        cls.SNAPSHOT_REMOVALS = cls.CDX_TOTAL - cls.SNAPSHOT_UNHANDLED - cls.FILTER_SKIP  # count all removals
 
         vb.write(content="\nSnapshot calculation:")
         vb.write(content=f"-----> {'in CDX file'.ljust(18)}: {cls.CDX_TOTAL:,}")
 
-        if cls.FILTER_DUPLICATES == 0 and cls.FILTER_MODE == 0:
-            vb.write(content=f"-----> {'total removals'.ljust(18)}: {cls.SNAPSHOT_REMOVALS:,}")
-        if cls.SNAPSHOT_FAULTY > 0:
-            vb.write(content=f"-----> {'removed faulty'.ljust(18)}: {cls.SNAPSHOT_FAULTY}")
         if cls.FILTER_DUPLICATES > 0:
             vb.write(content=f"-----> {'removed duplicates'.ljust(18)}: {cls.FILTER_DUPLICATES:,}")
         if cls.FILTER_MODE > 0:
             vb.write(content=f"-----> {'removed versions'.ljust(18)}: {cls.FILTER_MODE:,}")
+
         if cls.FILTER_SKIP > 0:
-            vb.write(content=f"-----> {'skipped existing'.ljust(18)}: {cls.FILTER_SKIP:,}")
+            vb.write(content=f"-----> {'skip existing'.ljust(18)}: {cls.FILTER_SKIP:,}")
+        if cls.FILTER_RESPONSE > 0:
+            vb.write(content=f"-----> {'skip statuscode'.ljust(18)}: {cls.FILTER_RESPONSE}")
 
         vb.write(content=f"\n-----> {'to utilize'.ljust(18)}: {cls.SNAPSHOT_UNHANDLED:,}")
 
@@ -112,7 +109,23 @@ class SnapshotCollection:
         - Removes duplicates by url_archive (same timestamp and url_origin)
         - Filters the snapshots by the given mode (last or first)
         """
+
+        def _parse_line(line):
+            line = json.loads(line)
+            line = {
+                "timestamp": line[0],
+                "digest": line[1],
+                "mimetype": line[2],
+                "statuscode": line[3],
+                "origin": line[4],
+            }
+            url_archive = f"https://web.archive.org/web/{line['timestamp']}id_/{line['origin']}"
+            statuscode = line["statuscode"] if line["statuscode"] in ("301", "404") else None
+            return (line["timestamp"], url_archive, line["origin"], statuscode)
+
+
         vb.write(verbose=None, content="\nInserting CDX data into database...")
+
         with open(cdxfile, "r", encoding="utf-8") as f, tqdm(
             unit=" lines",
             total=cls.CDX_TOTAL,
@@ -123,11 +136,9 @@ class SnapshotCollection:
             line_batchsize = 2500
             line_batch = []
             total_inserted = 0
-            faulty_lines = 0
-            query_duplicates = (
-                """INSERT OR IGNORE INTO snapshot_tbl (timestamp, url_archive, url_origin) VALUES (?, ?, ?)"""
-            )
+            query_duplicates = """INSERT OR IGNORE INTO snapshot_tbl (timestamp, url_archive, url_origin, response) VALUES (?, ?, ?, ?)"""
             first_line = True
+
             for line in f:
                 if first_line:
                     first_line = False
@@ -137,29 +148,15 @@ class SnapshotCollection:
                     line = line.rsplit("]", 1)[0]
                 if line.endswith(","):
                     line = line.rsplit(",", 1)[0]
-                try:
-                    line = json.loads(line)
-                    line = {
-                        "timestamp": line[0],
-                        "digest": line[1],
-                        "mimetype": line[2],
-                        "status": line[3],
-                        "url": line[4],
-                    }
-                    url_archive = f"https://web.archive.org/web/{line['timestamp']}id_/{line['url']}"
-                    line_batch.append((line["timestamp"], url_archive, line["url"]))
-                    if len(line_batch) >= line_batchsize:
-                        total_inserted += len(line_batch)
-                        cls.db.cursor.executemany(query_duplicates, line_batch)
-                        line_batch = []
-                        pbar.update(line_batchsize)
-                except json.JSONDecodeError as e:
-                    faulty_lines += 1
-                    vb.write(
-                        verbose=None,
-                        content=f"JSONDecodeError: {e} on line {cls.CDX_TOTAL}",
-                    )
-                    continue
+
+                line_batch.append(_parse_line(line))
+
+                if len(line_batch) >= line_batchsize:
+                    total_inserted += len(line_batch)
+                    cls.db.cursor.executemany(query_duplicates, line_batch)
+                    line_batch = []
+                    pbar.update(line_batchsize)
+
             if line_batch:
                 total_inserted += len(line_batch)
                 cls.db.cursor.executemany(query_duplicates, line_batch)
@@ -167,8 +164,7 @@ class SnapshotCollection:
 
         cls.db.conn.commit()
 
-        cls.SNAPSHOT_FAULTY = faulty_lines
-        cls.FILTER_DUPLICATES = cls.CDX_TOTAL - cls.count_totals(unhandled=True) + cls.SNAPSHOT_FAULTY
+        cls.FILTER_DUPLICATES = cls.CDX_TOTAL - cls.count_totals(total=True)
 
 
 
@@ -181,8 +177,11 @@ class SnapshotCollection:
         """
         row_batchsize = 2500
         cls.db.cursor.execute("UPDATE snapshot_tbl SET response = NULL WHERE response = 'LOCK'") # reset locked to unprocessed
-        cls.db.cursor.execute("SELECT * FROM snapshot_tbl WHERE response IS NOT NULL") # only write processed snapshots
+        cls.db.cursor.execute("SELECT * FROM csv_view WHERE response IS NOT NULL") # only write processed snapshots
         headers = [description[0] for description in cls.db.cursor.description]
+        if "snapshot_id" in headers:
+            snapshot_id_index = headers.index("snapshot_id")
+            headers.pop(snapshot_id_index)
         with open(csvfile, "w", encoding="utf-8") as f:
             writer = csv.writer(f)
             writer.writerow(headers)
@@ -203,13 +202,15 @@ class SnapshotCollection:
         Create indexes for the snapshot table.
         """
         # index for filtering last snapshots
-        cls.db.cursor.execute(
-            "CREATE INDEX IF NOT EXISTS idx_snapshot_tbl_url_origin_timestamp_desc ON snapshot_tbl(url_origin, timestamp DESC);"
-        )
+        if cls.MODE_LAST:
+            cls.db.cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_snapshot_tbl_url_origin_timestamp_desc ON snapshot_tbl(url_origin, timestamp DESC);"
+            )
         # index for filtering first snapshots
-        cls.db.cursor.execute(
-            "CREATE INDEX IF NOT EXISTS idx_snapshot_tbl_url_origin_timestamp_asc ON snapshot_tbl(url_origin, timestamp ASC);"
-        )
+        if cls.MODE_FIRST:
+            cls.db.cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_snapshot_tbl_url_origin_timestamp_asc ON snapshot_tbl(url_origin, timestamp ASC);"
+            )
         # index for skippable snapshots
         cls.db.cursor.execute(
             "CREATE INDEX IF NOT EXISTS idx_snapshot_tbl_timestamp_url_origin_response ON snapshot_tbl(timestamp, url_origin);"
@@ -247,6 +248,26 @@ class SnapshotCollection:
                 """
             )
             cls.FILTER_MODE = cls.db.cursor.rowcount
+            
+        cls.db.cursor.execute(
+        """
+        SELECT COUNT(*) FROM snapshot_tbl WHERE response IN ('404', '301')
+        """
+        )
+        cls.FILTER_RESPONSE = cls.db.cursor.fetchone()[0]
+
+        cls.db.cursor.execute(
+            """
+            WITH numbered AS (
+                SELECT rowid, ROW_NUMBER() OVER (ORDER BY rowid) AS rn
+                FROM snapshot_tbl
+            )
+            UPDATE snapshot_tbl
+            SET counter = (
+                SELECT rn FROM numbered WHERE numbered.rowid = snapshot_tbl.rowid
+            );
+            """
+        )
 
         cls.db.conn.commit()
 
@@ -259,13 +280,6 @@ class SnapshotCollection:
         """
         If an existing csv-file for the job exists, the responses will be overwritten by the csv-content.
         """
-        cls.db.cursor.execute(
-            """
-            UPDATE snapshot_tbl
-            SET response = NULL
-            """
-        )
-        cls.db.conn.commit()
         if not os.path.isfile(csvfile):
             return
         else:
@@ -336,7 +350,7 @@ class SnapshotCollection:
         """
         Modify a snapshot-row in the snapshot table.
         """
-        query = f"UPDATE snapshot_tbl SET {column} = ? WHERE rowid = ?"
+        query = f"UPDATE snapshot_tbl SET {column} = ? WHERE counter = ?"
         connection.cursor.execute(query, (value, snapshot_id))
         connection.conn.commit()
 
