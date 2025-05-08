@@ -37,7 +37,7 @@ class Worker:
         self.snapshot = sc.get_snapshot(self.db)
         if not self.snapshot:
             return
-        self.rowid = self.snapshot["rowid"]
+        self.counter = self.snapshot["counter"]
         self.timestamp = self.snapshot["timestamp"]
         self.url_archive = self.snapshot["url_archive"]
         self.url_origin = self.snapshot["url_origin"]
@@ -64,7 +64,7 @@ class Worker:
         if self.redirect_timestamp is None and value is None:
             return
         self._redirect_url = value
-        sc.modify_snapshot(self.db, self.rowid, "redirect_url", value)
+        sc.modify_snapshot(self.db, self.counter, "redirect_url", value)
 
     @property
     def redirect_timestamp(self):
@@ -75,7 +75,7 @@ class Worker:
         if self.redirect_url is None and value is None:
             return
         self._redirect_timestamp = value
-        sc.modify_snapshot(self.db, self.rowid, "redirect_timestamp", value)
+        sc.modify_snapshot(self.db, self.counter, "redirect_timestamp", value)
 
     @property
     def response(self):
@@ -86,7 +86,7 @@ class Worker:
         if self.redirect_url is None and value is None:
             return
         self._response = value
-        sc.modify_snapshot(self.db, self.rowid, "response", value)
+        sc.modify_snapshot(self.db, self.counter, "response", value)
 
     @property
     def file(self):
@@ -97,7 +97,7 @@ class Worker:
         if self.redirect_url is None and value is None:
             return
         self._file = value
-        sc.modify_snapshot(self.db, self.rowid, "file", value)
+        sc.modify_snapshot(self.db, self.counter, "file", value)
 
 
 class Message(Worker):
@@ -141,14 +141,15 @@ class Message(Worker):
                 "verbose": True,
                 "content": _format_verbose({"result": result, "info": info, "content": content}),
             }
+            self.buffer.append(self.message)
         if verbose is False or verbose is None:
             result = result + " - " if result else ""
             content = content + " - " if content else ""
             self.message = {
             "verbose": False,
-            "content": f"{self.worker.rowid}/{sc.SNAPSHOT_TOTAL} - W:{self.worker.id} - {result}{content}{self.worker.timestamp} - {self.worker.url_origin}",
+            "content": f"{self.worker.counter}/{sc.SNAPSHOT_TOTAL} - W:{self.worker.id} - {result}{content}{self.worker.timestamp} - {self.worker.url_origin}",
             }
-        self.buffer.append(self.message)
+            self.buffer.append(self.message)
 
     def write(self):
         """
