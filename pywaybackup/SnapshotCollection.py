@@ -70,15 +70,21 @@ class SnapshotCollection:
             cls.db.set_index_complete()
         else: 
             vb.write(verbose=True, content="\nAlready indexed snapshots")
-        if cls.MODE_LAST or cls.MODE_FIRST:
-            if not cls.db.get_filter_complete():
-                vb.write(content="\nFiltering snapshots (last or first version)...")
-                cls.filter_snapshots() # filter: keep newest or oldest based on MODE
-                cls.db.set_filter_complete()
-            else:
-                vb.write(verbose=True, content="\nAlready filtered snapshots (last or first version)")
+        if not cls.db.get_filter_complete():
+            vb.write(content="\nFiltering snapshots (last or first version)...")
+            cls.filter_snapshots() # filter: keep newest or oldest based on MODE
+            cls.db.set_filter_complete()
+        else:
+            vb.write(verbose=True, content="\nAlready filtered snapshots (last or first version)")
 
         cls.skip_set(csvfile)  # set response to NULL or read csv file and write values into db
+
+
+
+
+
+    @classmethod
+    def calculate(cls):
         cls.SNAPSHOT_UNHANDLED = cls.count_totals(unhandled=True)  # count all unhandled in db
         cls.SNAPSHOT_HANDLED = cls.count_totals(handled=True)  # count all handled in db
         cls.SNAPSHOT_TOTAL = cls.count_totals(total=True)  # count all in db
@@ -96,7 +102,8 @@ class SnapshotCollection:
         if cls.FILTER_RESPONSE > 0:
             vb.write(content=f"-----> {'skip statuscode'.ljust(18)}: {cls.FILTER_RESPONSE}")
 
-        vb.write(content=f"\n-----> {'to utilize'.ljust(18)}: {cls.SNAPSHOT_UNHANDLED:,}")
+        if cls.SNAPSHOT_UNHANDLED > 0:
+            vb.write(content=f"\n-----> {'to utilize'.ljust(18)}: {cls.SNAPSHOT_UNHANDLED:,}")
 
 
 
@@ -179,9 +186,6 @@ class SnapshotCollection:
         cls.db.cursor.execute("UPDATE snapshot_tbl SET response = NULL WHERE response = 'LOCK'") # reset locked to unprocessed
         cls.db.cursor.execute("SELECT * FROM csv_view WHERE response IS NOT NULL") # only write processed snapshots
         headers = [description[0] for description in cls.db.cursor.description]
-        if "snapshot_id" in headers:
-            snapshot_id_index = headers.index("snapshot_id")
-            headers.pop(snapshot_id_index)
         with open(csvfile, "w", encoding="utf-8") as f:
             writer = csv.writer(f)
             writer.writerow(headers)
@@ -341,9 +345,9 @@ class SnapshotCollection:
         if unhandled:
             return cls.db.cursor.execute("SELECT COUNT(rowid) FROM snapshot_tbl WHERE response IS NULL").fetchone()[0]
         if success:
-            return cls.db.cursor.execute("SELECT COUNT(rowid) FROM snapshot_tbl WHERE file IS NOT NULL").fetchone()[0]
+            return cls.db.cursor.execute("SELECT COUNT(rowid) FROM snapshot_tbl WHERE file IS NOT NULL AND file != ''").fetchone()[0]
         if fail:
-            return cls.db.cursor.execute("SELECT COUNT(rowid) FROM snapshot_tbl WHERE file IS NULL").fetchone()[0]
+            return cls.db.cursor.execute("SELECT COUNT(rowid) FROM snapshot_tbl WHERE file IS NULL OR file = ''").fetchone()[0]
 
     @staticmethod
     def modify_snapshot(connection, snapshot_id, column, value):

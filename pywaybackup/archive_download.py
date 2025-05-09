@@ -115,6 +115,7 @@ def query_list(csvfile: str, cdxfile: str,queryrange: int,limit: int,start: int,
         cdxquery = create_query(queryrange, limit, filter_filetype, filter_statuscode, start, end, explicit)
         cdxfile =  run_query(cdxfile, cdxquery)
     sc.process_cdx(cdxfile, csvfile)
+    sc.calculate()
 
 
 
