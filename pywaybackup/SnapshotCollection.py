@@ -70,13 +70,12 @@ class SnapshotCollection:
             cls.db.set_index_complete()
         else: 
             vb.write(verbose=True, content="\nAlready indexed snapshots")
-        if cls.MODE_LAST or cls.MODE_FIRST:
-            if not cls.db.get_filter_complete():
-                vb.write(content="\nFiltering snapshots (last or first version)...")
-                cls.filter_snapshots() # filter: keep newest or oldest based on MODE
-                cls.db.set_filter_complete()
-            else:
-                vb.write(verbose=True, content="\nAlready filtered snapshots (last or first version)")
+        if not cls.db.get_filter_complete():
+            vb.write(content="\nFiltering snapshots (last or first version)...")
+            cls.filter_snapshots() # filter: keep newest or oldest based on MODE
+            cls.db.set_filter_complete()
+        else:
+            vb.write(verbose=True, content="\nAlready filtered snapshots (last or first version)")
 
         cls.skip_set(csvfile)  # set response to NULL or read csv file and write values into db
         cls.SNAPSHOT_UNHANDLED = cls.count_totals(unhandled=True)  # count all unhandled in db

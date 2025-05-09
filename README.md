@@ -274,5 +274,3 @@ Exceptions will be written into `waybackup_error.log` (each run overwrites the f
 
 I'm always happy for some feature requests to improve the usability of this tool.
 Feel free to give suggestions and report issues. Project is still far from being perfect.
-
-> Please PR from dev into dev.
