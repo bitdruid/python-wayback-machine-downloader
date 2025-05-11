@@ -3,7 +3,7 @@ name: build an publish
 on:
   push:
     branches:
-      - test
+      - main
   workflow_dispatch:
 
 jobs:
@@ -23,14 +23,16 @@ jobs:
       - name: Build a binary wheel and a source tarball
         run: |
           python3 -m build
-      - name: Publish distribution 📦 to Test PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          password: ${{ secrets.testpypi }}
-          repository_url: https://test.pypi.org/legacy/
-          skip_existing: true
-      # - name: Publish distribution 📦 to PyPI
-      #   if: startsWith(github.ref, 'refs/tags')
+      # - name: Publish to Test PyPI
       #   uses: pypa/gh-action-pypi-publish@release/v1
       #   with:
-      #     password: ${{ secrets.PYPI_API_TOKEN }}
+      #     password: ${{ secrets.testpypi }}
+      #     repository_url: https://test.pypi.org/legacy/
+      #     skip-existing: true
+      - name: Publish to PyPI
+        if: startsWith(github.ref, 'refs/tags')
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.pypi_pywaybackup }}
+          repository_url: https://upload.pypi.org/legacy/
+          skip-existing: true
