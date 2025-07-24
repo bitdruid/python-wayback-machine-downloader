@@ -2,9 +2,7 @@ import json
 import csv
 import os
 
-from tqdm import tqdm
-
-from pywaybackup.Verbosity import Verbosity as vb
+from pywaybackup.Verbosity import Verbosity as vb, Progressbar
 from pywaybackup.helper import url_split
 from pywaybackup.db import Database
 
@@ -21,6 +19,8 @@ class SnapshotCollection:
 
     SNAPSHOT_UNHANDLED = 0  # all unhandled snapshots in the db (without response)
     SNAPSHOT_HANDLED = 0    # snapshots with a response
+
+    SNAPSHOT_FAULTY = 0     # error while parsing cdx line
 
     FILTER_DUPLICATES = 0   # with identical url_archive
     FILTER_MODE = 0         # all snapshots filtered by the MODE (last or first)
@@ -105,6 +105,9 @@ class SnapshotCollection:
         if cls.SNAPSHOT_UNHANDLED > 0:
             vb.write(content=f"\n-----> {'to utilize'.ljust(18)}: {cls.SNAPSHOT_UNHANDLED:,}")
 
+        if cls.SNAPSHOT_FAULTY > 0:
+            vb.write(content=f"\n-----> {'!!! parsing error'.ljust(18)}: {cls.SNAPSHOT_FAULTY:,}")
+
 
 
 
@@ -133,19 +136,20 @@ class SnapshotCollection:
 
         vb.write(verbose=None, content="\nInserting CDX data into database...")
 
-        with open(cdxfile, "r", encoding="utf-8") as f, tqdm(
+        progress = Progressbar(
             unit=" lines",
             total=cls.CDX_TOTAL,
-            desc="insert cdx".ljust(15),
+            desc="process cdx".ljust(15),
             ascii="░▒█",
             bar_format="{l_bar}{bar:50}{r_bar}{bar:-10b}",
-        ) as pbar:
-            line_batchsize = 2500
-            line_batch = []
-            total_inserted = 0
-            query_duplicates = """INSERT OR IGNORE INTO snapshot_tbl (timestamp, url_archive, url_origin, response) VALUES (?, ?, ?, ?)"""
-            first_line = True
+        )
+        line_batchsize = 2500
+        line_batch = []
+        total_inserted = 0
+        query_duplicates = """INSERT OR IGNORE INTO snapshot_tbl (timestamp, url_archive, url_origin, response) VALUES (?, ?, ?, ?)"""
+        first_line = True
 
+        with open(cdxfile, "r", encoding="utf-8") as f:
             for line in f:
                 if first_line:
                     first_line = False
@@ -156,18 +160,22 @@ class SnapshotCollection:
                 if line.endswith(","):
                     line = line.rsplit(",", 1)[0]
 
-                line_batch.append(_parse_line(line))
+                try:
+                    line_batch.append(_parse_line(line))
+                except json.decoder.JSONDecodeError:
+                    cls.SNAPSHOT_FAULTY += 1
+                    continue
 
                 if len(line_batch) >= line_batchsize:
                     total_inserted += len(line_batch)
                     cls.db.cursor.executemany(query_duplicates, line_batch)
                     line_batch = []
-                    pbar.update(line_batchsize)
+                    progress.update(line_batchsize)
 
             if line_batch:
                 total_inserted += len(line_batch)
                 cls.db.cursor.executemany(query_duplicates, line_batch)
-                pbar.update(len(line_batch))
+                progress.update(len(line_batch))
 
         cls.db.conn.commit()
 

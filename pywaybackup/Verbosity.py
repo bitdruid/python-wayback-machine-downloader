@@ -1,7 +1,5 @@
 from tqdm import tqdm
-from typing import Union 
-
-
+from typing import Union
 
 
 class Verbosity:
@@ -17,7 +15,8 @@ class Verbosity:
     log = None
 
     @classmethod
-    def init(cls, verbose: bool = False, progress=None, log=None):
+    def init(cls, silent: bool = False, verbose: bool = False, progress=None, log=None):
+        cls.silent = silent
         cls.verbose = verbose
         cls.log = open(log, "w", encoding="utf-8") if log else None
         cls.PROGRESS = progress
@@ -37,21 +36,22 @@ class Verbosity:
 
         Determines if the message should be printed based on verbosity level.
         - If None, the message is always printed.
-        
+
         Content is a list and is filtered and concatenated to a single block of loglines.
         It should contain dictionaries with keys:
         - 'verbose': The verbosity level of the message (True/False).
         - 'content': The actual message to be logged.
         """
-        if isinstance(content, str):
-            content = [{"verbose": verbose, "content": content}]
-        logline = cls.filter_verbosity(content)
-        if logline:
-            if cls.log:
-                cls.log.write(logline + "\n")
-                cls.log.flush()
-            if not cls.PROGRESS:
-                print(logline)
+        if not cls.silent:
+            if isinstance(content, str):
+                content = [{"verbose": verbose, "content": content}]
+            logline = cls.filter_verbosity(content)
+            if logline:
+                if cls.log:
+                    cls.log.write(logline + "\n")
+                    cls.log.flush()
+                if not cls.PROGRESS:
+                    print(logline)
 
     @classmethod
     def progress(cls, progress: int, maxval: int = None):
@@ -62,18 +62,17 @@ class Verbosity:
         - bar is updated if calling with progress > 0
 
         """
-        if cls.PROGRESS:
-            if cls.pbar is None and progress == 0:
-                cls.pbar = tqdm(
-                    total=maxval,
-                    desc="download file".ljust(15),
-                    unit=" snapshot",
-                    ascii="░▒█",
-                    bar_format="{l_bar}{bar:50}{r_bar}{bar:-10b}",
-                )
-            if cls.pbar is not None and progress is not None and progress > 0:
-                cls.pbar.update(progress)
-                cls.pbar.refresh()
+        if not cls.silent:
+            if cls.PROGRESS:
+                if cls.pbar is None and progress == 0:
+                    cls.pbar = Progressbar(
+                        unit=" snapshot",
+                        desc="download file".ljust(15),
+                        total=maxval, ascii="░▒█",
+                        bar_format="{l_bar}{bar:50}{r_bar}{bar:-10b}"
+                        )
+                if cls.pbar is not None and progress is not None and progress > 0:
+                    cls.pbar.update(progress)
 
     @classmethod
     def filter_verbosity(cls, message: list):
@@ -91,3 +90,31 @@ class Verbosity:
             if verbose is None or verbose == cls.verbose:
                 filtered_message.append(msg["content"])
         return "\n".join(filtered_message)
+
+
+class Progressbar(Verbosity):
+    def __init__(self, unit: str, desc: str, unit_scale: bool = False, total: int = None, ascii: str = None, bar_format: str = None):
+        if not super().silent:
+            self.unit = unit
+            self.desc = desc
+            self.unit_scale = unit_scale
+            self.total = total
+            self.ascii = ascii
+            self.bar_format = bar_format
+            self.pbar = tqdm(unit=self.unit, desc=self.desc, unit_scale=self.unit_scale, total=self.total, ascii=self.ascii, bar_format=self.bar_format)
+
+    def update(self, progress: int):
+        """
+        Updates the progress bar with the given progress value.
+        """
+        if not super().silent:
+            if self.pbar is not None:
+                self.pbar.update(progress)
+                self.pbar.refresh()
+
+    def close(self):
+        """
+        Close the progress bar.
+        """
+        if self.pbar is not None:
+            self.pbar.close()

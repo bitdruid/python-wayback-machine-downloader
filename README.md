@@ -38,12 +38,50 @@ This tool allows you to download content from the Wayback Machine (archive.org).
 <br>
 <br>
 
-## Arguments
+## import
+
+You can import pywaybackup into your own scripts and run it. Args are the same as cli.
+
+Additional args:
+- `silent` (default True): If True, suppresses all output to the console.
+- `debug` (default False): If True, disables writing errors to the error log file.
+
+```python
+from pywaybackup import PyWayBackup
+
+backup = PyWayBackup(
+  url="https://example.com",
+  all=True,
+  start="20200101",
+  end="20201231",
+  silent=False,
+  debug=True,
+  log=True,
+  keep=True
+)
+
+backup.run()
+backup_paths = backup.paths(rel=True)
+print(backup_paths)
+```
+output:
+```bash
+{
+  'snapshots': 'output/example.com',
+  'cdxfile': 'output/waybackup_example.cdx',
+  'dbfile': 'output/waybackup_example.com.db',
+  'csvfile': 'output/waybackup_https.example.com.csv',
+  'log': 'output/waybackup_example.com.log',
+  'debug': 'output/waybackup_error.log'
+}
+```
+
+## cli
 
 - `-h`, `--help`: Show the help message and exit.
 - `-v`, `--version`: Show information about the tool and exit.
 
-### Required
+#### Required
 
 - **`-u`**, **`--url`**:<br>
   The URL of the web page to download. This argument is required.
@@ -68,8 +106,8 @@ This tool allows you to download content from the Wayback Machine (archive.org).
   Limits the amount of snapshots to query from the CDX server. If an existing CDX file is injected, the limit will have no effect. So you would need to set `--keep`.
 
 - **Range Selection:**<br>
-  Specify the range in years or a specific timestamp either start, end, or both. If you specify the `range` argument, the `start` and `end` arguments will be ignored. Format for timestamps: YYYYMMDDhhmmss. You can only give a year or increase specificity by going through the timestamp starting on the left.<br>
-  (year 2019, year 2019, year+month+day 20190101, year+month+day+hour 2019010112)
+  Specify the range in years or a specific timestamp either start, end, or both. If you specify the `range`, the `start` and `end` will be ignored. Format for timestamps: YYYYMMDDhhmmss. You can only give a year or increase specificity by going through the timestamp starting on the left.<br>
+  (year 2019, year+month+day 20190101, year+month+day+hour 2019010112)
 
   - **`-r`**, **`--range`**:<br>
     Specify the range in years for which to search and download snapshots.
@@ -105,9 +143,6 @@ This tool allows you to download content from the Wayback Machine (archive.org).
 - **`--verbose`**:<br>
   Increase output verbosity.
 
-<!-- - **`--verbosity`** `<level>`:<br>
-Sets verbosity level. Options are `info`and `trace`. Default is `info`. -->
-
 - **`--log`** <!-- `<path>` -->:<br>
   Saves a log file into the output-dir. Named as `waybackup_<sanitized_url>.log`.
 
@@ -125,9 +160,6 @@ Sets verbosity level. Options are `info`and `trace`. Default is `info`. -->
 
 - **`--delay`** `<seconds>`:<br>
   Specifies delay between download requests in seconds. Default is no delay (0).
-
-<!-- - **`--convert-links`**:<br>
-If set, all links in the downloaded files will be converted to local links. This is useful for offline browsing. The links are converted to the local path structure. Show output with `--verbosity trace`. -->
 
 #### Job Handling:
 
@@ -226,9 +258,7 @@ your/path/waybackup_snapshots/
 
 ### CSV
 
-Each snapshot is stored with the following keys/values. These are either stored in a sqlite database while the download is running or saved into a CSV file after the download is finished.
-
-For download queries:
+The CSV contains a snapshot per row:
 
 ```
 [

@@ -14,11 +14,10 @@ from importlib.metadata import version
 import requests
 from tqdm import tqdm
 
-from pywaybackup.Arguments import Configuration as config
 from pywaybackup.Exception import Exception as ex
 from pywaybackup.SnapshotCollection import SnapshotCollection as sc
 from pywaybackup.Worker import Worker
-from pywaybackup.Verbosity import Verbosity as vb
+from pywaybackup.Verbosity import Verbosity as vb, Progressbar
 from pywaybackup.db import Database
 from pywaybackup.helper import check_nt, move_index, url_get_timestamp
 
@@ -47,8 +46,20 @@ def startup():
 
 
 
-def query_list(csvfile: str, cdxfile: str,queryrange: int,limit: int,start: int,end: int,explicit: bool,filter_filetype: list,filter_statuscode: list):
-    
+def query_list(
+    csvfile: str,
+    cdxfile: str,
+    queryrange: int,
+    limit: int,
+    start: int,
+    end: int,
+    explicit: bool,
+    filter_filetype: list,
+    filter_statuscode: list,
+    domain: str = None,
+    subdir: str = None,
+    filename: str = None,
+) -> None:
     def inject(cdxinject: str) -> bool:
         if os.path.isfile(cdxinject):
             vb.write(content="\nExisting CDX file found")
@@ -59,8 +70,19 @@ def query_list(csvfile: str, cdxfile: str,queryrange: int,limit: int,start: int,
                 content="\nQuerying snapshots...",
             )
             return False
-        
-    def create_query(queryrange: int, limit: int, filter_filetype: list, filter_statuscode: list, start: int, end: int, explicit: bool) -> str:
+
+    def create_query(
+        queryrange: int,
+        limit: int,
+        filter_filetype: list,
+        filter_statuscode: list,
+        start: int,
+        end: int,
+        explicit: bool,
+        domain: str = None,
+        subdir: str = None,
+        filename: str = None,
+    ) -> str:
         if queryrange:
             query_range = f"&from={datetime.now().year - queryrange}"
         else:
@@ -70,34 +92,33 @@ def query_list(csvfile: str, cdxfile: str,queryrange: int,limit: int,start: int,
             if end:
                 query_range += f"&to={end}"
 
-        cdx_url = config.domain or ""
+        cdx_url = domain or ""
 
-        if config.subdir:
-            cdx_url += f"/{config.subdir}"
-        if config.filename:
-            cdx_url += f"/{config.filename}"
+        if subdir:
+            cdx_url += f"/{subdir}"
+        if filename:
+            cdx_url += f"/{filename}"
         if not explicit:
             cdx_url += "/*"
 
         limit = f"&limit={limit}" if limit else ""
 
-        filter_statuscode = (f"&filter=statuscode:({'|'.join(filter_statuscode)})$" if filter_statuscode else "")
-        filter_filetype = (f"&filter=original:.*\\.({'|'.join(filter_filetype)})$" if filter_filetype else "")
+        filter_statuscode = f"&filter=statuscode:({'|'.join(filter_statuscode)})$" if filter_statuscode else ""
+        filter_filetype = f"&filter=original:.*\\.({'|'.join(filter_filetype)})$" if filter_filetype else ""
 
         cdxquery = f"https://web.archive.org/cdx/search/cdx?output=json&url={cdx_url}{query_range}&fl=timestamp,digest,mimetype,statuscode,original{limit}{filter_filetype}{filter_statuscode}"
-
         return cdxquery
-    
+
     def run_query(cdxfile: str, cdxquery: str) -> None:
         try:
             with open(cdxfile, "w", encoding="utf-8") as cdxfile_io:
                 with requests.get(cdxquery, stream=True) as r:
                     r.raise_for_status()
-                    with tqdm(unit="B", unit_scale=True, desc="download cdx".ljust(15)) as pbar:
-                        for chunk in r.iter_content(chunk_size=8192):
-                            if chunk:
-                                pbar.update(len(chunk))
-                                cdxfile_io.write(chunk.decode("utf-8"))
+                    progress = Progressbar(unit="B", unit_scale=True, desc="download cdx".ljust(15))
+                    for chunk in r.iter_content(chunk_size=8192):
+                        if chunk:
+                            progress.update(len(chunk))
+                            cdxfile_io.write(chunk.decode("utf-8"))
 
         except requests.exceptions.ConnectionError:
             vb.write(content="\nCONNECTION REFUSED -> could not query cdx server (max retries exceeded)")
@@ -112,7 +133,7 @@ def query_list(csvfile: str, cdxfile: str,queryrange: int,limit: int,start: int,
 
     cdxinject = inject(cdxfile)
     if not cdxinject:
-        cdxquery = create_query(queryrange, limit, filter_filetype, filter_statuscode, start, end, explicit)
+        cdxquery = create_query(queryrange, limit, filter_filetype, filter_statuscode, start, end, explicit, domain, subdir, filename)
         cdxfile =  run_query(cdxfile, cdxquery)
     sc.process_cdx(cdxfile, csvfile)
     sc.calculate()
