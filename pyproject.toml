@@ -7,7 +7,7 @@ packages = ["pywaybackup"]
 
 [project]
 name = "pywaybackup"
-version = "3.3.1"
+version = "3.4.0"
 description = "Query and download archive.org as simple as possible."
 authors = [
     { name = "bitdruid", email = "bitdruid@outlook.com" }
