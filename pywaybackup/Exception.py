@@ -14,8 +14,9 @@ class Exception:
     command = None
 
     @classmethod
-    def init(cls, output=None, command=None):
+    def init(cls, debug=None, output=None, command=None):
         sys.excepthook = cls.exception_handler  # set custom exception handler (uncaught exceptions)
+        cls.debug = debug
         cls.output = output
         cls.command = command
 
@@ -44,32 +45,30 @@ class Exception:
             exception_message += "!-- Traceback is None\n"
         exception_message += f"!-- Description: {e}\n-------------------------"
         print(exception_message)
-        debug_file = os.path.join(cls.output, "waybackup_error.log")
-        print(f"Exception log: {debug_file}")
-        # print("-------------------------")
-        # print(f"Full traceback:\n{original_tb}")
-        if cls.new_debug:  # new run, overwrite file
-            cls.new_debug = False
-            f = open(debug_file, "w", encoding="utf-8")
+        if cls.debug:
+            print(f"Exception log: {cls.debug}")
+            if cls.new_debug:  # new run, overwrite file
+                cls.new_debug = False
+                f = open(cls.debug, "w", encoding="utf-8")
+                f.write("-------------------------\n")
+                f.write(f"Version: {version('pywaybackup')}\n")
+                f.write("-------------------------\n")
+                f.write(f"Command: {cls.command}\n")
+                f.write("-------------------------\n\n")
+            else:  # current run, append to file
+                f = open(cls.debug, "a", encoding="utf-8")
+            f.write(datetime.now().strftime("%Y-%m-%d %H:%M:%S") + "\n")
+            f.write(exception_message + "\n")
+            f.write("!-- Local Variables:\n")
+            for var_name, value in local_vars.items():
+                if var_name in ["status_message", "headers"]:
+                    continue
+                value = cls.relativate_path(str(value))
+                value = value[:666] + " ... " if len(value) > 666 else value
+                f.write(f"    -- {var_name} = {value}\n")
             f.write("-------------------------\n")
-            f.write(f"Version: {version('pywaybackup')}\n")
-            f.write("-------------------------\n")
-            f.write(f"Command: {cls.command}\n")
-            f.write("-------------------------\n\n")
-        else:  # current run, append to file
-            f = open(debug_file, "a", encoding="utf-8")
-        f.write(datetime.now().strftime("%Y-%m-%d %H:%M:%S") + "\n")
-        f.write(exception_message + "\n")
-        f.write("!-- Local Variables:\n")
-        for var_name, value in local_vars.items():
-            if var_name in ["status_message", "headers"]:
-                continue
-            value = cls.relativate_path(str(value))
-            value = value[:666] + " ... " if len(value) > 666 else value
-            f.write(f"    -- {var_name} = {value}\n")
-        f.write("-------------------------\n")
-        f.write(original_tb + "\n")
-        f.close()
+            f.write(original_tb + "\n")
+            f.close()
 
     @classmethod
     def relativate_path(cls, input_str: str) -> str:

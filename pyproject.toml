@@ -25,7 +25,7 @@ dependencies = [
 ]
 
 [project.scripts]
-waybackup = "pywaybackup.main:main"
+waybackup = "pywaybackup.main:cli"
 
 [project.urls]
 homepage = "https://github.com/bitdruid/python-wayback-machine-downloader"
