@@ -190,46 +190,45 @@ class PyWayBackup:
 
         if self.save:
             archive_save.save_page(self.url)
-            os._exit(1)
 
-        db.init(self.dbfile, self.query_identifier)
-        sc.init(self.mode)
+        else:
 
-        if not self.save:
-            archive_download.startup()
+            db.init(self.dbfile, self.query_identifier)
+            sc.init(self.mode)
 
-            try:
-                archive_download.query_list(
-                    self.csvfile,
-                    self.cdxfile,
-                    self.range,
-                    self.limit,
-                    self.start,
-                    self.end,
-                    self.explicit,
-                    self.filetype,
-                    self.statuscode,
-                    self.domain,
-                    self.subdir,
-                    self.filename,
-                )
-                archive_download.download_list(self.output, self.retry, self.no_redirect, self.delay, self.workers)
-            except KeyboardInterrupt:
-                print("\nInterrupted by user\n")
-                self.keep = True
-                signal.signal(signal.SIGINT, signal.SIG_IGN)
+            if not self.save:
+                archive_download.startup()
 
-            except Exception as e:
-                self.keep = True
-                ex.exception(message="", e=e)
+                try:
+                    archive_download.query_list(
+                        self.csvfile,
+                        self.cdxfile,
+                        self.range,
+                        self.limit,
+                        self.start,
+                        self.end,
+                        self.explicit,
+                        self.filetype,
+                        self.statuscode,
+                        self.domain,
+                        self.subdir,
+                        self.filename,
+                    )
+                    archive_download.download_list(self.output, self.retry, self.no_redirect, self.delay, self.workers)
+                except KeyboardInterrupt:
+                    print("\nInterrupted by user\n")
+                    self.keep = True
+                    signal.signal(signal.SIGINT, signal.SIG_IGN)
 
-            finally:
-                sc.csv_create(self.csvfile)
-                sc.fini()
-                vb.fini()
+                except Exception as e:
+                    self.keep = True
+                    ex.exception(message="", e=e)
 
-                if not self.keep:
-                    os.remove(self.dbfile) if os.path.exists(self.dbfile) else None
-                    os.remove(self.cdxfile) if os.path.exists(self.cdxfile) else None
+                finally:
+                    sc.csv_create(self.csvfile)
+                    sc.fini()
+                    vb.fini()
 
-                os._exit(1)
+                    if not self.keep:
+                        os.remove(self.dbfile) if os.path.exists(self.dbfile) else None
+                        os.remove(self.cdxfile) if os.path.exists(self.cdxfile) else None

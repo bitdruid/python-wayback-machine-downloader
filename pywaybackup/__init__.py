@@ -1,1 +1,1 @@
-from .PyWaybackup import PyWayBackup
+from .PyWayBackup import PyWayBackup
