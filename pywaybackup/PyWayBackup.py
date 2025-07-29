@@ -9,6 +9,7 @@ from pywaybackup.db import Database as db
 from pywaybackup.Verbosity import Verbosity as vb
 from pywaybackup.Exception import Exception as ex
 from pywaybackup.SnapshotCollection import SnapshotCollection as sc
+from pywaybackup.cdxfile import CDXquery, CDXfile
 
 class PyWayBackup:
     """
@@ -200,9 +201,8 @@ class PyWayBackup:
                 archive_download.startup()
 
                 try:
-                    archive_download.query_list(
-                        self.csvfile,
-                        self.cdxfile,
+                    cdxquery = CDXquery(
+                        self.url,
                         self.range,
                         self.limit,
                         self.start,
@@ -210,11 +210,12 @@ class PyWayBackup:
                         self.explicit,
                         self.filetype,
                         self.statuscode,
-                        self.domain,
-                        self.subdir,
-                        self.filename,
                     )
-                    archive_download.download_list(self.output, self.retry, self.no_redirect, self.delay, self.workers)
+                    cdx = CDXfile(self.cdxfile)
+                    cdx = cdx.query(cdxquery)
+                    if cdx:
+                        # snapshotcollection
+                        archive_download.download_list(self.output, self.retry, self.no_redirect, self.delay, self.workers)
                 except KeyboardInterrupt:
                     print("\nInterrupted by user\n")
                     self.keep = True
