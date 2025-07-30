@@ -5,6 +5,7 @@ import os
 from pywaybackup.Verbosity import Verbosity as vb, Progressbar
 from pywaybackup.helper import url_split
 from pywaybackup.db import Database
+from pywaybackup.files import CDXfile, CSVfile
 
 class SnapshotCollection:
     """
@@ -26,6 +27,42 @@ class SnapshotCollection:
     FILTER_MODE = 0         # all snapshots filtered by the MODE (last or first)
     FILTER_SKIP = 0         # content of the csv file
     FILTER_RESPONSE = 0     # snapshots which could not be loaded from cdx file into db or 404
+
+    def __init__(self, cdxfile:CDXfile, csvfile:CSVfile, mode:str):
+        self.cdxfile = cdxfile
+        self.csvfile = csvfile
+        self.db = Database()
+        if mode == "first": 
+            self.MODE_FIRST = 1
+        if mode == "last":
+            self.MODE_LAST = 1
+
+    def process_cdx(self):
+        """
+        Insert the content of the cdx file into the snapshot table.
+        """
+        line_count = sum(1 for _ in open(self.cdxfile, encoding="utf-8")) - 1
+        self.CDX_TOTAL = line_count
+        if not self.db.get_insert_complete():
+            self.insert_cdx(self.cdxfile)
+            self.db.set_insert_complete()
+        else: 
+            vb.write(verbose=True, content="\nAlready inserted CDX data into database")
+        if not self.db.get_index_complete():
+            vb.write(content="\nIndexing snapshots...")
+            self.index_snapshots() # create indexes for the snapshot table
+            self.db.set_index_complete()
+        else: 
+            vb.write(verbose=True, content="\nAlready indexed snapshots")
+        if not self.db.get_filter_complete():
+            vb.write(content="\nFiltering snapshots (last or first version)...")
+            self.filter_snapshots() # filter: keep newest or oldest based on MODE
+            self.db.set_filter_complete()
+        else:
+            vb.write(verbose=True, content="\nAlready filtered snapshots (last or first version)")
+
+        self.skip_set(self.csvfile)  # set response to NULL or read csv file and write values into db
+
 
     @classmethod
     def init(cls, mode):

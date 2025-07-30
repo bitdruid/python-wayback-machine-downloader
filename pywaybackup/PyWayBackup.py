@@ -9,7 +9,7 @@ from pywaybackup.db import Database as db
 from pywaybackup.Verbosity import Verbosity as vb
 from pywaybackup.Exception import Exception as ex
 from pywaybackup.SnapshotCollection import SnapshotCollection as sc
-from pywaybackup.cdxfile import CDXquery, CDXfile
+from pywaybackup.files import CDXquery, CDXfile
 
 class PyWayBackup:
     """
@@ -214,6 +214,8 @@ class PyWayBackup:
                     cdx = CDXfile(self.cdxfile)
                     cdx = cdx.query(cdxquery)
                     if cdx:
+                        import os
+                        os._exit(1)
                         # snapshotcollection
                         archive_download.download_list(self.output, self.retry, self.no_redirect, self.delay, self.workers)
                 except KeyboardInterrupt:
