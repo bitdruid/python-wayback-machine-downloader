@@ -1,3 +1,4 @@
+from typing import Iterator
 from dataclasses import dataclass, field
 
 import os
@@ -67,7 +68,23 @@ class File:
     def __init__(self, filepath: str):
         self.file = None
         self._filepath = filepath
+        self._file_handler = None
+        self._file_writer = None
         self._create(self._filepath)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self._close()
+
+    def _open(self, mode: str):
+        if not self._file_handler:
+            self._file_handler = open(self._filepath, mode, encoding="utf-8", newline="")
+
+    def _close(self):
+        if self._file_handler and not self._file_handler.closed:
+            self._file_handler.close()
 
     def _create(self, filepath):
         if not os.path.exists(filepath):
@@ -85,6 +102,10 @@ class File:
 class CDXfile(File):
     def __init__(self, filepath: str):
         super().__init__(filepath=filepath)
+
+    def __iter__(self):
+        self._open(mode="r")
+        return iter(self._file_handler)
 
     def query(self, query: CDXquery):
         try:
@@ -123,22 +144,10 @@ class CDXfile(File):
 class CSVfile(File):
     def __init__(self, filepath: str):
         super().__init__(filepath=filepath)
-        self._file_handler = None
-        self._file_writer = None
 
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        self._close()
-
-    def _open(self, mode: str):
-        if not self._file_handler:
-            self._file_handler = open(self._filepath, mode, encoding="utf-8", newline="")
-
-    def _close(self):
-        if self._file_handler and not self._file_handler.closed:
-            self._file_handler.close()
+    def __iter__(self):
+        self._open(mode="r")
+        return csv.DictReader(self._file_handler)
 
     def write_rows(self, rows: list):
         """
@@ -148,9 +157,9 @@ class CSVfile(File):
         self._file_writer = csv.writer(self._file_handler)
         self._file_writer.writerows(rows)
 
-    def fetch_content(self) -> csv.DictReader:
+    def count_rows(self) -> str:
         """
-        Fetch the content as csv-iterator.
+        Count the containing rows.
         """
         self._open(mode="r")
-        return csv.DictReader(self._file_handler)
+        return sum(1 for _ in self._file_handler) - 1

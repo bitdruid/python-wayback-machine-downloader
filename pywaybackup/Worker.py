@@ -3,7 +3,7 @@ import http.client
 from pywaybackup.db import Database
 from pywaybackup.Verbosity import Verbosity as vb
 
-from pywaybackup.SnapshotCollection import SnapshotCollection as sc
+from pywaybackup.SnapshotCollection3 import SnapshotCollection as sc
 
 
 class Worker:

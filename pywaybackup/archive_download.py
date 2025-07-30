@@ -10,7 +10,7 @@ from urllib.parse import urljoin
 from importlib.metadata import version
 
 from pywaybackup.Exception import Exception as ex
-from pywaybackup.SnapshotCollection import SnapshotCollection as sc
+from pywaybackup.SnapshotCollection3 import SnapshotCollection as sc
 from pywaybackup.Worker import Worker
 from pywaybackup.Verbosity import Verbosity as vb
 from pywaybackup.db import Database

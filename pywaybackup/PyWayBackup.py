@@ -8,8 +8,9 @@ import pywaybackup.archive_save as archive_save
 from pywaybackup.db import Database as db
 from pywaybackup.Verbosity import Verbosity as vb
 from pywaybackup.Exception import Exception as ex
-from pywaybackup.SnapshotCollection import SnapshotCollection as sc
-from pywaybackup.files import CDXquery, CDXfile
+from pywaybackup.SnapshotCollection3 import SnapshotCollection as sc
+from pywaybackup.SnapshotCollection import SnapshotCollection
+from pywaybackup.files import CDXquery, CDXfile, CSVfile
 
 class PyWayBackup:
     """
@@ -129,8 +130,6 @@ class PyWayBackup:
             self.output = os.path.join(os.getcwd(), "waybackup_snapshots")
         if self.metadata is None:
             self.metadata = self.output
-        os.makedirs(self.output, exist_ok=True) if not self.save else None
-        os.makedirs(self.metadata, exist_ok=True) if not self.save else None
 
         if self.all:
             self.mode = "all"
@@ -154,10 +153,6 @@ class PyWayBackup:
         self.log = os.path.join(base_path, f"{base_name}.log") if self.log else None
         self.debug = os.path.join(base_path, "waybackup_error.log") if self.debug else None
 
-        if self.reset:
-            os.remove(self.cdxfile) if os.path.isfile(self.cdxfile) else None
-            os.remove(self.dbfile) if os.path.isfile(self.dbfile) else None
-            os.remove(self.csvfile) if os.path.isfile(self.csvfile) else None
 
     def paths(self, rel: bool = False) -> dict:
         """
@@ -188,50 +183,60 @@ class PyWayBackup:
         """Run the PyWayBackup process with the given configuration."""
         ex.init(self.debug, self.output, self.command)
         vb.init(self.silent, self.verbose, self.progress, self.log)
-
+        
         if self.save:
             archive_save.save_page(self.url)
 
         else:
 
+            os.makedirs(self.output, exist_ok=True)
+            os.makedirs(self.metadata, exist_ok=True)
+            if self.reset:
+                if os.path.isfile(self.cdxfile):
+                    os.remove(self.cdxfile)
+                if os.path.isfile(self.dbfile):
+                    os.remove(self.dbfile)
+                if os.path.isfile(self.csvfile):
+                    os.remove(self.csvfile)
+
             db.init(self.dbfile, self.query_identifier)
             sc.init(self.mode)
 
-            if not self.save:
-                archive_download.startup()
+            archive_download.startup()
 
-                try:
-                    cdxquery = CDXquery(
-                        self.url,
-                        self.range,
-                        self.limit,
-                        self.start,
-                        self.end,
-                        self.explicit,
-                        self.filetype,
-                        self.statuscode,
-                    )
-                    cdx = CDXfile(self.cdxfile)
-                    cdx = cdx.query(cdxquery)
-                    if cdx:
-                        import os
-                        os._exit(1)
-                        # snapshotcollection
-                        archive_download.download_list(self.output, self.retry, self.no_redirect, self.delay, self.workers)
-                except KeyboardInterrupt:
-                    print("\nInterrupted by user\n")
-                    self.keep = True
-                    signal.signal(signal.SIGINT, signal.SIG_IGN)
+            try:
+                cdxquery = CDXquery(
+                    self.url,
+                    self.range,
+                    self.limit,
+                    self.start,
+                    self.end,
+                    self.explicit,
+                    self.filetype,
+                    self.statuscode,
+                )
+                cdx = CDXfile(self.cdxfile)
+                if cdx.query(cdxquery):
+                    csv = CSVfile(self.csvfile)
+                    collection = SnapshotCollection(cdxfile=cdx, csvfile=csv, mode=self.mode)
+                    collection.load()
+                    collection.print_calculation()
+                    
+                    archive_download.download_list(self.output, self.retry, self.no_redirect, self.delay, self.workers)
+            except KeyboardInterrupt:
+                print("\nInterrupted by user\n")
+                self.keep = True
+                signal.signal(signal.SIGINT, signal.SIG_IGN)
 
-                except Exception as e:
-                    self.keep = True
-                    ex.exception(message="", e=e)
+            except Exception as e:
+                self.keep = True
+                ex.exception(message="", e=e)
 
-                finally:
-                    sc.csv_create(self.csvfile)
-                    sc.fini()
-                    vb.fini()
+            finally:
+                sc.csv_create(self.csvfile)
+                collection.close()
+                vb.fini()
 
-                    if not self.keep:
-                        os.remove(self.dbfile) if os.path.exists(self.dbfile) else None
-                        os.remove(self.cdxfile) if os.path.exists(self.cdxfile) else None
+                if not self.keep:
+                    os.remove(self.dbfile) if os.path.exists(self.dbfile) else None
+                    os.remove(self.cdxfile) if os.path.exists(self.cdxfile) else None
