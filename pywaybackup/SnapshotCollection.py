@@ -19,7 +19,6 @@ class Snapshot:
         self._response = None
         self._file = None
 
-
         self._row = self.fetch()
         if self._row:
             self.counter = self._row["counter"]
@@ -30,14 +29,6 @@ class Snapshot:
             self.redirect_timestamp = self._row["redirect_timestamp"]
             self.response = self._row["response"]
             self.file = self._row["file"]
-
-    def modify(self, column, value):
-        """
-        Modify a snapshot-row in the snapshot table.
-        """
-        query = f"UPDATE snapshot_tbl SET {column} = ? WHERE counter = ?"
-        self._db.cursor.execute(query, (value, self.counter))
-        self._db.conn.commit()
 
     def fetch(self):
         """
@@ -59,6 +50,14 @@ class Snapshot:
         row = self._db.cursor.fetchone()
         self._db.conn.commit()
         return row
+
+    def modify(self, column, value):
+        """
+        Modify the snapshot in the database.
+        """
+        query = f"UPDATE snapshot_tbl SET {column} = ? WHERE counter = ?"
+        self._db.cursor.execute(query, (value, self.counter))
+        self._db.conn.commit()
 
     def create_output(self):
         """
@@ -156,8 +155,20 @@ class SnapshotCollection:
 
     def close(self):
         """
-        Close up the collection as work is done.
+        Close up the collection, write result into csv, totals into db.
         """
+        self.db.cursor.execute("UPDATE snapshot_tbl SET response = NULL WHERE response = 'LOCK'")  # reset locked to unprocessed
+        self.db.cursor.execute("SELECT * FROM csv_view WHERE response IS NOT NULL")  # only write processed snapshots
+        headers = [description[0] for description in self.db.cursor.description]
+        row_batchsize = 2500
+        with self.csvfile as f:
+            f.write_rows(headers)
+            while True:
+                rows = self.db.cursor.fetchmany(row_batchsize)
+                if not rows:
+                    break
+                f.write_rows(rows)
+        self.db.conn.commit()
         self.db.write_progress(self._snapshot_handled, self._snapshot_total)
         self.db.conn.close()
 
@@ -165,9 +176,10 @@ class SnapshotCollection:
         """
         Insert the content of the cdx file into the snapshot table.
         """
-        line_count = self.csvfile.count_rows()
+        line_count = self.cdxfile.count_rows()
         self._cdx_total = line_count
         if not self.db.get_insert_complete():
+            print("inserting...")
             self._insert_cdx(self.cdxfile)
             self.db.set_insert_complete()
         else:
@@ -411,6 +423,9 @@ class SnapshotCollection:
             if self._snapshot_faulty > 0:
                 vb.write(content=f"\n-----> {'!!! parsing error'.ljust(18)}: {self._snapshot_faulty:,}")
 
+        if self._snapshot_unhandled == 0:
+            self._status = 2
+            vb.write(content="\nNothing to download")
         if self._status == 2:
             success = __count(self, success=True)
             fail = __count(self, fail=True)

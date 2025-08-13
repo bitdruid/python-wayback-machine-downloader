@@ -29,8 +29,7 @@ class Downloader:
 
     def run(self, SnapshotCollection: SnapshotCollection):
         self.sc = SnapshotCollection
-        if self.sc._snapshot_unhandled == 0:
-            vb.write(content="\nNothing to download")
+        if self.sc._status == 2:
             return
         self.spawn_workers()
 

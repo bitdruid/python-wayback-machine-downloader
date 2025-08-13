@@ -261,7 +261,7 @@ class PyWayBackup:
                     self.statuscode,
                 )
                 cdx = CDXfile(self.cdxfile)
-                if cdx.request(cdxquery):
+                if cdx.request_snapshots(cdxquery):
                     csv = CSVfile(self.csvfile)
                     collection = SnapshotCollection(cdxfile=cdx, csvfile=csv, mode=self.mode)
                     collection.load()
@@ -276,7 +276,6 @@ class PyWayBackup:
                         workers=self.workers,
                     )
                     downloader.run(SnapshotCollection=collection)
-                    collection.print_calculation()
 
             except KeyboardInterrupt:
                 print("\nInterrupted by user\n")
@@ -288,7 +287,6 @@ class PyWayBackup:
                 ex.exception(message="", e=e)
 
             finally:
-                #sc.csv_create(self.csvfile)
                 collection.close()
                 vb.fini()
 

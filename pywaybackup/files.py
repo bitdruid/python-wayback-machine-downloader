@@ -78,6 +78,7 @@ class File:
     def _close(self):
         if self._file_handler and not self._file_handler.closed:
             self._file_handler.close()
+        self._file_handler = None
 
     def _create(self, filepath):
         if not os.path.exists(filepath):
@@ -101,7 +102,7 @@ class CDXfile(File):
         self._open(mode="r")
         return iter(self._file_handler)
 
-    def request(self, query: CDXquery):
+    def request_snapshots(self, query: CDXquery):
         try:
             if not self.new:
                 return True
@@ -126,7 +127,16 @@ class CDXfile(File):
             ex.exception(message="\nUnknown error while querying cdx server", e=e)
             os.remove(self._filepath)
             return False
-
+        
+    def count_rows(self) -> str:
+        """
+        Count the containing rows.
+        """
+        self._open(mode="r")
+        count = sum(1 for _ in self._file_handler) - 1
+        self._close()
+        return count
+    
     # cdxinject = inject(cdxfile)
     # if not cdxinject:
     #     cdxquery = create_query(queryrange, limit, filter_filetype, filter_statuscode, start, end, explicit, domain, subdir, filename)
@@ -150,10 +160,5 @@ class CSVfile(File):
         self._open(mode="w")
         self._file_writer = csv.writer(self._file_handler)
         self._file_writer.writerows(rows)
+        self._close()
 
-    def count_rows(self) -> str:
-        """
-        Count the containing rows.
-        """
-        self._open(mode="r")
-        return sum(1 for _ in self._file_handler) - 1
