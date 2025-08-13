@@ -10,6 +10,7 @@ from pywaybackup.Verbosity import Verbosity as vb
 from pywaybackup.Exception import Exception as ex
 from pywaybackup.SnapshotCollection3 import SnapshotCollection as sc
 from pywaybackup.SnapshotCollection import SnapshotCollection
+from pywaybackup.archive_download import Downloader
 from pywaybackup.files import CDXquery, CDXfile, CSVfile
 
 class PyWayBackup:
@@ -216,11 +217,13 @@ class PyWayBackup:
                     self.statuscode,
                 )
                 cdx = CDXfile(self.cdxfile)
-                if cdx.query(cdxquery):
+                if cdx.request(cdxquery):
                     csv = CSVfile(self.csvfile)
                     collection = SnapshotCollection(cdxfile=cdx, csvfile=csv, mode=self.mode)
                     collection.load()
                     collection.print_calculation()
+
+                    downloader = Downloader()
                     
                     archive_download.download_list(self.output, self.retry, self.no_redirect, self.delay, self.workers)
             except KeyboardInterrupt:

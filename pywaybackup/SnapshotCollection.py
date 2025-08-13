@@ -76,7 +76,7 @@ class SnapshotCollection:
     """
 
     def __init__(self, cdxfile: CDXfile, csvfile: CSVfile, mode: str):
-        self._status = False  # False = unprocessed, True = processed
+        self._status = 0  # 0 = unprocessed, 1 = inserted, 2 = downloaded
         self._mode_first = False
         self._mode_last = False
 
@@ -133,7 +133,7 @@ class SnapshotCollection:
             vb.write(verbose=True, content="\nAlready filtered snapshots (last or first version)")
 
         self._skip_set(self.csvfile)  # set response to NULL or read csv file and write values into db
-        self._status = True
+        self._status = 1
 
     def _insert_cdx(self, cdxfile):
         """
@@ -333,7 +333,7 @@ class SnapshotCollection:
             if fail:
                 return self.db.cursor.execute("SELECT COUNT(rowid) FROM snapshot_tbl WHERE file IS NULL OR file = ''").fetchone()[0]
 
-        if self._status:
+        if self._status == 1:
             self._filter_duplicates = __count(self, duplicate=True)  # duplicates are in CDX but not written to DB again (skipped)
             self._snapshot_unhandled = __count(self, unhandled=True)  # count all unhandled in db
             self._snapshot_handled = __count(self, handled=True)  # count all handled in db
@@ -357,3 +357,9 @@ class SnapshotCollection:
 
             if self._snapshot_faulty > 0:
                 vb.write(content=f"\n-----> {'!!! parsing error'.ljust(18)}: {self._snapshot_faulty:,}")
+
+        if self._status == 2:
+            success = __count(self, success=True)
+            fail = __count(self, fail=True)
+            vb.write(content=f"\nFiles downloaded: {success}")
+            vb.write(content=f"Not downloaded: {fail}")

@@ -2,7 +2,6 @@ from typing import Iterator
 from dataclasses import dataclass, field
 
 import os
-import sys
 import csv
 import requests
 from datetime import datetime
@@ -19,19 +18,13 @@ class CDXquery:
     """
 
     url: str
-    range: int = None
-    start: int = None
-    end: int = None
-    limit: int = None
+    range: int | None = None
+    start: int | None = None
+    end: int | None = None
+    limit: int | None = None
     explicit: bool = False
-    filter_filetype: list = field(default_factory=list)
-    filter_statuscode: list = field(default_factory=list)
-
-    # in __post_init__
-    domain: str = field(init=False)
-    subdir: str = field(init=False)
-    filename: str = field(init=False)
-    query_url: str = field(init=False)
+    filter_filetype: list[str] | None = None
+    filter_statuscode: list[str] | None = None
 
     def __post_init__(self):
         self.domain, self.subdir, self.filename = url_split(self.url)
@@ -102,12 +95,13 @@ class File:
 class CDXfile(File):
     def __init__(self, filepath: str):
         super().__init__(filepath=filepath)
+        self._cdxquery = None
 
     def __iter__(self):
         self._open(mode="r")
         return iter(self._file_handler)
 
-    def query(self, query: CDXquery):
+    def request(self, query: CDXquery):
         try:
             if not self.new:
                 return True
