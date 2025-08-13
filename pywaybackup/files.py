@@ -127,7 +127,7 @@ class CDXfile(File):
             ex.exception(message="\nUnknown error while querying cdx server", e=e)
             os.remove(self._filepath)
             return False
-        
+
     def count_rows(self) -> str:
         """
         Count the containing rows.
@@ -136,13 +136,6 @@ class CDXfile(File):
         count = sum(1 for _ in self._file_handler) - 1
         self._close()
         return count
-    
-    # cdxinject = inject(cdxfile)
-    # if not cdxinject:
-    #     cdxquery = create_query(queryrange, limit, filter_filetype, filter_statuscode, start, end, explicit, domain, subdir, filename)
-    #     cdxfile =  run_query(cdxfile, cdxquery)
-    # sc.process_cdx(cdxfile, csvfile)
-    # sc.calculate()
 
 
 class CSVfile(File):
