@@ -9,8 +9,17 @@ from pywaybackup.files import CDXfile, CSVfile
 
 
 class Snapshot:
-    def __init__(self, db: Database):
+    def __init__(self, db: Database, output: str, mode: str):
         self._db = db
+        self.output = output
+        self.mode = mode
+
+        self._redirect_url = None
+        self._redirect_timestamp = None
+        self._response = None
+        self._file = None
+
+
         self._row = self.fetch()
         if self._row:
             self.counter = self._row["counter"]
@@ -22,12 +31,12 @@ class Snapshot:
             self.response = self._row["response"]
             self.file = self._row["file"]
 
-    def modify(self, snapshot_id, column, value):
+    def modify(self, column, value):
         """
         Modify a snapshot-row in the snapshot table.
         """
         query = f"UPDATE snapshot_tbl SET {column} = ? WHERE counter = ?"
-        self._db.cursor.execute(query, (value, snapshot_id))
+        self._db.cursor.execute(query, (value, self.counter))
         self._db.conn.commit()
 
     def fetch(self):
@@ -51,23 +60,67 @@ class Snapshot:
         self._db.conn.commit()
         return row
 
-    def create_output(self, url: str, timestamp: str, output: str, mode: str):
+    def create_output(self):
         """
         Create a file path for the snapshot.
 
         - If MODE_LAST or MODE_FIRST is enabled, the path does not include the timestamp.
         - Otherwise, include the timestamp in the path.
         """
-        domain, subdir, filename = url_split(url.split("id_/")[1], index=True)
+        domain, subdir, filename = url_split(self.url_archive.split("id_/")[1], index=True)
 
-        if mode == "last" or mode == "first":
-            download_dir = os.path.join(output, domain, subdir)
+        if self.mode == "last" or self.mode == "first":
+            download_dir = os.path.join(self.output, domain, subdir)
         else:
-            download_dir = os.path.join(output, domain, timestamp, subdir)
+            download_dir = os.path.join(self.output, domain, self.timestamp, subdir)
 
         download_file = os.path.abspath(os.path.join(download_dir, filename))
 
         return download_file
+
+    @property
+    def redirect_url(self):
+        return self._redirect_url
+
+    @redirect_url.setter
+    def redirect_url(self, value):
+        if self.redirect_timestamp is None and value is None:
+            return
+        self._redirect_url = value
+        self.modify(column="redirect_url", value=value)
+
+    @property
+    def redirect_timestamp(self):
+        return self._redirect_timestamp
+
+    @redirect_timestamp.setter
+    def redirect_timestamp(self, value):
+        if self.redirect_url is None and value is None:
+            return
+        self._redirect_timestamp = value
+        self.modify(column="redirect_timestamp", value=value)
+
+    @property
+    def response(self):
+        return self._response
+
+    @response.setter
+    def response(self, value):
+        if self.response is None and value is None:
+            return
+        self._response = value
+        self.modify(column="response", value=value)
+
+    @property
+    def file(self):
+        return self._file
+
+    @file.setter
+    def file(self, value):
+        if self.file is None and value is None:
+            return
+        self._file = value
+        self.modify(column="file", value=value)
 
 
 class SnapshotCollection:

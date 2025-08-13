@@ -1,17 +1,18 @@
 import sys
 import os
+import time
 import signal
 from pywaybackup.helper import url_split, sanitize_filename
+from importlib.metadata import version
 
-import pywaybackup.archive_download as archive_download
 import pywaybackup.archive_save as archive_save
 from pywaybackup.db import Database as db
 from pywaybackup.Verbosity import Verbosity as vb
 from pywaybackup.Exception import Exception as ex
-from pywaybackup.SnapshotCollection3 import SnapshotCollection as sc
 from pywaybackup.SnapshotCollection import SnapshotCollection
 from pywaybackup.archive_download import Downloader
 from pywaybackup.files import CDXquery, CDXfile, CSVfile
+
 
 class PyWayBackup:
     """
@@ -61,15 +62,36 @@ class PyWayBackup:
         >>> backup_paths = backup.paths(rel=True)
         >>> print(backup_paths)
     """
-        
-    def __init__(self, url: str = None, all: bool = False, last: bool = False, first: bool = False,
-                save: bool = False, explicit: bool = False, range: str = None, start: str = None,
-                end: str = None, limit: int = None, filetype: str = None, statuscode: str = None,
-                output: str = None, metadata: str = None, verbose: bool = False, log: bool = False,
-                progress: bool = False, no_redirect: bool = False, retry: int = 0, workers: int = 1,
-                delay: int = 0, reset: bool = False, keep: bool = False, 
-                silent: bool = True, debug: bool = False, **kwargs: dict):
-                
+
+    def __init__(
+        self,
+        url: str = None,
+        all: bool = False,
+        last: bool = False,
+        first: bool = False,
+        save: bool = False,
+        explicit: bool = False,
+        range: str = None,
+        start: str = None,
+        end: str = None,
+        limit: int = None,
+        filetype: str = None,
+        statuscode: str = None,
+        output: str = None,
+        metadata: str = None,
+        verbose: bool = False,
+        log: bool = False,
+        progress: bool = False,
+        no_redirect: bool = False,
+        retry: int = 0,
+        workers: int = 1,
+        delay: int = 0,
+        reset: bool = False,
+        keep: bool = False,
+        silent: bool = True,
+        debug: bool = False,
+        **kwargs: dict,
+    ):
         # restrictions
         # url must be given
         # all, last, first, save are mutually exclusive
@@ -106,25 +128,34 @@ class PyWayBackup:
         self.debug = debug
 
         self.query_identifier = (
-            str(self.url) +
+            str(self.url)
+            +
             # required_args
-            str(self.all) + str(self.last) + str(self.first) + str(self.save) +
+            str(self.all)
+            + str(self.last)
+            + str(self.first)
+            + str(self.save)
+            +
             # optional_args
-            str(self.explicit) + str(self.range) + str(self.start) + str(self.end) +
-            str(self.limit) + str(self.filetype) + str(self.statuscode)
+            str(self.explicit)
+            + str(self.range)
+            + str(self.start)
+            + str(self.end)
+            + str(self.limit)
+            + str(self.filetype)
+            + str(self.statuscode)
         )
-        
+
         # if sys.argv is empty, we assume this is being run as a module
         if not sys.argv[1:]:
             self.command = "pywaybackup_module"
         else:
             # otherwise, we take the command line arguments
-            self.command = ' '.join(sys.argv[1:])
+            self.command = " ".join(sys.argv[1:])
 
         self._init()
 
     def _init(self):
-
         self.domain, self.subdir, self.filename = url_split(self.url)
 
         if self.output is None:
@@ -154,7 +185,6 @@ class PyWayBackup:
         self.log = os.path.join(base_path, f"{base_name}.log") if self.log else None
         self.debug = os.path.join(base_path, "waybackup_error.log") if self.debug else None
 
-
     def paths(self, rel: bool = False) -> dict:
         """
         Return a dictionary of existing file paths associated to the backup process:
@@ -172,24 +202,39 @@ class PyWayBackup:
             "dbfile": self.dbfile,
             "csvfile": self.csvfile,
             "log": self.log,
-            "debug": self.debug
+            "debug": self.debug,
         }
-        return {
-            key: (os.path.relpath(path) if rel else path)
-            for key, path in files.items()
-            if path and os.path.exists(path)
-        }
+        return {key: (os.path.relpath(path) if rel else path) for key, path in files.items() if path and os.path.exists(path)}
 
     def run(self):
         """Run the PyWayBackup process with the given configuration."""
+
+        def __startup():
+            try:
+                vb.write(content=f"\n<<< python-wayback-machine-downloader v{version('pywaybackup')} >>>")
+
+                if db.QUERY_EXIST:
+                    vb.write(
+                        content=f"\nDOWNLOAD job exist - processed: {db.QUERY_PROGRESS}\nResuming download... (to reset the job use '--reset')"
+                    )
+
+                    for i in range(5, -1, -1):
+                        vb.write(content=f"\r{i}...")
+                        print("\033[F", end="")
+                        print("\033[K", end="")
+
+                        time.sleep(1)
+
+            except KeyboardInterrupt:
+                os._exit(1)
+
         ex.init(self.debug, self.output, self.command)
         vb.init(self.silent, self.verbose, self.progress, self.log)
-        
+
         if self.save:
             archive_save.save_page(self.url)
 
         else:
-
             os.makedirs(self.output, exist_ok=True)
             os.makedirs(self.metadata, exist_ok=True)
             if self.reset:
@@ -201,9 +246,8 @@ class PyWayBackup:
                     os.remove(self.csvfile)
 
             db.init(self.dbfile, self.query_identifier)
-            sc.init(self.mode)
 
-            archive_download.startup()
+            __startup()
 
             try:
                 cdxquery = CDXquery(
@@ -223,9 +267,17 @@ class PyWayBackup:
                     collection.load()
                     collection.print_calculation()
 
-                    downloader = Downloader()
-                    
-                    archive_download.download_list(self.output, self.retry, self.no_redirect, self.delay, self.workers)
+                    downloader = Downloader(
+                        mode=self.mode,
+                        output=self.output,
+                        retry=self.retry,
+                        no_redirect=self.no_redirect,
+                        delay=self.delay,
+                        workers=self.workers,
+                    )
+                    downloader.run(SnapshotCollection=collection)
+                    collection.print_calculation()
+
             except KeyboardInterrupt:
                 print("\nInterrupted by user\n")
                 self.keep = True
@@ -236,7 +288,7 @@ class PyWayBackup:
                 ex.exception(message="", e=e)
 
             finally:
-                sc.csv_create(self.csvfile)
+                #sc.csv_create(self.csvfile)
                 collection.close()
                 vb.fini()
 
