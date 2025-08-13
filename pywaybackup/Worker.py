@@ -9,14 +9,6 @@ from pywaybackup.SnapshotCollection import Snapshot
 class Worker:
     """
     Represents the storage for the worker thread - contains the workers connections and its currently assigned snapshot.
-
-    If a relevant property of the assigned snapshot is modified, the worker will push the change to the database.
-
-    - _redirect_url
-    - _redirect_timestamp
-    - _response
-    - _file
-
     Worker buffers its messages in a Message object. Output has to be done with write() method.
     """
 
@@ -32,7 +24,8 @@ class Worker:
 
     def assign_snapshot(self):
         self.snapshot = Snapshot(self.db, output=self.output, mode=self.mode)
-        if not self.snapshot:
+        if not self.snapshot.counter:  # counter only if a row was fetched
+            self.snapshot = None
             return
         self.attempt = 1
 

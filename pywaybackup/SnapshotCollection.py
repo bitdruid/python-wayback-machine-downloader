@@ -9,6 +9,15 @@ from pywaybackup.files import CDXfile, CSVfile
 
 
 class Snapshot:
+    """
+    If a relevant property of the snapshot is modified, the change will be pushed to the database.
+
+    - _redirect_url
+    - _redirect_timestamp
+    - _response
+    - _file
+    """
+
     def __init__(self, db: Database, output: str, mode: str):
         self._db = db
         self.output = output
@@ -29,6 +38,8 @@ class Snapshot:
             self.redirect_timestamp = self._row["redirect_timestamp"]
             self.response = self._row["response"]
             self.file = self._row["file"]
+        else:
+            self.counter = False
 
     def fetch(self):
         """
@@ -128,7 +139,6 @@ class SnapshotCollection:
     """
 
     def __init__(self, cdxfile: CDXfile, csvfile: CSVfile, mode: str):
-        self._status = 0  # 0 = unprocessed, 1 = inserted, 2 = downloaded
         self._mode_first = False
         self._mode_last = False
 
@@ -157,6 +167,10 @@ class SnapshotCollection:
         """
         Close up the collection, write result into csv, totals into db.
         """
+        success = self.__count(success=True)
+        fail = self.__count(fail=True)
+        vb.write(content=f"\n{'downloaded'.ljust(12)}: {success}")
+        vb.write(content=f"{'skipped'.ljust(12)}: {fail}")
         self.db.cursor.execute("UPDATE snapshot_tbl SET response = NULL WHERE response = 'LOCK'")  # reset locked to unprocessed
         self.db.cursor.execute("SELECT * FROM csv_view WHERE response IS NOT NULL")  # only write processed snapshots
         headers = [description[0] for description in self.db.cursor.description]
@@ -180,7 +194,7 @@ class SnapshotCollection:
         self._cdx_total = line_count
         if not self.db.get_insert_complete():
             print("inserting...")
-            self._insert_cdx(self.cdxfile)
+            self._insert_cdx()
             self.db.set_insert_complete()
         else:
             vb.write(verbose=True, content="\nAlready inserted CDX data into database")
@@ -197,10 +211,14 @@ class SnapshotCollection:
         else:
             vb.write(verbose=True, content="\nAlready filtered snapshots (last or first version)")
 
-        self._skip_set(self.csvfile)  # set response to NULL or read csv file and write values into db
-        self._status = 1
+        self._skip_set()  # set response to NULL or read csv file and write values into db
 
-    def _insert_cdx(self, cdxfile):
+        self._filter_duplicates = self.__count(duplicate=True)  # duplicates are in CDX but not written to DB again (skipped)
+        self._snapshot_unhandled = self.__count(unhandled=True)  # count all unhandled in db
+        self._snapshot_handled = self.__count(handled=True)  # count all handled in db
+        self._snapshot_total = self.__count(total=True)  # count all in db
+
+    def _insert_cdx(self):
         """
         Insert the content of the cdx file into the snapshot table.
         - Removes duplicates by url_archive (same timestamp and url_origin)
@@ -335,11 +353,11 @@ class SnapshotCollection:
 
         self.db.conn.commit()
 
-    def _skip_set(self, csvfile):
+    def _skip_set(self):
         """
         If an existing csv-file for the job exists, the responses will be overwritten by the csv-content.
         """
-        if not csvfile.file:
+        if not self.csvfile.file:
             return
         else:
             with self.csvfile as f:
@@ -377,57 +395,44 @@ class SnapshotCollection:
                 self.db.conn.commit()
                 self._filter_skip = total_skipped
 
+    def __count(self, duplicate=False, total=False, handled=False, unhandled=False, success=False, fail=False):
+        """
+        Counts several types of snapshots in the snapshot table.
+
+        Only one parameter should be set to True at a time. If multiple parameters are True,
+        only the first condition that evaluates to True will be executed.
+        """
+        if duplicate:
+            return self._cdx_total - self.__count(total=True)
+        if total:
+            return self.db.cursor.execute("SELECT COUNT(rowid) FROM snapshot_tbl").fetchone()[0]
+        if handled:
+            return self.db.cursor.execute("SELECT COUNT(rowid) FROM snapshot_tbl WHERE response IS NOT NULL").fetchone()[0]
+        if unhandled:
+            return self.db.cursor.execute("SELECT COUNT(rowid) FROM snapshot_tbl WHERE response IS NULL").fetchone()[0]
+        if success:
+            return self.db.cursor.execute("SELECT COUNT(rowid) FROM snapshot_tbl WHERE file IS NOT NULL AND file != ''").fetchone()[0]
+        if fail:
+            return self.db.cursor.execute("SELECT COUNT(rowid) FROM snapshot_tbl WHERE file IS NULL OR file = ''").fetchone()[0]
+
     def print_calculation(self):
-        def __count(self, duplicate=False, total=False, handled=False, unhandled=False, success=False, fail=False):
-            """
-            Counts several types of snapshots in the snapshot table.
+        vb.write(content="\nSnapshot calculation:")
+        vb.write(content=f"-----> {'in CDX file'.ljust(18)}: {self._cdx_total:,}")
 
-            Only one parameter should be set to True at a time. If multiple parameters are True,
-            only the first condition that evaluates to True will be executed.
-            """
-            if duplicate:
-                return self._cdx_total - __count(self, total=True)
-            if total:
-                return self.db.cursor.execute("SELECT COUNT(rowid) FROM snapshot_tbl").fetchone()[0]
-            if handled:
-                return self.db.cursor.execute("SELECT COUNT(rowid) FROM snapshot_tbl WHERE response IS NOT NULL").fetchone()[0]
-            if unhandled:
-                return self.db.cursor.execute("SELECT COUNT(rowid) FROM snapshot_tbl WHERE response IS NULL").fetchone()[0]
-            if success:
-                return self.db.cursor.execute("SELECT COUNT(rowid) FROM snapshot_tbl WHERE file IS NOT NULL AND file != ''").fetchone()[0]
-            if fail:
-                return self.db.cursor.execute("SELECT COUNT(rowid) FROM snapshot_tbl WHERE file IS NULL OR file = ''").fetchone()[0]
+        if self._filter_duplicates > 0:
+            vb.write(content=f"-----> {'removed duplicates'.ljust(18)}: {self._filter_duplicates:,}")
+        if self._filter_mode > 0:
+            vb.write(content=f"-----> {'removed versions'.ljust(18)}: {self._filter_mode:,}")
 
-        if self._status == 1:
-            self._filter_duplicates = __count(self, duplicate=True)  # duplicates are in CDX but not written to DB again (skipped)
-            self._snapshot_unhandled = __count(self, unhandled=True)  # count all unhandled in db
-            self._snapshot_handled = __count(self, handled=True)  # count all handled in db
-            self._snapshot_total = __count(self, total=True)  # count all in db
+        if self._filter_skip > 0:
+            vb.write(content=f"-----> {'skip existing'.ljust(18)}: {self._filter_skip:,}")
+        if self._filter_response > 0:
+            vb.write(content=f"-----> {'skip statuscode'.ljust(18)}: {self._filter_response}")
 
-            vb.write(content="\nSnapshot calculation:")
-            vb.write(content=f"-----> {'in CDX file'.ljust(18)}: {self._cdx_total:,}")
+        if self._snapshot_unhandled > 0:
+            vb.write(content=f"\n-----> {'to utilize'.ljust(18)}: {self._snapshot_unhandled:,}")
+        else:
+            vb.write(content=f"-----> {'unhandled'.ljust(18)}: {self._snapshot_unhandled:,}")
 
-            if self._filter_duplicates > 0:
-                vb.write(content=f"-----> {'removed duplicates'.ljust(18)}: {self._filter_duplicates:,}")
-            if self._filter_mode > 0:
-                vb.write(content=f"-----> {'removed versions'.ljust(18)}: {self._filter_mode:,}")
-
-            if self._filter_skip > 0:
-                vb.write(content=f"-----> {'skip existing'.ljust(18)}: {self._filter_skip:,}")
-            if self._filter_response > 0:
-                vb.write(content=f"-----> {'skip statuscode'.ljust(18)}: {self._filter_response}")
-
-            if self._snapshot_unhandled > 0:
-                vb.write(content=f"\n-----> {'to utilize'.ljust(18)}: {self._snapshot_unhandled:,}")
-
-            if self._snapshot_faulty > 0:
-                vb.write(content=f"\n-----> {'!!! parsing error'.ljust(18)}: {self._snapshot_faulty:,}")
-
-        if self._snapshot_unhandled == 0:
-            self._status = 2
-            vb.write(content="\nNothing to download")
-        if self._status == 2:
-            success = __count(self, success=True)
-            fail = __count(self, fail=True)
-            vb.write(content=f"\nFiles downloaded: {success}")
-            vb.write(content=f"Not downloaded: {fail}")
+        if self._snapshot_faulty > 0:
+            vb.write(content=f"\n-----> {'!!! parsing error'.ljust(18)}: {self._snapshot_faulty:,}")

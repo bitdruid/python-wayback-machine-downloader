@@ -251,14 +251,14 @@ class PyWayBackup:
 
             try:
                 cdxquery = CDXquery(
-                    self.url,
-                    self.range,
-                    self.limit,
-                    self.start,
-                    self.end,
-                    self.explicit,
-                    self.filetype,
-                    self.statuscode,
+                    url=self.url,
+                    range=self.range,
+                    start=self.start,
+                    end=self.end,
+                    limit=self.limit,
+                    explicit=self.explicit,
+                    filter_filetype=self.filetype,
+                    filter_statuscode=self.statuscode,
                 )
                 cdx = CDXfile(self.cdxfile)
                 if cdx.request_snapshots(cdxquery):

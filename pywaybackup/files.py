@@ -1,4 +1,4 @@
-from typing import Iterator
+from typing import Iterator, Union
 from dataclasses import dataclass, field
 
 import os
@@ -18,13 +18,13 @@ class CDXquery:
     """
 
     url: str
-    range: int | None = None
-    start: int | None = None
-    end: int | None = None
-    limit: int | None = None
+    range: int = None
+    start: int = None
+    end: int = None
+    limit: int = None
     explicit: bool = False
-    filter_filetype: list[str] | None = None
-    filter_statuscode: list[str] | None = None
+    filter_filetype: list[str] = None
+    filter_statuscode: list[str] = None
 
     def __post_init__(self):
         self.domain, self.subdir, self.filename = url_split(self.url)
@@ -159,6 +159,7 @@ class CSVfile(File):
         """
         self._open(mode="w")
         self._file_writer = csv.writer(self._file_handler)
-        self._file_writer.writerows(rows)
-        self._close()
-
+        if isinstance(rows[0], str):
+            self._file_writer.writerow(rows)
+        else:
+            self._file_writer.writerows(rows)
