@@ -1,11 +1,10 @@
-from typing import Iterator, Union
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 import os
 import csv
 import requests
 from datetime import datetime
-from pywaybackup.helper import url_split, sanitize_filename
+from pywaybackup.helper import url_split
 from pywaybackup.Verbosity import Verbosity as vb, Progressbar
 from pywaybackup.Exception import Exception as ex
 
