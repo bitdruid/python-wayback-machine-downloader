@@ -113,7 +113,7 @@ class SnapshotCollection:
 
         vb.write(verbose=None, content="\nInserting CDX data into database...")
 
-        progress = Progressbar(
+        progressbar = Progressbar(
             unit=" lines",
             total=self._cdx_total,
             desc="process cdx".ljust(15),
@@ -147,12 +147,12 @@ class SnapshotCollection:
                     total_inserted += len(line_batch)
                     self.db.cursor.executemany(query_duplicates, line_batch)
                     line_batch = []
-                    progress.update(line_batchsize)
+                    progressbar.update(line_batchsize)
 
             if line_batch:
                 total_inserted += len(line_batch)
                 self.db.cursor.executemany(query_duplicates, line_batch)
-                progress.update(len(line_batch))
+                progressbar.update(len(line_batch))
 
         self.db.conn.commit()
 
@@ -287,6 +287,18 @@ class SnapshotCollection:
             return self.db.cursor.execute("SELECT COUNT(rowid) FROM snapshot_tbl WHERE file IS NOT NULL AND file != ''").fetchone()[0]
         if fail:
             return self.db.cursor.execute("SELECT COUNT(rowid) FROM snapshot_tbl WHERE file IS NULL OR file = ''").fetchone()[0]
+        
+    def progression(self):
+        """
+        Returns the current progression on the snapshot collection (handled / total).
+        """
+        handled = self.__count(handled=True)
+        total = self.__count(total=True)
+        return {
+            "handled": handled,
+            "total": total,
+            "progress": f"{handled / total:.2%}" if total > 0 else "0.00%",
+        }
 
     def print_calculation(self):
         vb.write(content="\nSnapshot calculation:")
