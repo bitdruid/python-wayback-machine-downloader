@@ -4,16 +4,16 @@ import os
 import threading
 import time
 import urllib.parse
+from http import HTTPStatus
+from importlib.metadata import version
 from socket import timeout
 from urllib.parse import urljoin
 
-from importlib.metadata import version
-
 from pywaybackup.Exception import Exception as ex
-from pywaybackup.SnapshotCollection import SnapshotCollection
-from pywaybackup.Worker import Worker
-from pywaybackup.Verbosity import Verbosity as vb
 from pywaybackup.helper import check_nt, move_index, url_get_timestamp
+from pywaybackup.SnapshotCollection import SnapshotCollection
+from pywaybackup.Verbosity import Verbosity as vb
+from pywaybackup.Worker import Worker
 
 
 class DownloadContext:
@@ -26,10 +26,13 @@ class DownloadContext:
         self.response = None
         self.response_data = None
         self.response_status = None
-        self.response_status_message = None
 
     def encode_url(self, url: str) -> str:
         return urllib.parse.quote(url, safe=":/")
+
+    @property
+    def response_status_message(self):
+        return HTTPStatus(self.response_status).phrase if self.response_status else "No Status"
 
 
 class Downloader:
@@ -243,20 +246,3 @@ class Downloader:
         context.response = worker.connection.getresponse()
         context.response_data = context.response.read()
         context.response_status = context.response.status
-        context.response_status_message = self._parse_response_code(context.response_status)
-
-    def _parse_response_code(self, response_code: int):
-        RESPONSE_CODE_DICT = {
-            200: "OK",
-            301: "Moved Permanently",
-            302: "Redirect",
-            400: "Bad Request",
-            403: "Forbidden",
-            404: "Not Found",
-            500: "Internal Server Error",
-            503: "Service Unavailable",
-        }
-
-        if response_code in RESPONSE_CODE_DICT:
-            return RESPONSE_CODE_DICT[response_code]
-        return "Unknown response code"
