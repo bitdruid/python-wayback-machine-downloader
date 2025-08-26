@@ -2,6 +2,7 @@ import sys
 import os
 import time
 import signal
+import threading
 from pywaybackup.helper import url_split, sanitize_filename
 from importlib.metadata import version
 
@@ -90,6 +91,7 @@ class PyWayBackup:
         keep: bool = False,
         silent: bool = True,
         debug: bool = False,
+        daemon: bool = False,
         **kwargs: dict,
     ):
         # restrictions
@@ -126,6 +128,7 @@ class PyWayBackup:
 
         self.silent = silent
         self.debug = debug
+        self.daemon = daemon
 
         self.query_identifier = (
             str(self.url)
@@ -206,90 +209,101 @@ class PyWayBackup:
         }
         return {key: (os.path.relpath(path) if rel else path) for key, path in files.items() if path and os.path.exists(path)}
 
+    def progression(self):
+        return SnapshotCollection.progression
+
     def run(self):
-        """Run the PyWayBackup process with the given configuration."""
+        """Run the PyWayBackup process with the given configuration in a separate daemon thread."""
 
-        def __startup():
-            try:
-                vb.write(content=f"\n<<< python-wayback-machine-downloader v{version('pywaybackup')} >>>")
+        def __async(self):
+            def __startup():
+                try:
+                    vb.write(content=f"\n<<< python-wayback-machine-downloader v{version('pywaybackup')} >>>")
 
-                if db.QUERY_EXIST:
-                    vb.write(
-                        content=f"\nDOWNLOAD job exist - processed: {db.QUERY_PROGRESS}\nResuming download... (to reset the job use '--reset')"
-                    )
+                    if db.QUERY_EXIST:
+                        vb.write(
+                            content=f"\nDOWNLOAD job exist - processed: {db.QUERY_PROGRESS}\nResuming download... (to reset the job use '--reset')"
+                        )
 
-                    for i in range(5, -1, -1):
-                        vb.write(content=f"\r{i}...")
-                        print("\033[F", end="")
-                        print("\033[K", end="")
+                        for i in range(5, -1, -1):
+                            vb.write(content=f"\r{i}...")
+                            print("\033[F", end="")
+                            print("\033[K", end="")
 
-                        time.sleep(1)
+                            time.sleep(1)
 
-            except KeyboardInterrupt:
-                os._exit(1)
+                except KeyboardInterrupt:
+                    os._exit(1)
 
-        ex.init(self.debug, self.output, self.command)
-        vb.init(self.silent, self.verbose, self.progress, self.log)
-
-        if self.save:
-            archive_save.save_page(self.url)
-
-        else:
             os.makedirs(self.output, exist_ok=True)
             os.makedirs(self.metadata, exist_ok=True)
-            if self.reset:
-                if os.path.isfile(self.cdxfile):
-                    os.remove(self.cdxfile)
-                if os.path.isfile(self.dbfile):
-                    os.remove(self.dbfile)
-                if os.path.isfile(self.csvfile):
-                    os.remove(self.csvfile)
 
-            db.init(self.dbfile, self.query_identifier)
+            ex.init(self.debug, self.output, self.command)
+            vb.init(self.silent, self.verbose, self.progress, self.log)
 
-            __startup()
+            if self.save:
+                archive_save.save_page(self.url)
 
-            try:
-                cdxquery = CDXquery(
-                    url=self.url,
-                    range=self.range,
-                    start=self.start,
-                    end=self.end,
-                    limit=self.limit,
-                    explicit=self.explicit,
-                    filter_filetype=self.filetype,
-                    filter_statuscode=self.statuscode,
-                )
-                cdx = CDXfile(self.cdxfile)
-                if cdx.request_snapshots(cdxquery):
-                    csv = CSVfile(self.csvfile)
-                    collection = SnapshotCollection(cdxfile=cdx, csvfile=csv, mode=self.mode)
-                    collection.load()
-                    collection.print_calculation()
+            else:
+                if self.reset:
+                    if os.path.isfile(self.cdxfile):
+                        os.remove(self.cdxfile)
+                    if os.path.isfile(self.dbfile):
+                        os.remove(self.dbfile)
+                    if os.path.isfile(self.csvfile):
+                        os.remove(self.csvfile)
 
-                    downloader = Downloader(
-                        mode=self.mode,
-                        output=self.output,
-                        retry=self.retry,
-                        no_redirect=self.no_redirect,
-                        delay=self.delay,
-                        workers=self.workers,
+                db.init(self.dbfile, self.query_identifier)
+
+                __startup()
+
+                try:
+                    cdxquery = CDXquery(
+                        url=self.url,
+                        range=self.range,
+                        start=self.start,
+                        end=self.end,
+                        limit=self.limit,
+                        explicit=self.explicit,
+                        filter_filetype=self.filetype,
+                        filter_statuscode=self.statuscode,
                     )
-                    downloader.run(SnapshotCollection=collection)
+                    cdx = CDXfile(self.cdxfile)
+                    if cdx.request_snapshots(cdxquery):
+                        csv = CSVfile(self.csvfile)
+                        collection = SnapshotCollection(cdxfile=cdx, csvfile=csv, mode=self.mode)
+                        collection.load()
+                        collection.print_calculation()
 
-            except KeyboardInterrupt:
-                print("\nInterrupted by user\n")
-                self.keep = True
-                signal.signal(signal.SIGINT, signal.SIG_IGN)
+                        downloader = Downloader(
+                            mode=self.mode,
+                            output=self.output,
+                            retry=self.retry,
+                            no_redirect=self.no_redirect,
+                            delay=self.delay,
+                            workers=self.workers,
+                        )
+                        downloader.run(SnapshotCollection=collection)
 
-            except Exception as e:
-                self.keep = True
-                ex.exception(message="", e=e)
+                except KeyboardInterrupt:
+                    print("\nInterrupted by user\n")
+                    self.keep = True
+                    signal.signal(signal.SIGINT, signal.SIG_IGN)
 
-            finally:
-                collection.close()
-                vb.fini()
+                except Exception as e:
+                    self.keep = True
+                    ex.exception(message="", e=e)
 
-                if not self.keep:
-                    os.remove(self.dbfile) if os.path.exists(self.dbfile) else None
-                    os.remove(self.cdxfile) if os.path.exists(self.cdxfile) else None
+                finally:
+                    collection.close()
+                    vb.fini()
+
+                    if not self.keep:
+                        os.remove(self.dbfile) if os.path.exists(self.dbfile) else None
+                        os.remove(self.cdxfile) if os.path.exists(self.cdxfile) else None
+
+        if self.daemon:
+            pywaybackup_async = threading.Thread(target=__async, args=(self,), daemon=True)
+            pywaybackup_async.start()
+        else:
+            __async(self)

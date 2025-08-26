@@ -61,7 +61,7 @@ class Downloader:
         for i in range(self.workers):
             worker = Worker(id=i + 1, output=self.output, mode=self.mode)
             vb.write(verbose=True, content=f"\n-----> Starting Worker: {worker.id}")
-            thread = threading.Thread(target=self.download_loop, args=(worker,))
+            thread = threading.Thread(target=self.download_loop, args=(worker,), daemon=True)
             threads.append(thread)
             thread.start()
 

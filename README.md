@@ -45,6 +45,7 @@ You can import pywaybackup into your own scripts and run it. Args are the same a
 Additional args:
 - `silent` (default True): If True, suppresses all output to the console.
 - `debug` (default False): If True, disables writing errors to the error log file.
+- `daemon` (default False): If True, detaches into a daemon-thread without blocking the main process.
 
 ```python
 from pywaybackup import PyWayBackup
