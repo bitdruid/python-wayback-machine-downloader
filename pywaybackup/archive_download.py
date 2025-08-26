@@ -188,9 +188,9 @@ class Downloader:
 
                 # check if file is downloaded
                 if os.path.isfile(context.output_file):
-                    return self._dl_success(context, worker)
+                    return self._dl_result(context, worker, "SUCCESS")
             else:
-                return self._dl_existing(context, worker)
+                return self._dl_result(context, worker, "EXISTING")
         else:
             return self._dl_fail(context, worker)
 
@@ -225,17 +225,9 @@ class Downloader:
         if os.path.isdir(context.output_file):
             context.output_file = move_index(existfile=context.output_file, filebuffer=context.response_data)
 
-    def _dl_existing(self, context: DownloadContext, worker: Worker) -> bool:
-        worker.message.store(verbose=True, result="EXISTING", content=f"{context.response_status} {context.response_status_message}")
-        worker.message.store(verbose=False, result="EXISTING")
-        worker.message.store(verbose=True, result="", info="URL", content=context.snapshot_url)
-        worker.message.store(verbose=True, result="", info="FILE", content=context.output_file)
-        worker.snapshot.file = context.output_file
-        return True
-
-    def _dl_success(self, context: DownloadContext, worker: Worker) -> bool:
-        worker.message.store(verbose=True, result="SUCCESS", content=f"{context.response_status} {context.response_status_message}")
-        worker.message.store(verbose=False, result="SUCCESS")
+    def _dl_result(self, context: DownloadContext, worker: Worker, result: str) -> bool:
+        worker.message.store(verbose=True, result=result, content=f"{context.response_status} {context.response_status_message}")
+        worker.message.store(verbose=False, result=result)
         worker.message.store(verbose=True, result="", info="URL", content=context.snapshot_url)
         worker.message.store(verbose=True, result="", info="FILE", content=context.output_file)
         worker.snapshot.file = context.output_file
