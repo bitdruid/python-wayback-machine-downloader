@@ -16,6 +16,22 @@ from pywaybackup.Verbosity import Verbosity as vb
 from pywaybackup.helper import check_nt, move_index, url_get_timestamp
 
 
+class DownloadContext:
+    def __init__(self, snapshot_url: str):
+        self.snapshot_url = snapshot_url
+        self.headers = {"User-Agent": f"bitdruid-python-wayback-downloader/{version('pywaybackup')}"}
+        self.encoded_download_url = self.encode_url(snapshot_url)
+        self.output_file = None
+        self.output_path = None
+        self.response = None
+        self.response_data = None
+        self.response_status = None
+        self.response_status_message = None
+
+    def encode_url(self, url: str) -> str:
+        return urllib.parse.quote(url, safe=":/")
+
+
 class Downloader:
     def __init__(self, mode: str, output: str, retry: int, no_redirect: bool, delay: int, workers: int):
         self.mode = mode
@@ -142,85 +158,102 @@ class Downloader:
             ex.exception(f"\nWorker: {worker.id} - Exception", e)
 
     def download(self, worker: Worker):
-        download_url = worker.snapshot.url_archive
-        encoded_download_url = urllib.parse.quote(download_url, safe=":/")  # used for GET - otherwise always download_url
-        headers = {"User-Agent": f"bitdruid-python-wayback-downloader/{version('pywaybackup')}"}
-        response, response_data, response_status, response_status_message = self.download_response(
-            worker.connection, encoded_download_url, headers
-        )
-        worker.snapshot.response = response_status
+        context = DownloadContext(snapshot_url=worker.snapshot.url_archive)
 
-        if not self.no_redirect and response_status == 302:
-            worker.message.store(verbose=True, result="REDIRECT", content=f"{response_status} {response_status_message}")
-            worker.message.store(verbose=True, result="", info="FROM", content=download_url)
-            for _ in range(5):
-                response, response_data, response_status, response_status_message = self.download_response(
-                    worker.connection, encoded_download_url, headers
-                )
-                location = response.getheader("Location")
-                if location:
-                    encoded_download_url = urllib.parse.quote(urljoin(download_url, location), safe=":/")
-                    worker.message.store(verbose=True, result="", info="TO", content=location)
-                    worker.snapshot.redirect_timestamp = url_get_timestamp(location)
-                    worker.snapshot.redirect_url = download_url
-                else:
-                    break
+        self._download_response(context=context, worker=worker)
+        worker.snapshot.response_status = context.response_status
 
-        if response_status == 200:
-            output_file = worker.snapshot.create_output()
-            output_path = os.path.dirname(output_file)
+        if not self.no_redirect and context.response_status == 302:
+            self._handle_redirect(context=context, worker=worker)
+
+        if context.response_status == 200:
+            context.output_file = worker.snapshot.create_output()
+            context.output_path = os.path.dirname(context.output_file)
 
             # if output_file is too long for windows, skip download
-            if check_nt() and len(output_file) > 255:
-                worker.message.store(verbose=None, result="CANT SAVE", content="NT PATH TOO LONG")
-                worker.message.store(verbose=True, result="", info="URL", content=download_url)
-                worker.file = "NT PATH TOO LONG TO SAVE FILE"
-                raise Exception("NT Path too long to save file")
+            try:
+                self._dl_nt_path_too_long(context, worker)
+            except Exception:
+                return False
 
-            # case if output_path is a file, move file to temporary name, create output_path and move file into output_path
-            if os.path.isfile(output_path):
-                move_index(existpath=output_path)
-            else:
-                os.makedirs(output_path, exist_ok=True)
-
-            # case if output_file is a directory, create file as index.html in this directory
-            if os.path.isdir(output_file):
-                output_file = move_index(existfile=output_file, filebuffer=response_data)
+            # create path or move file if path exists as file or file exists as directory
+            self._dl_move_path_or_file(context)
 
             # download file if not existing
-            if not os.path.isfile(output_file):
-                with open(output_file, "wb") as file:
-                    if response.getheader("Content-Encoding") == "gzip":
-                        response_data = gzip.decompress(response_data)
-                    file.write(response_data)
+            if not os.path.isfile(context.output_file):
+                with open(context.output_file, "wb") as file:
+                    if context.response.getheader("Content-Encoding") == "gzip":
+                        context.response_data = gzip.decompress(context.response_data)
+                    file.write(context.response_data)
+
                 # check if file is downloaded
-                if os.path.isfile(output_file):
-                    worker.message.store(verbose=True, result="SUCCESS", content=f"{response_status} {response_status_message}")
-                    worker.message.store(verbose=False, result="SUCCESS")
+                if os.path.isfile(context.output_file):
+                    return self._dl_success(context, worker)
             else:
-                worker.message.store(verbose=True, result="EXISTING", content=f"{response_status} {response_status_message}")
-                worker.message.store(verbose=False, result="EXISTING")
-            worker.message.store(verbose=True, result="", info="URL", content=download_url)
-            worker.message.store(verbose=True, result="", info="FILE", content=output_file)
-            worker.snapshot.file = output_file
-            # if convert_links:
-            #     convert.links(output_file, worker.message)
-            # worker.message.write()
-            return True
+                return self._dl_existing(context, worker)
         else:
-            worker.message.store(verbose=None, result="UNKNOWN", content=f"{response_status} {response_status_message}")
-            worker.message.store(verbose=True, result="", info="URL", content=download_url)
-            return False
+            return self._dl_fail(context, worker)
 
-    def download_response(self, connection, encoded_download_url, headers):
-        connection.request("GET", encoded_download_url, headers=headers)
-        response = connection.getresponse()
-        response_data = response.read()
-        response_status = response.status
-        response_status_message = self.parse_response_code(response_status)
-        return response, response_data, response_status, response_status_message
+    def _handle_redirect(self, context: DownloadContext, worker: Worker) -> None:
+        worker.message.store(verbose=True, result="REDIRECT", content=f"{context.response_status} {context.response_status_message}")
+        worker.message.store(verbose=True, result="", info="FROM", content=context.snapshot_url)
+        for _ in range(5):
+            self._download_response(context=context, worker=worker)
+            location = context.response.getheader("Location")
+            if location:
+                context.encoded_download_url = context.encode_url(urljoin(context.snapshot_url, location))
+                worker.message.store(verbose=True, result="", info="TO", content=location)
+                worker.snapshot.redirect_timestamp = url_get_timestamp(location)
+                worker.snapshot.redirect_url = context.snapshot_url
+            else:
+                break
 
-    def parse_response_code(self, response_code: int):
+    def _dl_nt_path_too_long(self, context: DownloadContext, worker: Worker) -> None:
+        if check_nt() and len(context.output_file) > 255:
+            worker.message.store(verbose=None, result="CANT SAVE", content="NT PATH TOO LONG")
+            worker.message.store(verbose=True, result="", info="URL", content=context.snapshot_url)
+            worker.file = "NT PATH TOO LONG TO SAVE FILE"
+            raise Exception("NT Path too long to save file")
+
+    def _dl_move_path_or_file(self, context: DownloadContext) -> None:
+        # case if output_path is a file, move file to temporary name, create output_path and move file into output_path
+        if os.path.isfile(context.output_path):
+            move_index(existpath=context.output_path)
+        else:
+            os.makedirs(context.output_path, exist_ok=True)
+        # case if output_file is a directory, create file as index.html in this directory
+        if os.path.isdir(context.output_file):
+            context.output_file = move_index(existfile=context.output_file, filebuffer=context.response_data)
+
+    def _dl_existing(self, context: DownloadContext, worker: Worker) -> bool:
+        worker.message.store(verbose=True, result="EXISTING", content=f"{context.response_status} {context.response_status_message}")
+        worker.message.store(verbose=False, result="EXISTING")
+        worker.message.store(verbose=True, result="", info="URL", content=context.snapshot_url)
+        worker.message.store(verbose=True, result="", info="FILE", content=context.output_file)
+        worker.snapshot.file = context.output_file
+        return True
+
+    def _dl_success(self, context: DownloadContext, worker: Worker) -> bool:
+        worker.message.store(verbose=True, result="SUCCESS", content=f"{context.response_status} {context.response_status_message}")
+        worker.message.store(verbose=False, result="SUCCESS")
+        worker.message.store(verbose=True, result="", info="URL", content=context.snapshot_url)
+        worker.message.store(verbose=True, result="", info="FILE", content=context.output_file)
+        worker.snapshot.file = context.output_file
+        return True
+
+    def _dl_fail(self, context: DownloadContext, worker: Worker) -> bool:
+        worker.message.store(verbose=None, result="UNKNOWN", content=f"{context.response_status} {context.response_status_message}")
+        worker.message.store(verbose=True, result="", info="URL", content=context.snapshot_url)
+        return False
+
+    def _download_response(self, context: DownloadContext, worker: Worker) -> None:
+        worker.connection.request("GET", context.encoded_download_url, headers=context.headers)
+        context.response = worker.connection.getresponse()
+        context.response_data = context.response.read()
+        context.response_status = context.response.status
+        context.response_status_message = self._parse_response_code(context.response_status)
+
+    def _parse_response_code(self, response_code: int):
         RESPONSE_CODE_DICT = {
             200: "OK",
             301: "Moved Permanently",

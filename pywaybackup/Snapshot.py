@@ -21,7 +21,7 @@ class Snapshot:
 
         self._redirect_url = None
         self._redirect_timestamp = None
-        self._response = None
+        self._response_status = None
         self._file = None
 
         self._row = self.fetch()
@@ -32,7 +32,7 @@ class Snapshot:
             self.url_origin = self._row["url_origin"]
             self.redirect_url = self._row["redirect_url"]
             self.redirect_timestamp = self._row["redirect_timestamp"]
-            self.response = self._row["response"]
+            self.response_status = self._row["response"]
             self.file = self._row["file"]
         else:
             self.counter = False
@@ -107,14 +107,14 @@ class Snapshot:
         self.modify(column="redirect_timestamp", value=value)
 
     @property
-    def response(self):
-        return self._response
+    def response_status(self):
+        return self._response_status
 
-    @response.setter
-    def response(self, value):
-        if self.response is None and value is None:
+    @response_status.setter
+    def response_status(self, value):
+        if self.response_status is None and value is None:
             return
-        self._response = value
+        self._response_status = value
         self.modify(column="response", value=value)
 
     @property
