@@ -90,3 +90,14 @@ class Database:
     def set_filter_complete(self):
         self.cursor.execute("UPDATE waybackup_table SET filter_complete = 1 WHERE query_identifier = (SELECT query_identifier FROM waybackup_table)")
         self.conn.commit()
+
+    def count(self, query: str) -> int:
+        """
+        Pass a COUNT query to get the number of rows in a table.
+        """
+        try:
+            return self.cursor.execute(query).fetchone()[0]
+        except sqlite3.OperationalError as e:
+            if "no such table" in str(e).lower():
+                return 0
+            raise

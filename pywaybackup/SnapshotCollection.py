@@ -281,30 +281,20 @@ class SnapshotCollection:
                 self.db.conn.commit()
                 self._filter_skip = total_skipped
 
-    def _count(self, query: str) -> int:
-        import pysqlite3 as sqlite3
-
-        try:
-            return self.db.cursor.execute(query).fetchone()[0]
-        except sqlite3.OperationalError as e:
-            if "no such table" in str(e).lower():
-                return 0
-            raise
-
     def count_total(self) -> int:
-        return self._count("SELECT COUNT(rowid) FROM snapshot_tbl")
+        return self.db.count("SELECT COUNT(rowid) FROM snapshot_tbl")
 
     def count_handled(self) -> int:
-        return self._count("SELECT COUNT(rowid) FROM snapshot_tbl WHERE response IS NOT NULL")
+        return self.db.count("SELECT COUNT(rowid) FROM snapshot_tbl WHERE response IS NOT NULL")
 
     def count_unhandled(self) -> int:
-        return self._count("SELECT COUNT(rowid) FROM snapshot_tbl WHERE response IS NULL")
+        return self.db.count("SELECT COUNT(rowid) FROM snapshot_tbl WHERE response IS NULL")
 
     def count_success(self) -> int:
-        return self._count("SELECT COUNT(rowid) FROM snapshot_tbl WHERE file IS NOT NULL AND file != ''")
+        return self.db.count("SELECT COUNT(rowid) FROM snapshot_tbl WHERE file IS NOT NULL AND file != ''")
 
     def count_fail(self) -> int:
-        return self._count("SELECT COUNT(rowid) FROM snapshot_tbl WHERE file IS NULL OR file = ''")
+        return self.db.count("SELECT COUNT(rowid) FROM snapshot_tbl WHERE file IS NULL OR file = ''")
 
     def count_duplicates(self) -> int:
         """duplicates = total CDX records - total in db"""
