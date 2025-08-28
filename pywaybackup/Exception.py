@@ -96,4 +96,4 @@ class Exception:
         if issubclass(exception_type, KeyboardInterrupt):
             sys.__excepthook__(exception_type, exception, traceback)
             return
-        Exception.exception("UNCAUGHT EXCEPTION", exception, traceback)  # uncaught exceptions also with custom scheme
+        Exception.exception('UNCAUGHT EXCEPTION', exception, traceback)  # uncaught exceptions also with custom scheme

@@ -11,8 +11,31 @@ from pywaybackup.db import Database as db
 from pywaybackup.Verbosity import Verbosity as vb
 from pywaybackup.Exception import Exception as ex
 from pywaybackup.SnapshotCollection import SnapshotCollection
-from pywaybackup.archive_download import Downloader
+from pywaybackup.archive_download import DownloadArchive
 from pywaybackup.files import CDXquery, CDXfile, CSVfile
+
+
+class _Status:
+    def __init__(self):
+        self.sc = None
+        self.task = "initializing"
+        self.handled = 0
+        self.total = 0
+        self.progress = 0
+
+    @property
+    def status(self):
+        if not self.sc:
+            self.sc = SnapshotCollection(mode=None)
+        if self.task != "done":
+            self.handled = self.sc.count_handled()
+            self.total = self.sc.count_total()
+        return {
+            "task": self.task,
+            "current": self.handled,
+            "total": self.total,
+            "progress": f"{self.handled / self.total:.0%}" if self.total > 0 else "0",
+        }
 
 
 class PyWayBackup:
@@ -60,8 +83,6 @@ class PyWayBackup:
         >>> from pywaybackup import PyWayBackup
         >>> backup = PyWayBackup(url="https://example.com", all=True, start="20200101", end="20201231")
         >>> backup.run()
-        >>> backup_paths = backup.paths(rel=True)
-        >>> print(backup_paths)
     """
 
     def __init__(
@@ -91,7 +112,6 @@ class PyWayBackup:
         keep: bool = False,
         silent: bool = True,
         debug: bool = False,
-        daemon: bool = False,
         **kwargs: dict,
     ):
         # restrictions
@@ -126,9 +146,12 @@ class PyWayBackup:
         self.reset = reset
         self.keep = keep
 
+        # module exclusive
         self.silent = silent
         self.debug = debug
-        self.daemon = daemon
+
+        # internal
+        self._status = _Status()
 
         self.query_identifier = (
             str(self.url)
@@ -193,11 +216,17 @@ class PyWayBackup:
         Return a dictionary of existing file paths associated to the backup process:
             {'shapshots':, 'cdxfile':, 'dbfile':, 'csvfile':, 'log':, 'debug':}
 
-        Parameters:
-            rel (bool): If True, return relative paths; otherwise, return absolute paths.
-
-        Returns:
-            dict: Mapping of file types to their corresponding paths, including only files that exist.
+        Example:
+        >>> backup_paths = backup.paths(rel=True)
+        >>> print(backup_paths)
+        {
+        'snapshots': 'waybackup_snapshots/example.com', 
+        'cdxfile': 'waybackup_snapshots/waybackup_example.com.cdx',
+        'dbfile': 'waybackup_snapshots/waybackup_example.com.db',
+        'csvfile': 'waybackup_snapshots/waybackup_example.com.csv',
+        'log': 'waybackup_snapshots/waybackup_example.com.log',
+        'debug': 'waybackup_snapshots/waybackup_error.log'
+        }
         """
         files = {
             "snapshots": os.path.join(self.output, self.domain),
@@ -209,101 +238,119 @@ class PyWayBackup:
         }
         return {key: (os.path.relpath(path) if rel else path) for key, path in files.items() if path and os.path.exists(path)}
 
-    def progression(self):
-        return SnapshotCollection.progression
+    def status(self):
+        """
+        Return the current status of the backup process by a dictionary:
+            {'task':, 'current':, 'total':, 'progress':}
 
-    def run(self):
+        Example:
+        >>> print(backup.status())
+        {
+        'task': 'downloading snapshots',
+        'current': 150,
+        'total': 300,
+        'progress': '50%'
+        }
+        """
+        return self._status.status
+
+    def run(self, daemon=False):
         """Run the PyWayBackup process with the given configuration in a separate daemon thread."""
 
+        def __startup():
+            try:
+                vb.write(content=f"\n<<< python-wayback-machine-downloader v{version('pywaybackup')} >>>")
+
+                if db.QUERY_EXIST:
+                    vb.write(content=f"\nDOWNLOAD job exist - processed: {db.QUERY_PROGRESS}\nResuming download... (to reset the job use '--reset')")
+
+                if not self.silent:
+                    for i in range(5, -1, -1):
+                        vb.write(content=f"\r{i}...")
+                        print("\033[F", end="")
+                        print("\033[K", end="")
+
+                        time.sleep(1)
+
+            except KeyboardInterrupt:
+                os._exit(1)
+
         def __async(self):
-            def __startup():
-                try:
-                    vb.write(content=f"\n<<< python-wayback-machine-downloader v{version('pywaybackup')} >>>")
+            try:
+                cdxquery = CDXquery(
+                    url=self.url,
+                    range=self.range,
+                    start=self.start,
+                    end=self.end,
+                    limit=self.limit,
+                    explicit=self.explicit,
+                    filter_filetype=self.filetype,
+                    filter_statuscode=self.statuscode,
+                )
 
-                    if db.QUERY_EXIST:
-                        vb.write(
-                            content=f"\nDOWNLOAD job exist - processed: {db.QUERY_PROGRESS}\nResuming download... (to reset the job use '--reset')"
-                        )
+                self._status.task = "downloading cdx"
+                cdx = CDXfile(self.cdxfile)
+                if cdx.request_snapshots(cdxquery):
+                    csv = CSVfile(self.csvfile)
 
-                        for i in range(5, -1, -1):
-                            vb.write(content=f"\r{i}...")
-                            print("\033[F", end="")
-                            print("\033[K", end="")
+                    self._status.task = "preparing snapshots"
+                    collection = SnapshotCollection(mode=self.mode)
+                    collection.load(cdxfile=cdx, csvfile=csv)
+                    collection.print_calculation()
 
-                            time.sleep(1)
-
-                except KeyboardInterrupt:
-                    os._exit(1)
-
-            os.makedirs(self.output, exist_ok=True)
-            os.makedirs(self.metadata, exist_ok=True)
-
-            ex.init(self.debug, self.output, self.command)
-            vb.init(self.silent, self.verbose, self.progress, self.log)
-
-            if self.save:
-                archive_save.save_page(self.url)
-
-            else:
-                if self.reset:
-                    if os.path.isfile(self.cdxfile):
-                        os.remove(self.cdxfile)
-                    if os.path.isfile(self.dbfile):
-                        os.remove(self.dbfile)
-                    if os.path.isfile(self.csvfile):
-                        os.remove(self.csvfile)
-
-                db.init(self.dbfile, self.query_identifier)
-
-                __startup()
-
-                try:
-                    cdxquery = CDXquery(
-                        url=self.url,
-                        range=self.range,
-                        start=self.start,
-                        end=self.end,
-                        limit=self.limit,
-                        explicit=self.explicit,
-                        filter_filetype=self.filetype,
-                        filter_statuscode=self.statuscode,
+                    self._status.task = "downloading snapshots"
+                    downloader = DownloadArchive(
+                        mode=self.mode,
+                        output=self.output,
+                        retry=self.retry,
+                        no_redirect=self.no_redirect,
+                        delay=self.delay,
+                        workers=self.workers,
                     )
-                    cdx = CDXfile(self.cdxfile)
-                    if cdx.request_snapshots(cdxquery):
-                        csv = CSVfile(self.csvfile)
-                        collection = SnapshotCollection(cdxfile=cdx, csvfile=csv, mode=self.mode)
-                        collection.load()
-                        collection.print_calculation()
+                    downloader.run(SnapshotCollection=collection)
 
-                        downloader = Downloader(
-                            mode=self.mode,
-                            output=self.output,
-                            retry=self.retry,
-                            no_redirect=self.no_redirect,
-                            delay=self.delay,
-                            workers=self.workers,
-                        )
-                        downloader.run(SnapshotCollection=collection)
+            except KeyboardInterrupt:
+                print("\nInterrupted by user\n")
+                self.keep = True
+                signal.signal(signal.SIGINT, signal.SIG_IGN)
 
-                except KeyboardInterrupt:
-                    print("\nInterrupted by user\n")
-                    self.keep = True
-                    signal.signal(signal.SIGINT, signal.SIG_IGN)
+            except Exception as e:
+                self.keep = True
+                ex.exception(message="", e=e)
 
-                except Exception as e:
-                    self.keep = True
-                    ex.exception(message="", e=e)
+            finally:
+                self._status.task = "done"
+                collection.close()
+                vb.fini()
 
-                finally:
-                    collection.close()
-                    vb.fini()
+                if not self.keep:
+                    os.remove(self.dbfile) if os.path.exists(self.dbfile) else None
+                    os.remove(self.cdxfile) if os.path.exists(self.cdxfile) else None
 
-                    if not self.keep:
-                        os.remove(self.dbfile) if os.path.exists(self.dbfile) else None
-                        os.remove(self.cdxfile) if os.path.exists(self.cdxfile) else None
+        os.makedirs(self.output, exist_ok=True)
+        os.makedirs(self.metadata, exist_ok=True)
 
-        if self.daemon:
-            pywaybackup_async = threading.Thread(target=__async, args=(self,), daemon=True)
-            pywaybackup_async.start()
+        ex.init(self.debug, self.output, self.command)
+        vb.init(self.silent, self.verbose, self.progress, self.log)
+
+        if self.save:
+            archive_save.save_page(self.url)
+
         else:
-            __async(self)
+            if self.reset:
+                if os.path.isfile(self.cdxfile):
+                    os.remove(self.cdxfile)
+                if os.path.isfile(self.dbfile):
+                    os.remove(self.dbfile)
+                if os.path.isfile(self.csvfile):
+                    os.remove(self.csvfile)
+
+            db.init(self.dbfile, self.query_identifier)
+
+            __startup()
+
+            if daemon:
+                pywaybackup_async = threading.Thread(target=__async, args=(self,), daemon=True)
+                pywaybackup_async.start()
+            else:
+                __async(self)

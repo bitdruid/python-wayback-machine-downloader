@@ -35,7 +35,7 @@ class DownloadContext:
         return HTTPStatus(self.response_status).phrase if self.response_status else "No Status"
 
 
-class Downloader:
+class DownloadArchive:
     def __init__(self, mode: str, output: str, retry: int, no_redirect: bool, delay: int, workers: int):
         self.mode = mode
         self.output = output
@@ -51,9 +51,9 @@ class Downloader:
         if self.sc._snapshot_unhandled == 0:
             vb.write(content="\nNothing to download")
             return
-        self.spawn_workers()
+        self._spawn_workers()
 
-    def spawn_workers(self):
+    def _spawn_workers(self):
         vb.write(
             content="\nDownloading snapshots...",
         )
@@ -64,14 +64,14 @@ class Downloader:
         for i in range(self.workers):
             worker = Worker(id=i + 1, output=self.output, mode=self.mode)
             vb.write(verbose=True, content=f"\n-----> Starting Worker: {worker.id}")
-            thread = threading.Thread(target=self.download_loop, args=(worker,), daemon=True)
+            thread = threading.Thread(target=self._download_loop, args=(worker,), daemon=True)
             threads.append(thread)
             thread.start()
 
         for thread in threads:
             thread.join()
 
-    def download_loop(self, worker: Worker):
+    def _download_loop(self, worker: Worker):
         try:
             worker.init()
 
@@ -94,7 +94,7 @@ class Downloader:
                         download_status = False
 
                         try:
-                            download_status = self.download(worker=worker)
+                            download_status = self._download(worker=worker)
 
                         except (timeout, ConnectionRefusedError, ConnectionResetError, http.client.HTTPException, Exception) as e:
                             if isinstance(e, (timeout, ConnectionRefusedError, ConnectionResetError)):
@@ -160,14 +160,14 @@ class Downloader:
         except Exception as e:
             ex.exception(f"\nWorker: {worker.id} - Exception", e)
 
-    def download(self, worker: Worker):
+    def _download(self, worker: Worker):
         context = DownloadContext(snapshot_url=worker.snapshot.url_archive)
 
-        self._download_response(context=context, worker=worker)
+        self.__download_response(context=context, worker=worker)
         worker.snapshot.response_status = context.response_status
 
         if not self.no_redirect and context.response_status == 302:
-            self._handle_redirect(context=context, worker=worker)
+            self.__handle_redirect(context=context, worker=worker)
 
         if context.response_status == 200:
             context.output_file = worker.snapshot.create_output()
@@ -175,12 +175,12 @@ class Downloader:
 
             # if output_file is too long for windows, skip download
             try:
-                self._dl_nt_path_too_long(context, worker)
+                self.__dl_nt_path_too_long(context, worker)
             except Exception:
                 return False
 
             # create path or move file if path exists as file or file exists as directory
-            self._dl_move_path_or_file(context)
+            self.__dl_move_path_or_file(context)
 
             # download file if not existing
             if not os.path.isfile(context.output_file):
@@ -191,17 +191,17 @@ class Downloader:
 
                 # check if file is downloaded
                 if os.path.isfile(context.output_file):
-                    return self._dl_result(context, worker, "SUCCESS")
+                    return self.__dl_result(context, worker, "SUCCESS")
             else:
-                return self._dl_result(context, worker, "EXISTING")
+                return self.__dl_result(context, worker, "EXISTING")
         else:
-            return self._dl_fail(context, worker)
+            return self.__dl_fail(context, worker)
 
-    def _handle_redirect(self, context: DownloadContext, worker: Worker) -> None:
+    def __handle_redirect(self, context: DownloadContext, worker: Worker) -> None:
         worker.message.store(verbose=True, result="REDIRECT", content=f"{context.response_status} {context.response_status_message}")
         worker.message.store(verbose=True, result="", info="FROM", content=context.snapshot_url)
         for _ in range(5):
-            self._download_response(context=context, worker=worker)
+            self.__download_response(context=context, worker=worker)
             location = context.response.getheader("Location")
             if location:
                 context.encoded_download_url = context.encode_url(urljoin(context.snapshot_url, location))
@@ -211,14 +211,14 @@ class Downloader:
             else:
                 break
 
-    def _dl_nt_path_too_long(self, context: DownloadContext, worker: Worker) -> None:
+    def __dl_nt_path_too_long(self, context: DownloadContext, worker: Worker) -> None:
         if check_nt() and len(context.output_file) > 255:
             worker.message.store(verbose=None, result="CANT SAVE", content="NT PATH TOO LONG")
             worker.message.store(verbose=True, result="", info="URL", content=context.snapshot_url)
             worker.file = "NT PATH TOO LONG TO SAVE FILE"
             raise Exception("NT Path too long to save file")
 
-    def _dl_move_path_or_file(self, context: DownloadContext) -> None:
+    def __dl_move_path_or_file(self, context: DownloadContext) -> None:
         # case if output_path is a file, move file to temporary name, create output_path and move file into output_path
         if os.path.isfile(context.output_path):
             move_index(existpath=context.output_path)
@@ -228,7 +228,7 @@ class Downloader:
         if os.path.isdir(context.output_file):
             context.output_file = move_index(existfile=context.output_file, filebuffer=context.response_data)
 
-    def _dl_result(self, context: DownloadContext, worker: Worker, result: str) -> bool:
+    def __dl_result(self, context: DownloadContext, worker: Worker, result: str) -> bool:
         worker.message.store(verbose=True, result=result, content=f"{context.response_status} {context.response_status_message}")
         worker.message.store(verbose=False, result=result)
         worker.message.store(verbose=True, result="", info="URL", content=context.snapshot_url)
@@ -236,12 +236,12 @@ class Downloader:
         worker.snapshot.file = context.output_file
         return True
 
-    def _dl_fail(self, context: DownloadContext, worker: Worker) -> bool:
+    def __dl_fail(self, context: DownloadContext, worker: Worker) -> bool:
         worker.message.store(verbose=None, result="UNKNOWN", content=f"{context.response_status} {context.response_status_message}")
         worker.message.store(verbose=True, result="", info="URL", content=context.snapshot_url)
         return False
 
-    def _download_response(self, context: DownloadContext, worker: Worker) -> None:
+    def __download_response(self, context: DownloadContext, worker: Worker) -> None:
         worker.connection.request("GET", context.encoded_download_url, headers=context.headers)
         context.response = worker.connection.getresponse()
         context.response_data = context.response.read()

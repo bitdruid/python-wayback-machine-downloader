@@ -6,24 +6,7 @@ from importlib.metadata import version
 from pywaybackup.helper import url_get_timestamp
 from pywaybackup.Verbosity import Verbosity as vb
 
-# def startup():
-#     try:
-#         vb.write(verbose=None, content=f"\n<<< python-wayback-machine-downloader v{version('pywaybackup')} >>>")
-        
-#         if Database.QUERY_EXIST:
-#             vb.write(verbose=None, content=f"\nSAVE job exist - processed {Database.QUERY_PROGRESS}\nResuming save... (to reset the job use '--reset')\n")
-
-#             for i in range(5, -1, -1):
-#                 vb.write(verbose=None, content=f"\r{i}...")
-#                 print("\033[F", end="")
-#                 print("\033[K", end="")           
-
-#                 time.sleep(1)
-
-#             #vb.write(verbose=None, content="\n")
-#     except KeyboardInterrupt:
-#         os._exit(1)
-
+# playwright ?
 # GET: store page to wayback machine and response with redirect to snapshot
 # POST: store page to wayback machine and response with wayback machine status-page
 # tag_jobid = '<script>spn.watchJob("spn2-%s", "/_static/",6000);</script>'

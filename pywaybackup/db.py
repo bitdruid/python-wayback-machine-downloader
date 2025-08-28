@@ -6,8 +6,6 @@ class Database:
     Creates the snapshot database and the snapshot table when initialized.
 
     When instantiated, a connection and cursor are created to interact with the database.
-
-    Interaction with the database is done through the SnapshotCollection class.
     """
 
     SNAPSHOT_DB = ""

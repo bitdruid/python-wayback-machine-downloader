@@ -4,6 +4,7 @@ from pywaybackup.db import Database
 from pywaybackup.files import CDXfile, CSVfile
 from pywaybackup.Verbosity import Progressbar
 from pywaybackup.Verbosity import Verbosity as vb
+from pywaybackup.Exception import Exception as ex
 
 
 class SnapshotCollection:
@@ -11,7 +12,7 @@ class SnapshotCollection:
     Represents the interaction with the snapshot-collection contained in the snapshot database.
     """
 
-    def __init__(self, cdxfile: CDXfile, csvfile: CSVfile, mode: str):
+    def __init__(self, mode: str):
         self._mode_first = False
         self._mode_last = False
 
@@ -28,8 +29,8 @@ class SnapshotCollection:
         self._filter_skip = 0  # content of the csv file
         self._filter_response = 0  # snapshots which could not be loaded from cdx file into db or 404
 
-        self.cdxfile = cdxfile
-        self.csvfile = csvfile
+        self.cdxfile = None
+        self.csvfile = None
         self.db = Database()
         if mode == "first":
             self._mode_first = True
@@ -40,12 +41,25 @@ class SnapshotCollection:
         """
         Close up the collection, write result into csv, totals into db.
         """
-        success = self.__count(success=True)
-        fail = self.__count(fail=True)
+        self._write_summary()
+        self._reset_locked_snapshots()
+        self._write_processed_snapshots_to_csv()
+        self._finalize_db()
+
+    def _write_summary(self):
+        """Write summary of download and skip counts."""
+        success = self.count_success()
+        fail = self.count_fail()
         vb.write(content=f"\n{'downloaded'.ljust(12)}: {success}")
         vb.write(content=f"{'skipped'.ljust(12)}: {fail}")
-        self.db.cursor.execute("UPDATE snapshot_tbl SET response = NULL WHERE response = 'LOCK'")  # reset locked to unprocessed
-        self.db.cursor.execute("SELECT * FROM csv_view WHERE response IS NOT NULL")  # only write processed snapshots
+
+    def _reset_locked_snapshots(self):
+        """Reset locked snapshots to unprocessed in the database."""
+        self.db.cursor.execute("UPDATE snapshot_tbl SET response = NULL WHERE response = 'LOCK'")
+
+    def _write_processed_snapshots_to_csv(self):
+        """Write processed snapshots from the database to the CSV file."""
+        self.db.cursor.execute("SELECT * FROM csv_view WHERE response IS NOT NULL")
         headers = [description[0] for description in self.db.cursor.description]
         row_batchsize = 2500
         with self.csvfile as f:
@@ -55,18 +69,23 @@ class SnapshotCollection:
                 if not rows:
                     break
                 f.write_rows(rows)
+
+    def _finalize_db(self):
+        """Commit and close the database connection, and write progress."""
         self.db.conn.commit()
         self.db.write_progress(self._snapshot_handled, self._snapshot_total)
         self.db.conn.close()
 
-    def load(self):
+    def load(self, cdxfile: CDXfile, csvfile: CSVfile):
         """
-        Insert the content of the cdx file into the snapshot table.
+        Insert the content of the cdx and csv file into the snapshot table.
         """
+        self.cdxfile = cdxfile
+        self.csvfile = csvfile
         line_count = self.cdxfile.count_rows()
         self._cdx_total = line_count
         if not self.db.get_insert_complete():
-            print("inserting...")
+            vb.write(content="\ninserting snapshots...")
             self._insert_cdx()
             self.db.set_insert_complete()
         else:
@@ -86,10 +105,10 @@ class SnapshotCollection:
 
         self._skip_set()  # set response to NULL or read csv file and write values into db
 
-        self._filter_duplicates = self.__count(duplicate=True)  # duplicates are in CDX but not written to DB again (skipped)
-        self._snapshot_unhandled = self.__count(unhandled=True)  # count all unhandled in db
-        self._snapshot_handled = self.__count(handled=True)  # count all handled in db
-        self._snapshot_total = self.__count(total=True)  # count all in db
+        self._filter_duplicates = self.count_duplicates()  # duplicates are in CDX but not written to DB again (skipped)
+        self._snapshot_unhandled = self.count_unhandled()  # count all unhandled in db
+        self._snapshot_handled = self.count_handled()  # count all handled in db
+        self._snapshot_total = self.count_total()  # count all in db
 
     def _insert_cdx(self):
         """
@@ -162,18 +181,12 @@ class SnapshotCollection:
         """
         # index for filtering last snapshots
         if self._mode_last:
-            self.db.cursor.execute(
-                "CREATE INDEX IF NOT EXISTS idx_snapshot_tbl_url_origin_timestamp_desc ON snapshot_tbl(url_origin, timestamp DESC);"
-            )
+            self.db.cursor.execute("CREATE INDEX IF NOT EXISTS idx_snapshot_tbl_url_origin_timestamp_desc ON snapshot_tbl(url_origin, timestamp DESC);")
         # index for filtering first snapshots
         if self._mode_first:
-            self.db.cursor.execute(
-                "CREATE INDEX IF NOT EXISTS idx_snapshot_tbl_url_origin_timestamp_asc ON snapshot_tbl(url_origin, timestamp ASC);"
-            )
+            self.db.cursor.execute("CREATE INDEX IF NOT EXISTS idx_snapshot_tbl_url_origin_timestamp_asc ON snapshot_tbl(url_origin, timestamp ASC);")
         # index for skippable snapshots
-        self.db.cursor.execute(
-            "CREATE INDEX IF NOT EXISTS idx_snapshot_tbl_timestamp_url_origin_response ON snapshot_tbl(timestamp, url_origin);"
-        )
+        self.db.cursor.execute("CREATE INDEX IF NOT EXISTS idx_snapshot_tbl_timestamp_url_origin_response ON snapshot_tbl(timestamp, url_origin);")
 
     def _filter_snapshots(self):
         """
@@ -268,37 +281,34 @@ class SnapshotCollection:
                 self.db.conn.commit()
                 self._filter_skip = total_skipped
 
-    def __count(self, duplicate=False, total=False, handled=False, unhandled=False, success=False, fail=False):
-        """
-        Counts several types of snapshots in the snapshot table.
+    def _count(self, query: str) -> int:
+        import pysqlite3 as sqlite3
 
-        Only one parameter should be set to True at a time. If multiple parameters are True,
-        only the first condition that evaluates to True will be executed.
-        """
-        if duplicate:
-            return self._cdx_total - self.__count(total=True)
-        if total:
-            return self.db.cursor.execute("SELECT COUNT(rowid) FROM snapshot_tbl").fetchone()[0]
-        if handled:
-            return self.db.cursor.execute("SELECT COUNT(rowid) FROM snapshot_tbl WHERE response IS NOT NULL").fetchone()[0]
-        if unhandled:
-            return self.db.cursor.execute("SELECT COUNT(rowid) FROM snapshot_tbl WHERE response IS NULL").fetchone()[0]
-        if success:
-            return self.db.cursor.execute("SELECT COUNT(rowid) FROM snapshot_tbl WHERE file IS NOT NULL AND file != ''").fetchone()[0]
-        if fail:
-            return self.db.cursor.execute("SELECT COUNT(rowid) FROM snapshot_tbl WHERE file IS NULL OR file = ''").fetchone()[0]
-        
-    def progression(self):
-        """
-        Returns the current progression on the snapshot collection (handled / total).
-        """
-        handled = self.__count(handled=True)
-        total = self.__count(total=True)
-        return {
-            "handled": handled,
-            "total": total,
-            "progress": f"{handled / total:.2%}" if total > 0 else "0.00%",
-        }
+        try:
+            return self.db.cursor.execute(query).fetchone()[0]
+        except sqlite3.OperationalError as e:
+            if "no such table" in str(e).lower():
+                return 0
+            raise
+
+    def count_total(self) -> int:
+        return self._count("SELECT COUNT(rowid) FROM snapshot_tbl")
+
+    def count_handled(self) -> int:
+        return self._count("SELECT COUNT(rowid) FROM snapshot_tbl WHERE response IS NOT NULL")
+
+    def count_unhandled(self) -> int:
+        return self._count("SELECT COUNT(rowid) FROM snapshot_tbl WHERE response IS NULL")
+
+    def count_success(self) -> int:
+        return self._count("SELECT COUNT(rowid) FROM snapshot_tbl WHERE file IS NOT NULL AND file != ''")
+
+    def count_fail(self) -> int:
+        return self._count("SELECT COUNT(rowid) FROM snapshot_tbl WHERE file IS NULL OR file = ''")
+
+    def count_duplicates(self) -> int:
+        """duplicates = total CDX records - total in db"""
+        return self._cdx_total - self.count_total()
 
     def print_calculation(self):
         vb.write(content="\nSnapshot calculation:")
