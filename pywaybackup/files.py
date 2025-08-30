@@ -58,7 +58,6 @@ class CDXquery:
 
 class File:
     def __init__(self, filepath: str):
-        self.file = None
         self._filepath = filepath
         self._file_handler = None
         self._file_writer = None
@@ -88,8 +87,11 @@ class File:
             vb.write(verbose=None, content=f"\nExisting {self.__class__.__name__} found")
             self.new = False
 
-    def remove(self):
-        os.remove(self.file)
+    @property
+    def file(self):
+        if os.path.exists(self._filepath):
+            return True
+        return False
 
 
 class CDXfile(File):
@@ -115,7 +117,6 @@ class CDXfile(File):
                                 progress.update(len(chunk))
                                 cdxfile_io.write(chunk.decode("utf-8"))
 
-                self.file = self._filepath
                 return True
 
         except requests.exceptions.ConnectionError:

@@ -8,7 +8,7 @@ class Database:
     When instantiated, a connection and cursor are created to interact with the database.
     """
 
-    SNAPSHOT_DB = ""
+    DBFILE = ""
     waybackup_table = """CREATE TABLE IF NOT EXISTS waybackup_table (
         query_identifier TEXT PRIMARY KEY,
         query_progress TEXT,
@@ -45,7 +45,7 @@ class Database:
 
     @classmethod
     def init(cls, dbfile, query_identifier):
-        cls.SNAPSHOT_DB = dbfile
+        cls.DBFILE = dbfile
         db = Database()
         db.cursor.execute(cls.waybackup_table)
         db.cursor.execute(cls.snapshot_table)
@@ -60,7 +60,7 @@ class Database:
         db.close()
 
     def __init__(self):
-        self.conn = sqlite3.connect(Database.SNAPSHOT_DB)
+        self.conn = sqlite3.connect(Database.DBFILE)
         self.conn.row_factory = sqlite3.Row
         self.cursor = self.conn.cursor()
 

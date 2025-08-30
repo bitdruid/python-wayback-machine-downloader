@@ -80,9 +80,9 @@ class PyWayBackup:
         run(): Executes the full download or save operation based on initialized parameters.
 
     Example:
-        >>> from pywaybackup import PyWayBackup
-        >>> backup = PyWayBackup(url="https://example.com", all=True, start="20200101", end="20201231")
-        >>> backup.run()
+    >>> from pywaybackup import PyWayBackup
+    >>> backup = PyWayBackup(url="https://example.com", all=True, start="20200101", end="20201231")
+    >>> backup.run()
     """
 
     def __init__(
@@ -114,14 +114,6 @@ class PyWayBackup:
         debug: bool = False,
         **kwargs: dict,
     ):
-        # restrictions
-        # url must be given
-        # all, last, first, save are mutually exclusive
-        if not url:
-            raise ValueError("URL must be provided")
-        if sum([all, last, first, save]) != 1:
-            raise ValueError("Exactly one of --all, --last, --first, or --save is allowed")
-
         self.url = url
         self.all = all
         self.last = last
@@ -179,37 +171,64 @@ class PyWayBackup:
             # otherwise, we take the command line arguments
             self.command = " ".join(sys.argv[1:])
 
-        self._init()
+        self._verify()
+        self._setup()
 
-    def _init(self):
+    def _verify(self):
+        """
+        Verify correct input.
+        """
+        # url must be given
+        if not self.url:
+            raise ValueError("URL must be provided")
+        # all, last, first, save are mutually exclusive
+        if sum([self.all, self.last, self.first, self.save]) != 1:
+            raise ValueError("Exactly one of --all, --last, --first, or --save is allowed")
+
+    def _setup(self):
         self.domain, self.subdir, self.filename = url_split(self.url)
 
-        if self.output is None:
-            self.output = os.path.join(os.getcwd(), "waybackup_snapshots")
-        if self.metadata is None:
-            self.metadata = self.output
+        self.output = os.path.join(os.getcwd(), "waybackup_snapshots") if not self.output else self.output
+        self.metadata = self.metadata if self.metadata else self.output
 
         if self.all:
             self.mode = "all"
-        if self.last:
+        elif self.last:
             self.mode = "last"
-        if self.first:
+        elif self.first:
             self.mode = "first"
-        if self.save:
+        elif self.save:
             self.mode = "save"
 
-        if self.filetype:
-            self.filetype = [f.lower().strip() for f in self.filetype.split(",")]
-        if self.statuscode:
-            self.statuscode = [s.lower().strip() for s in self.statuscode.split(",")]
+        self.filetype = [f.lower().strip() for f in self.filetype.split(",")] if self.filetype else []
+        self.statuscode = [s.lower().strip() for s in self.statuscode.split(",")] if self.statuscode else []
 
-        base_path = self.metadata
         base_name = f"waybackup_{sanitize_filename(self.url)}"
-        self.cdxfile = os.path.join(base_path, f"{base_name}.cdx")
-        self.dbfile = os.path.join(base_path, f"{base_name}.db")
-        self.csvfile = os.path.join(base_path, f"{base_name}.csv")
-        self.log = os.path.join(base_path, f"{base_name}.log") if self.log else None
-        self.debug = os.path.join(base_path, "waybackup_error.log") if self.debug else None
+        self.cdxfile = os.path.join(self.metadata, f"{base_name}.cdx")
+        self.dbfile = os.path.join(self.metadata, f"{base_name}.db")
+        self.csvfile = os.path.join(self.metadata, f"{base_name}.csv")
+        self.logfile = os.path.join(self.metadata, f"{base_name}.log") if self.log else None
+        self.debugfile = os.path.join(self.metadata, "waybackup_error.log") if self.debug else None
+
+        os.makedirs(self.output, exist_ok=True)
+        os.makedirs(self.metadata, exist_ok=True)
+
+    def _f_reset(self):
+        """
+        Reset files if True.
+        """
+        if self.reset:
+            os.remove(self.dbfile) if os.path.isfile(self.dbfile) else None
+            os.remove(self.cdxfile) if os.path.isfile(self.cdxfile) else None
+            os.remove(self.csvfile) if os.path.isfile(self.csvfile) else None
+
+    def _f_keep(self):
+        """
+        Keep files if True
+        """
+        if not self.keep:
+            os.remove(self.dbfile) if os.path.isfile(self.dbfile) else None
+            os.remove(self.cdxfile) if os.path.isfile(self.cdxfile) else None
 
     def paths(self, rel: bool = False) -> dict:
         """
@@ -219,14 +238,14 @@ class PyWayBackup:
         Example:
         >>> backup_paths = backup.paths(rel=True)
         >>> print(backup_paths)
-        {
-        'snapshots': 'waybackup_snapshots/example.com', 
-        'cdxfile': 'waybackup_snapshots/waybackup_example.com.cdx',
-        'dbfile': 'waybackup_snapshots/waybackup_example.com.db',
-        'csvfile': 'waybackup_snapshots/waybackup_example.com.csv',
-        'log': 'waybackup_snapshots/waybackup_example.com.log',
-        'debug': 'waybackup_snapshots/waybackup_error.log'
-        }
+        ... {
+        ... 'snapshots': 'waybackup_snapshots/example.com',
+        ... 'cdxfile': 'waybackup_snapshots/waybackup_example.com.cdx',
+        ... 'dbfile': 'waybackup_snapshots/waybackup_example.com.db',
+        ... 'csvfile': 'waybackup_snapshots/waybackup_example.com.csv',
+        ... 'log': 'waybackup_snapshots/waybackup_example.com.log',
+        ... 'debug': 'waybackup_snapshots/waybackup_error.log'
+        ... }
         """
         files = {
             "snapshots": os.path.join(self.output, self.domain),
@@ -245,38 +264,55 @@ class PyWayBackup:
 
         Example:
         >>> print(backup.status())
-        {
-        'task': 'downloading snapshots',
-        'current': 150,
-        'total': 300,
-        'progress': '50%'
-        }
+        ... {
+        ... 'task': 'downloading snapshots',
+        ... 'current': 150,
+        ... 'total': 300,
+        ... 'progress': '50%'
+        ... }
         """
         return self._status.status
 
     def run(self, daemon=False):
-        """Run the PyWayBackup process with the given configuration in a separate daemon thread."""
+        """
+        Run the PyWayBackup process according to the current configuration.
+
+        This method initializes logging, exception handling, and database state, then either saves the current page
+        or starts the download process. The download process can be run in a separate daemon thread or synchronously.
+
+        Args:
+            daemon (bool, optional): If True, runs the download process in a separate daemon thread. Defaults to False.
+
+        Example:
+        >>> backup.run(daemon=True)
+        >>> while True:
+        ...     print(backup.status())
+        ...     time.sleep(2)
+        """
 
         def __startup():
             try:
                 vb.write(content=f"\n<<< python-wayback-machine-downloader v{version('pywaybackup')} >>>")
 
                 if db.QUERY_EXIST:
-                    vb.write(content=f"\nDOWNLOAD job exist - processed: {db.QUERY_PROGRESS}\nResuming download... (to reset the job use '--reset')")
+                    vb.write(
+                        content=f"\nDOWNLOAD job exist - processed: {db.QUERY_PROGRESS}\nResuming download... (to reset the job use '--reset')"
+                    )
 
-                if not self.silent:
-                    for i in range(5, -1, -1):
-                        vb.write(content=f"\r{i}...")
-                        print("\033[F", end="")
-                        print("\033[K", end="")
+                    if not self.silent:
+                        for i in range(5, -1, -1):
+                            vb.write(content=f"\r{i}...")
+                            print("\033[F", end="")
+                            print("\033[K", end="")
 
-                        time.sleep(1)
+                            time.sleep(1)
 
             except KeyboardInterrupt:
                 os._exit(1)
 
-        def __async(self):
-            try:
+        def __async():
+            def _prep_cdx() -> CDXfile:
+                self._status.task = "downloading cdx"
                 cdxquery = CDXquery(
                     url=self.url,
                     range=self.range,
@@ -287,27 +323,38 @@ class PyWayBackup:
                     filter_filetype=self.filetype,
                     filter_statuscode=self.statuscode,
                 )
-
-                self._status.task = "downloading cdx"
                 cdx = CDXfile(self.cdxfile)
                 if cdx.request_snapshots(cdxquery):
-                    csv = CSVfile(self.csvfile)
+                    return cdx
 
-                    self._status.task = "preparing snapshots"
-                    collection = SnapshotCollection(mode=self.mode)
-                    collection.load(cdxfile=cdx, csvfile=csv)
-                    collection.print_calculation()
+            def _prep_collection(cdx: CDXfile) -> SnapshotCollection:
+                csv = CSVfile(self.csvfile)
+                self._status.task = "preparing snapshots"
+                collection = SnapshotCollection(mode=self.mode)
+                collection.load(cdxfile=cdx, csvfile=csv)
+                collection.print_calculation()
+                return collection
 
-                    self._status.task = "downloading snapshots"
-                    downloader = DownloadArchive(
-                        mode=self.mode,
-                        output=self.output,
-                        retry=self.retry,
-                        no_redirect=self.no_redirect,
-                        delay=self.delay,
-                        workers=self.workers,
-                    )
-                    downloader.run(SnapshotCollection=collection)
+            def _dl_download(collection: SnapshotCollection):
+                self._status.task = "downloading snapshots"
+                downloader = DownloadArchive(
+                    mode=self.mode,
+                    output=self.output,
+                    retry=self.retry,
+                    no_redirect=self.no_redirect,
+                    delay=self.delay,
+                    workers=self.workers,
+                )
+                downloader.run(SnapshotCollection=collection)
+
+            try:
+                cdx = _prep_cdx()
+
+                if cdx:
+                    collection = _prep_collection(cdx=cdx)
+
+                    if collection:
+                        _dl_download(collection=collection)
 
             except KeyboardInterrupt:
                 print("\nInterrupted by user\n")
@@ -321,36 +368,24 @@ class PyWayBackup:
             finally:
                 self._status.task = "done"
                 collection.close()
+                self._f_keep()
                 vb.fini()
 
-                if not self.keep:
-                    os.remove(self.dbfile) if os.path.exists(self.dbfile) else None
-                    os.remove(self.cdxfile) if os.path.exists(self.cdxfile) else None
+        self._f_reset()
 
-        os.makedirs(self.output, exist_ok=True)
-        os.makedirs(self.metadata, exist_ok=True)
-
-        ex.init(self.debug, self.output, self.command)
-        vb.init(self.silent, self.verbose, self.progress, self.log)
+        ex.init(debugfile=self.debugfile, output=self.output, command=self.command)
+        vb.init(logfile=self.logfile, silent=self.silent, verbose=self.verbose, progress=self.progress)
 
         if self.save:
             archive_save.save_page(self.url)
 
         else:
-            if self.reset:
-                if os.path.isfile(self.cdxfile):
-                    os.remove(self.cdxfile)
-                if os.path.isfile(self.dbfile):
-                    os.remove(self.dbfile)
-                if os.path.isfile(self.csvfile):
-                    os.remove(self.csvfile)
-
             db.init(self.dbfile, self.query_identifier)
 
             __startup()
 
             if daemon:
-                pywaybackup_async = threading.Thread(target=__async, args=(self,), daemon=True)
+                pywaybackup_async = threading.Thread(target=__async, daemon=True)
                 pywaybackup_async.start()
             else:
-                __async(self)
+                __async()
