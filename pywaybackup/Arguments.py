@@ -24,8 +24,8 @@ class Arguments:
         optional = parser.add_argument_group("optional query parameters")
         optional.add_argument("-e", "--explicit", action="store_true", help="search only for the explicit given url")
         optional.add_argument("-r", "--range", type=int, metavar="", help="range in years to search")
-        optional.add_argument("--start", type=int, metavar="", help="start timestamp format: YYYYMMDDhhmmss")
-        optional.add_argument("--end", type=int, metavar="", help="end timestamp format: YYYYMMDDhhmmss")
+        optional.add_argument("--start", type=int, metavar="", help="start timestamp format: YYYYMMDDHHMMSS")
+        optional.add_argument("--end", type=int, metavar="", help="end timestamp format: YYYYMMDDHHMMSS")
         optional.add_argument("--limit", type=int, nargs="?", const=True, metavar="int", help="limit the number of snapshots to download")
         optional.add_argument("--filetype", type=str, metavar="", help="filetypes to download comma separated (js,css,...)")
         optional.add_argument("--statuscode", type=str, metavar="", help="statuscodes to download comma separated (200,404,...)")
@@ -55,3 +55,4 @@ class Arguments:
     def get_args(self) -> dict:
         """Returns the parsed arguments as a dictionary."""
         return vars(self.args)
+

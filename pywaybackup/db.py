@@ -6,11 +6,9 @@ class Database:
     Creates the snapshot database and the snapshot table when initialized.
 
     When instantiated, a connection and cursor are created to interact with the database.
-
-    Interaction with the database is done through the SnapshotCollection class.
     """
 
-    SNAPSHOT_DB = ""
+    DBFILE = ""
     waybackup_table = """CREATE TABLE IF NOT EXISTS waybackup_table (
         query_identifier TEXT PRIMARY KEY,
         query_progress TEXT,
@@ -47,7 +45,7 @@ class Database:
 
     @classmethod
     def init(cls, dbfile, query_identifier):
-        cls.SNAPSHOT_DB = dbfile
+        cls.DBFILE = dbfile
         db = Database()
         db.cursor.execute(cls.waybackup_table)
         db.cursor.execute(cls.snapshot_table)
@@ -62,7 +60,7 @@ class Database:
         db.close()
 
     def __init__(self):
-        self.conn = sqlite3.connect(Database.SNAPSHOT_DB)
+        self.conn = sqlite3.connect(Database.DBFILE)
         self.conn.row_factory = sqlite3.Row
         self.cursor = self.conn.cursor()
 
@@ -92,3 +90,14 @@ class Database:
     def set_filter_complete(self):
         self.cursor.execute("UPDATE waybackup_table SET filter_complete = 1 WHERE query_identifier = (SELECT query_identifier FROM waybackup_table)")
         self.conn.commit()
+
+    def count(self, query: str) -> int:
+        """
+        Pass a COUNT query to get the number of rows in a table.
+        """
+        try:
+            return self.cursor.execute(query).fetchone()[0]
+        except sqlite3.OperationalError as e:
+            if "no such table" in str(e).lower():
+                return 0
+            raise

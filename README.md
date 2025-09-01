@@ -11,6 +11,17 @@ Internet-archive is a nice source for several OSINT-information. This tool is a 
 
 This tool allows you to download content from the Wayback Machine (archive.org). You can use it to download either the latest version or all versions of web page snapshots within a specified range.
 
+# Content
+
+➡️ [Installation](#installation) <br>
+➡️ [notes / issues / hints](#notes--issues--hints) <br>
+➡️ [import](#import) <br>
+➡️ [cli](#cli) <br>
+➡️ [Usage](#usage) <br>
+➡️ [Examples](#examples) <br>
+➡️ [Output](#output) <br>
+➡️ [Contributing](#contributing) <br>
+
 ## Installation
 
 ### Pip
@@ -43,8 +54,14 @@ This tool allows you to download content from the Wayback Machine (archive.org).
 You can import pywaybackup into your own scripts and run it. Args are the same as cli.
 
 Additional args:
-- `silent` (default True): If True, suppresses all output to the console.
-- `debug` (default False): If True, disables writing errors to the error log file.
+- `silent` (default False): If True, suppresses all output to the console.
+- `debug` (default True): If False, disables writing errors to the error log file.
+
+Use:
+- `run()`
+- `status()`
+- `paths()`
+- `stop()`
 
 ```python
 from pywaybackup import PyWayBackup
@@ -73,6 +90,29 @@ output:
   'csvfile': 'output/waybackup_https.example.com.csv',
   'log': 'output/waybackup_example.com.log',
   'debug': 'output/waybackup_error.log'
+}
+```
+
+... or run it asynchronously and print the current status or stop it whenever needed.
+
+```python
+import time
+from pywaybackup import PyWayBackup
+
+backup = PyWayBackup( ... )
+backup.run(daemon=True)
+print(backup.status())
+time.sleep(10)
+print(backup.status())
+backup.stop()
+```
+output:
+```bash
+{
+  'task': 'downloading snapshots',
+  'current': 15,
+  'total': 84,
+  'progress': '18%'
 }
 ```
 

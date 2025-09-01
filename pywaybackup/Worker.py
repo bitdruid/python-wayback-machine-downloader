@@ -3,49 +3,31 @@ import http.client
 from pywaybackup.db import Database
 from pywaybackup.Verbosity import Verbosity as vb
 
-from pywaybackup.SnapshotCollection import SnapshotCollection as sc
+from pywaybackup.Snapshot import Snapshot
 
 
 class Worker:
     """
     Represents the storage for the worker thread - contains the workers connections and its currently assigned snapshot.
-
-    If a relevant property of the assigned snapshot is modified, the worker will push the change to the database.
-
-    - _redirect_url
-    - _redirect_timestamp
-    - _response
-    - _file
-
     Worker buffers its messages in a Message object. Output has to be done with write() method.
     """
 
-    def __init__(self, id: int):
+    def __init__(self, id: int, output: str, mode: str):
         self.id = id
+        self.output = output
+        self.mode = mode
         self.message = Message(self)
-
-        self._redirect_url = None
-        self._redirect_timestamp = None
-        self._response = None
-        self._file = None
 
     def init(self):
         self.db = Database()
         self.connection = http.client.HTTPSConnection("web.archive.org")
 
-    def assign_snapshot(self):
-        self.snapshot = sc.get_snapshot(self.db)
-        if not self.snapshot:
+    def assign_snapshot(self, total_amount: int):
+        self.snapshot = Snapshot(self.db, output=self.output, mode=self.mode)
+        self.total_amount = total_amount
+        if not self.snapshot.counter:  # counter only if a row was fetched
+            self.snapshot = None
             return
-        self.counter = self.snapshot["counter"]
-        self.timestamp = self.snapshot["timestamp"]
-        self.url_archive = self.snapshot["url_archive"]
-        self.url_origin = self.snapshot["url_origin"]
-        self.redirect_url = self.snapshot["redirect_url"]
-        self.redirect_timestamp = self.snapshot["redirect_timestamp"]
-        self.response = self.snapshot["response"]
-        self.file = self.snapshot["file"]
-
         self.attempt = 1
 
     def refresh_connection(self):
@@ -54,50 +36,6 @@ class Worker:
         """
         self.connection.close()
         self.connection = http.client.HTTPSConnection("web.archive.org")
-
-    @property
-    def redirect_url(self):
-        return self._redirect_url
-
-    @redirect_url.setter
-    def redirect_url(self, value):
-        if self.redirect_timestamp is None and value is None:
-            return
-        self._redirect_url = value
-        sc.modify_snapshot(self.db, self.counter, "redirect_url", value)
-
-    @property
-    def redirect_timestamp(self):
-        return self._redirect_timestamp
-
-    @redirect_timestamp.setter
-    def redirect_timestamp(self, value):
-        if self.redirect_url is None and value is None:
-            return
-        self._redirect_timestamp = value
-        sc.modify_snapshot(self.db, self.counter, "redirect_timestamp", value)
-
-    @property
-    def response(self):
-        return self._response
-
-    @response.setter
-    def response(self, value):
-        if self.redirect_url is None and value is None:
-            return
-        self._response = value
-        sc.modify_snapshot(self.db, self.counter, "response", value)
-
-    @property
-    def file(self):
-        return self._file
-
-    @file.setter
-    def file(self, value):
-        if self.redirect_url is None and value is None:
-            return
-        self._file = value
-        sc.modify_snapshot(self.db, self.counter, "file", value)
 
 
 class Message(Worker):
@@ -146,8 +84,8 @@ class Message(Worker):
             result = result + " - " if result else ""
             content = content + " - " if content else ""
             self.message = {
-            "verbose": False,
-            "content": f"{self.worker.counter}/{sc.SNAPSHOT_TOTAL} - W:{self.worker.id} - {result}{content}{self.worker.timestamp} - {self.worker.url_origin}",
+                "verbose": False,
+                "content": f"{self.worker.snapshot.counter}/{self.worker.total_amount} - W:{self.worker.id} - {result}{content}{self.worker.snapshot.timestamp} - {self.worker.snapshot.url_origin}",
             }
             self.buffer.append(self.message)
 

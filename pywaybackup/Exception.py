@@ -14,9 +14,9 @@ class Exception:
     command = None
 
     @classmethod
-    def init(cls, debug=None, output=None, command=None):
+    def init(cls, debugfile=None, output=None, command=None):
         sys.excepthook = cls.exception_handler  # set custom exception handler (uncaught exceptions)
-        cls.debug = debug
+        cls.debugfile = debugfile
         cls.output = output
         cls.command = command
 
@@ -45,18 +45,18 @@ class Exception:
             exception_message += "!-- Traceback is None\n"
         exception_message += f"!-- Description: {e}\n-------------------------"
         print(exception_message)
-        if cls.debug:
-            print(f"Exception log: {cls.debug}")
+        if cls.debugfile:
+            print(f"Exception log: {cls.debugfile}")
             if cls.new_debug:  # new run, overwrite file
                 cls.new_debug = False
-                f = open(cls.debug, "w", encoding="utf-8")
+                f = open(cls.debugfile, "w", encoding="utf-8")
                 f.write("-------------------------\n")
                 f.write(f"Version: {version('pywaybackup')}\n")
                 f.write("-------------------------\n")
                 f.write(f"Command: {cls.command}\n")
                 f.write("-------------------------\n\n")
             else:  # current run, append to file
-                f = open(cls.debug, "a", encoding="utf-8")
+                f = open(cls.debugfile, "a", encoding="utf-8")
             f.write(datetime.now().strftime("%Y-%m-%d %H:%M:%S") + "\n")
             f.write(exception_message + "\n")
             f.write("!-- Local Variables:\n")
@@ -96,4 +96,4 @@ class Exception:
         if issubclass(exception_type, KeyboardInterrupt):
             sys.__excepthook__(exception_type, exception, traceback)
             return
-        Exception.exception("UNCAUGHT EXCEPTION", exception, traceback)  # uncaught exceptions also with custom scheme
+        Exception.exception('UNCAUGHT EXCEPTION', exception, traceback)  # uncaught exceptions also with custom scheme

@@ -15,10 +15,10 @@ class Verbosity:
     log = None
 
     @classmethod
-    def init(cls, silent: bool = False, verbose: bool = False, progress=None, log=None):
+    def init(cls, logfile=None, silent: bool = False, verbose: bool = False, progress=None):
         cls.silent = silent
         cls.verbose = verbose
-        cls.log = open(log, "w", encoding="utf-8") if log else None
+        cls.logfile = open(logfile, "w", encoding="utf-8") if logfile else None
         cls.PROGRESS = progress
 
     @classmethod
@@ -26,8 +26,8 @@ class Verbosity:
         if cls.PROGRESS:
             if cls.pbar is not None:
                 cls.pbar.close()
-        if cls.log:
-            cls.log.close()
+        if cls.logfile:
+            cls.logfile.close()
 
     @classmethod
     def write(cls, verbose: bool = None, content: Union[str, list] = None):
@@ -47,9 +47,9 @@ class Verbosity:
                 content = [{"verbose": verbose, "content": content}]
             logline = cls.filter_verbosity(content)
             if logline:
-                if cls.log:
-                    cls.log.write(logline + "\n")
-                    cls.log.flush()
+                if cls.logfile:
+                    cls.logfile.write(logline + "\n")
+                    cls.logfile.flush()
                 if not cls.PROGRESS:
                     print(logline)
 
