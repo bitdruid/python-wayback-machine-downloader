@@ -129,25 +129,24 @@ output:
 #### Mode Selection (Choose One)
 
 - **`-a`**, **`--all`**:<br>
-  Download snapshots of all timestamps. You will get a folder per timestamp with the files available at that time.
+  All timestamps. Gives one folder per timestamp.
 - **`-l`**, **`--last`**:<br>
-  Download the last version of each file snapshot. You will get one directory with a rebuild of the page. It contains the last version of each file of your specified `--range`.
+  Last Version. Gives one folder containing the last version of each file of specified `--range`.
 - **`-f`**, **`--first`**:<br>
-  Download the first version of each file snapshot. You will get one directory with a rebuild of the page. It contains the first version of each file of your specified `--range`.
-- **`-s`**, **`--save`**:<br>
-  Save a page to the Wayback Machine. (beta)
+  First Version. Gives one folder containing the first version of each file of specified `--range`.
 
 #### Optional query parameters
 
+Parameters for archive.org CDX query. No effect on snapshot download itself.
+
 - **`-e`**, **`--explicit`**:<br>
-  Only download the explicit given URL. No wildcard subdomains or paths. Use e.g. to get root-only snapshots. This is recommended for explicit files like `login.html` or `?query=this`.
+  Only the explicit URL. No wildcard subdomains or paths. For example get: root-only (`https://example.com`) or specific file (`login.html`, `?query=this`).
 
 - **`--limit`** `<count>`:<br>
-  Limits the amount of snapshots to query from the CDX server. If an existing CDX file is injected, the limit will have no effect. So you would need to set `--keep`.
+  Limits the snapshots fetched from archive.org CDX. (Will have no effect on existing CDX files)
 
 - **Range Selection:**<br>
-  Specify the range in years or a specific timestamp either start, end, or both. If you specify the `range`, the `start` and `end` will be ignored. Format for timestamps: YYYYMMDDhhmmss. You can only give a year or increase specificity by going through the timestamp starting on the left.<br>
-  (year 2019, year+month+day 20190101, year+month+day+hour 2019010112)
+  Set the query range in years (`range`) or a timestamp (`start` and/or `end`). If `range` then ignores `start` and `end`. Format for timestamps: YYYYMMDDhhmmss. Timestamp can as specific as needed (year 2019, year+month+day 20190101, ...).
 
   - **`-r`**, **`--range`**:<br>
     Specify the range in years for which to search and download snapshots.
@@ -157,57 +156,56 @@ output:
     Timestamp to end searching.
 
 - **Filtering:**<br>
-  A filter will result in a filtered cdx-file. So if you want to download all files later, you need to query again without the filter.
 
   - **`--filetype`** `<filetype>`:<br>
-    Specify filetypes to download. Default is all filetypes. Separate multiple filetypes with a comma. Example: `--filetype jpg,css,js`. Filetypes are filtered as they are in the snapshot. So if there is no explicit `html` file in the path (common practice) then you cant filter them.
+    Specify filetypes to download. Example: `--filetype jpg,css,js`. You can only filter filetypes which are stored by archive.org (.html mostly not)
 
   - **`--statuscode`** `<statuscode>`:<br>
-    Specify HTTP status codes to download. Default is all statuscodes. Separate multiple status codes with a comma. Example: `--statuscode 200,301`. Pywaybackup will try to download any snapshot regardless of it's statuscode. For 404 of course this means logged errors and corresponding entries in the csv. However, you may want to get a csv that includes these negative attempts for your needs.<br>
+    Specify HTTP status codes to download. Example: `--statuscode 200,301`. PyWayBackup will always skip `404` and `301`.<br>
     Common status codes you may want to handle/filter:
       - `200` (OK)
-      - `301` (Moved Permanently - will redirect snapshot)
+      - `301` (Moved Permanently)
       - `404` (Not Found - snapshot seems to be empty)
       - `500` (Internal Server Error - snapshot is at least for now not available)
 
-### Optional
+#### Optional Behavior Manipulation
 
-#### Behavior Manipulation
+Parameters will change the download behavior for snapshots.
 
 - **`-o`**, **`--output`**:<br>
   Defaults to `waybackup_snapshots` in the current directory. The folder where downloaded files will be saved.
 
 - **`-m`**, **`--metadata`**<br>
-  Change the folder where metadata will be saved (`cdx`/`db`/`csv`/`log`). Especially if you are downloading into a network share, you SHOULD set this to a local path because sqlite locking mechanism may cause issues with network shares.
+  Folder where metadata will be saved (`cdx`/`db`/`csv`/`log`). If you are downloading into a network share, you SHOULD set this to a local path because sqlite locking mechanism may cause issues with network shares.
 
 - **`--verbose`**:<br>
   Increase output verbosity.
 
 - **`--log`** <!-- `<path>` -->:<br>
-  Saves a log file into the output-dir. Named as `waybackup_<sanitized_url>.log`.
+  Saves a log file into the output-dir. `waybackup_<sanitized_url>.log`.
 
 - **`--progress`**:<br>
   Shows a progress bar instead of the default output.
 
 - **`--workers`** `<count>`:<br>
-  Sets the number of simultaneous download workers. Default is 1, safe range is about 10. Be cautious as too many workers may lead to refused connections from the Wayback Machine.
+  Number of simultaneous download workers. Default is 1, safe range is about 10. Too many workers may lead to refused connections by archive.org.
 
 - **`--no-redirect`**:<br>
-  Disables following redirects of snapshots. Useful for preventing timestamp-folder mismatches caused by Archive.org redirects.
+  Disables following redirects of snapshots. Can prevent timestamp-folder mismatches caused by redirects.
 
 - **`--retry`** `<attempts>`:<br>
-  Specifies number of retry attempts for failed downloads.
+  Retry attempts for failed downloads.
 
 - **`--delay`** `<seconds>`:<br>
-  Specifies delay between download requests in seconds. Default is no delay (0).
+  Delay between download requests in seconds. Default is no delay (0).
 
 #### Job Handling:
 
 - **`--reset`**:  
-  If set, the job will be reset, and any existing `cdx`, `db`, `csv` files will be **deleted**. This allows you to start the job from scratch without considering previously downloaded data.
+  If set, the job will be reset, and `cdx`, `db`, `csv` files will be **deleted**. This allows you to start the job from scratch.
 
 - **`--keep`**:  
-  If set, all files will be kept after the job is finished. This includes the `cdx` and `db` file. Without this argument, they will be deleted if the job finished successfully.
+  If set, `cdx` and `db` files will be kept after the job is finished. Otherwise they will be deleted.
 
 <br>
 <br>
@@ -218,22 +216,10 @@ output:
 
 `pywaybackup` resumes interrupted jobs. The tool automatically continues from where it left off.
 
-- Detects existing `.cdx` and `.db` files in an `output dir` to resume downloading from the last successful point.
-- Compares `URL`, `mode`, and `optional query parameters` to ensure automatic resumption.
-- Skips previously downloaded files to save time.
+Only resumes queries if:
+- existing `.cdx` and `.db` files in an `output dir`
+- command is identical by `URL`, `mode`, and `optional query parameters`
   > **Note:** Changing URL, mode selection, query parameters or output prevents automatic resumption.
-
-#### Resetting a Job (`--reset`)
-
-- Deletes `.cdx` and `.db` files and restarts the process from scratch.
-- Does **not** remove already downloaded files.
-- `waybackup -u https://example.com -a --reset`
-
-#### Keeping Job Data (`--keep`)
-
-- Normally, `.cdx` and `.db` files are deleted after a successful job.
-- `--keep` preserves them for future re-analysis or extending the query.
-- `waybackup -u https://example.com -a --keep`
 
 <br>
 <br>

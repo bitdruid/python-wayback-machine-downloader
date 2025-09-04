@@ -409,7 +409,7 @@ class PyWayBackup:
         }
         return {key: (os.path.relpath(path) if rel else path) for key, path in files.items() if path and os.path.exists(path)}
 
-    def status(self):
+    def status(self) -> dict:
         """
         Return the current status of the backup process by a dictionary:
             {'task':, 'current':, 'total':, 'progress':}
