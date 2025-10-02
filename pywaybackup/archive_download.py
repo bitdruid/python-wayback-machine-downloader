@@ -17,7 +17,27 @@ from pywaybackup.Worker import Worker
 
 
 class DownloadContext:
+    """
+    Context object for managing the state of a single snapshot download.
+
+    Attributes:
+        snapshot_url (str): The URL of the snapshot to download.
+        headers (dict): HTTP headers for the request.
+        encoded_download_url (str): URL-encoded snapshot URL.
+        output_file (str): Path to the output file for the download.
+        output_path (str): Directory path for waybackup output.
+        response: HTTP response object.
+        response_data: Raw response data.
+        response_status (int): HTTP status code of the response.
+    """
+
     def __init__(self, snapshot_url: str):
+        """
+        Initialize the download context for a snapshot URL.
+
+        Args:
+            snapshot_url (str): The URL of the snapshot to download.
+        """
         self.snapshot_url = snapshot_url
         self.headers = {"User-Agent": f"bitdruid-python-wayback-downloader/{version('pywaybackup')}"}
         self.encoded_download_url = self.encode_url(snapshot_url)
@@ -28,15 +48,50 @@ class DownloadContext:
         self.response_status = None
 
     def encode_url(self, url: str) -> str:
+        """
+        URL-encode the given string, preserving certain safe characters.
+
+        Args:
+            url (str): The URL to encode.
+        Returns:
+            str: The encoded URL.
+        """
         return urllib.parse.quote(url, safe=":/")
 
     @property
     def response_status_message(self):
+        """
+        str: Human-readable HTTP status message for the response status code.
+        """
         return HTTPStatus(self.response_status).phrase if self.response_status else "No Status"
 
 
 class DownloadArchive:
+    """
+    Manages the download process for a collection of snapshots using multiple workers.
+
+    Attributes:
+        mode (str): Download mode ('first', 'last', or default).
+        output (str): Directory path for waybackup output.
+        retry (int): Number of retry attempts per snapshot.
+        no_redirect (bool): If True, disables redirect handling.
+        delay (int): Delay in seconds between downloads.
+        workers (int): Number of worker threads to use.
+        sc (SnapshotCollection): The snapshot collection being processed.
+    """
+
     def __init__(self, mode: str, output: str, retry: int, no_redirect: bool, delay: int, workers: int):
+        """
+        Initialize the download manager with configuration options.
+
+        Args:
+            mode (str): Download mode.
+            output (str): Output directory.
+            retry (int): Number of retry attempts.
+            no_redirect (bool): Disable redirect handling if True.
+            delay (int): Delay between downloads in seconds.
+            workers (int): Number of worker threads.
+        """
         self.mode = mode
         self.output = output
         self.retry = retry
@@ -47,6 +102,12 @@ class DownloadArchive:
         self.sc = None
 
     def run(self, SnapshotCollection: SnapshotCollection):
+        """
+        Start the download process for the given snapshot collection.
+
+        Args:
+            SnapshotCollection (SnapshotCollection): The collection of snapshots to download.
+        """
         self.sc = SnapshotCollection
         if self.sc._snapshot_unhandled == 0:
             vb.write(content="\nNothing to download")
@@ -54,6 +115,9 @@ class DownloadArchive:
         self._spawn_workers()
 
     def _spawn_workers(self):
+        """
+        Spawn and start worker threads for downloading snapshots.
+        """
         vb.write(
             content="\nDownloading snapshots...",
         )
@@ -72,6 +136,12 @@ class DownloadArchive:
             thread.join()
 
     def _download_loop(self, worker: Worker):
+        """
+        Main loop for a worker thread to process and download snapshots.
+
+        Args:
+            worker (Worker): The worker instance handling downloads.
+        """
         try:
             worker.init()
 
@@ -85,7 +155,9 @@ class DownloadArchive:
                 while worker.attempt <= retry_max_attempt:  # retry as given by user
                     worker.message.store(
                         verbose=True,
-                        content=f"\n-----> Worker: {worker.id} - Attempt: [{worker.attempt}/{retry_max_attempt}] Snapshot ID: [{worker.snapshot.counter}/{self.sc._snapshot_total}]",
+                        content=f"\n-----> Worker: {worker.id} \
+                            - Attempt: [{worker.attempt}/{retry_max_attempt}] \
+                            Snapshot ID: [{worker.snapshot.counter}/{self.sc._snapshot_total}]",
                     )
                     download_attempt = 1
                     download_max_attempt = 3
@@ -102,11 +174,16 @@ class DownloadArchive:
                                     download_attempt += 1  # try again 2x with same connection
                                     vb.write(
                                         verbose=True,
-                                        content=f"\n-----> Worker: {worker.id} - Attempt: [{worker.attempt}/{retry_max_attempt}] Snapshot ID: [{worker.snapshot.counter}/{self.sc._snapshot_total}] - {e.__class__.__name__} - requesting again in 50 seconds...",
+                                        content=f"\n-----> Worker: {worker.id} \
+                                            - Attempt: [{worker.attempt}/{retry_max_attempt}] \
+                                            Snapshot ID: [{worker.snapshot.counter}/{self.sc._snapshot_total}] \
+                                            - {e.__class__.__name__} - requesting again in 50 seconds...",
                                     )
                                     vb.write(
                                         verbose=False,
-                                        content=f"Worker: {worker.id} - Snapshot {worker.snapshot.counter}/{self.sc._snapshot_total} - requesting again in 50 seconds...",
+                                        content=f"Worker: {worker.id} \
+                                            - Snapshot {worker.snapshot.counter}/{self.sc._snapshot_total} \
+                                            - requesting again in 50 seconds...",
                                     )
                                     time.sleep(50)
                                     continue
@@ -116,18 +193,26 @@ class DownloadArchive:
                                     download_attempt = download_max_attempt  # try again 1x with new connection
                                     vb.write(
                                         verbose=True,
-                                        content=f"\n-----> Worker: {worker.id} - Attempt: [{worker.attempt}/{retry_max_attempt}] Snapshot ID: [{worker.snapshot.counter}/{self.sc._snapshot_total}] - {e.__class__.__name__} - renewing connection in 15 seconds...",
+                                        content=f"\n-----> Worker: {worker.id} \
+                                            - Attempt: [{worker.attempt}/{retry_max_attempt}] \
+                                            Snapshot ID: [{worker.snapshot.counter}/{self.sc._snapshot_total}] \
+                                            - {e.__class__.__name__} - renewing connection in 15 seconds...",
                                     )
                                     vb.write(
                                         verbose=False,
-                                        content=f"Worker: {worker.id} - Snapshot {worker.snapshot.counter}/{self.sc._snapshot_total} - renewing connection in 15 seconds...",
+                                        content=f"Worker: {worker.id} \
+                                            - Snapshot {worker.snapshot.counter}/{self.sc._snapshot_total} \
+                                            - renewing connection in 15 seconds...",
                                     )
                                     time.sleep(15)
                                     worker.refresh_connection()
                                     continue
                             else:
                                 ex.exception(
-                                    f"\n-----> Worker: {worker.id} - Attempt: [{worker.attempt}/{retry_max_attempt}] Snapshot ID: [{worker.snapshot.counter}/{self.sc._snapshot_total}] - EXCEPTION - {e}",
+                                    message=f"\n-----> Worker: {worker.id} \
+                                        - Attempt: [{worker.attempt}/{retry_max_attempt}] \
+                                        Snapshot ID: [{worker.snapshot.counter}/{self.sc._snapshot_total}] \
+                                        - EXCEPTION - {e}",
                                     e=e,
                                 )
                                 worker.attempt = retry_max_attempt
@@ -161,6 +246,14 @@ class DownloadArchive:
             ex.exception(f"\nWorker: {worker.id} - Exception", e)
 
     def _download(self, worker: Worker):
+        """
+        Download a single snapshot using the provided worker.
+
+        Args:
+            worker (Worker): The worker instance handling the download.
+        Returns:
+            bool: True if download was successful, False otherwise.
+        """
         context = DownloadContext(snapshot_url=worker.snapshot.url_archive)
 
         self.__download_response(context=context, worker=worker)
@@ -198,6 +291,13 @@ class DownloadArchive:
             return self.__dl_fail(context, worker)
 
     def __handle_redirect(self, context: DownloadContext, worker: Worker) -> None:
+        """
+        Handle HTTP redirects for a snapshot download.
+
+        Args:
+            context (DownloadContext): The download context.
+            worker (Worker): The worker instance.
+        """
         worker.message.store(verbose=True, result="REDIRECT", content=f"{context.response_status} {context.response_status_message}")
         worker.message.store(verbose=True, result="", info="FROM", content=context.snapshot_url)
         for _ in range(5):
@@ -212,6 +312,15 @@ class DownloadArchive:
                 break
 
     def __dl_nt_path_too_long(self, context: DownloadContext, worker: Worker) -> None:
+        """
+        Check for NT (Windows) path length issues and handle them.
+
+        Args:
+            context (DownloadContext): The download context.
+            worker (Worker): The worker instance.
+        Raises:
+            Exception: If the path is too long for NT systems.
+        """
         if check_nt() and len(context.output_file) > 255:
             worker.message.store(verbose=None, result="CANT SAVE", content="NT PATH TOO LONG")
             worker.message.store(verbose=True, result="", info="URL", content=context.snapshot_url)
@@ -219,6 +328,12 @@ class DownloadArchive:
             raise Exception("NT Path too long to save file")
 
     def __dl_move_path_or_file(self, context: DownloadContext) -> None:
+        """
+        Handle cases where output path is a file or output file is a directory.
+
+        Args:
+            context (DownloadContext): The download context.
+        """
         # case if output_path is a file, move file to temporary name, create output_path and move file into output_path
         if os.path.isfile(context.output_path):
             move_index(existpath=context.output_path)
@@ -229,6 +344,16 @@ class DownloadArchive:
             context.output_file = move_index(existfile=context.output_file, filebuffer=context.response_data)
 
     def __dl_result(self, context: DownloadContext, worker: Worker, result: str) -> bool:
+        """
+        Store result information and update snapshot file path.
+
+        Args:
+            context (DownloadContext): The download context.
+            worker (Worker): The worker instance.
+            result (str): Result status ('SUCCESS', 'EXISTING', etc.).
+        Returns:
+            bool: Always True (indicates result was processed).
+        """
         worker.message.store(verbose=True, result=result, content=f"{context.response_status} {context.response_status_message}")
         worker.message.store(verbose=False, result=result)
         worker.message.store(verbose=True, result="", info="URL", content=context.snapshot_url)
@@ -237,11 +362,27 @@ class DownloadArchive:
         return True
 
     def __dl_fail(self, context: DownloadContext, worker: Worker) -> bool:
+        """
+        Handle failed download attempts and store failure information.
+
+        Args:
+            context (DownloadContext): The download context.
+            worker (Worker): The worker instance.
+        Returns:
+            bool: Always False (indicates failure was processed).
+        """
         worker.message.store(verbose=None, result="UNKNOWN", content=f"{context.response_status} {context.response_status_message}")
         worker.message.store(verbose=True, result="", info="URL", content=context.snapshot_url)
         return False
 
     def __download_response(self, context: DownloadContext, worker: Worker) -> None:
+        """
+        Send HTTP GET request and store response data in the context.
+
+        Args:
+            context (DownloadContext): The download context.
+            worker (Worker): The worker instance.
+        """
         worker.connection.request("GET", context.encoded_download_url, headers=context.headers)
         context.response = worker.connection.getresponse()
         context.response_data = context.response.read()

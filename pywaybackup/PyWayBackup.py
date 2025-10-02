@@ -1,18 +1,18 @@
-import sys
-import os
-import time
-import signal
 import multiprocessing
-from pywaybackup.helper import url_split, sanitize_filename
+import os
+import signal
+import sys
+import time
 from importlib.metadata import version
 
 import pywaybackup.archive_save as archive_save
-from pywaybackup.db import Database as db
-from pywaybackup.Verbosity import Verbosity as vb
-from pywaybackup.Exception import Exception as ex
-from pywaybackup.SnapshotCollection import SnapshotCollection
 from pywaybackup.archive_download import DownloadArchive
-from pywaybackup.files import CDXquery, CDXfile, CSVfile, File
+from pywaybackup.db import Database as db
+from pywaybackup.Exception import Exception as ex
+from pywaybackup.files import CDXfile, CDXquery, CSVfile, File
+from pywaybackup.helper import sanitize_filename, url_split
+from pywaybackup.SnapshotCollection import SnapshotCollection
+from pywaybackup.Verbosity import Verbosity as vb
 
 
 class _Status:
@@ -401,9 +401,9 @@ class PyWayBackup:
         """
         files = {
             "snapshots": os.path.join(self._output, self._domain),
-            "cdxfile": self._cdxfile,
+            "cdxfile": self._cdxfile.filepath,
             "dbfile": self._dbfile,
-            "csvfile": self._csvfile,
+            "csvfile": self._csvfile.filepath,
             "log": self._log,
             "debug": self._debug,
         }
@@ -475,10 +475,10 @@ class PyWayBackup:
         return False
 
     def _startup(self):
-        if db.QUERY_EXIST:
+        if db.query_exist:
             self._status.task = "resuming"
             vb.write(
-                content=f"\nDOWNLOAD job exist - processed: {db.QUERY_PROGRESS}\nResuming download... (to reset the job use '--reset')"
+                content=f"\nDOWNLOAD job exist - processed: {db.query_progress}\nResuming download... (to reset the job use '--reset')"
             )
 
             if not self._silent:

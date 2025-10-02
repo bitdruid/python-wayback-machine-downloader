@@ -326,6 +326,11 @@ Exceptions will be written into `waybackup_error.log` (each run overwrites the f
 <br>
 <br>
 
+## Future ideas (long run)
+
+- More module functionality
+- Docker UI
+
 ## Contributing
 
 I'm always happy for some feature requests to improve the usability of this tool.

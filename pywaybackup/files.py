@@ -1,11 +1,12 @@
 from dataclasses import dataclass
+from typing import List, Optional  # 3.8
 
 import os
 import csv
 import requests
 from datetime import datetime
 from pywaybackup.helper import url_split
-from pywaybackup.db import Database
+from pywaybackup.db import Database, waybackup_snapshots, select
 from pywaybackup.Verbosity import Verbosity as vb, Progressbar
 from pywaybackup.Exception import Exception as ex
 
@@ -23,8 +24,10 @@ class CDXquery:
     end: int = None
     limit: int = None
     explicit: bool = False
-    filter_filetype: list[str] = None
-    filter_statuscode: list[str] = None
+    filter_filetype: Optional[List[str]] = None  # 3.8
+    filter_statuscode: Optional[List[str]] = None  # 3.8
+    # filter_filetype: List[str] = None # 3.9+
+    # filter_statuscode: List[str] = None # 3.9+
 
     def __post_init__(self):
         self.domain, self.subdir, self.filename = url_split(self.url)
@@ -59,7 +62,8 @@ class CDXquery:
 
 class File:
     def __init__(self, filepath: str):
-        self._filepath = filepath
+        self.filepath = filepath
+        self._new = None
         self._file_handler = None
         self._file_writer = None
 
@@ -71,7 +75,7 @@ class File:
 
     def _open(self, mode: str):
         if not self._file_handler:
-            self._file_handler = open(self._filepath, mode, encoding="utf-8", newline="")
+            self._file_handler = open(self.filepath, mode, encoding="utf-8", newline="")
 
     def _close(self):
         if self._file_handler and not self._file_handler.closed:
@@ -79,21 +83,21 @@ class File:
         self._file_handler = None
 
     def create(self):
-        if not os.path.exists(self._filepath):
+        if not os.path.exists(self.filepath):
             vb.write(verbose=None, content=f"\nCreating new {self.__class__.__name__}")
-            open(self._filepath, "a").close()
-            self.new = True
+            open(self.filepath, "a").close()
+            self._new = True
         else:
             vb.write(verbose=None, content=f"\nExisting {self.__class__.__name__} found")
-            self.new = False
+            self._new = False
 
     def remove(self):
-        if os.path.exists(self._filepath):
-            os.remove(self._filepath)
+        if os.path.exists(self.filepath):
+            os.remove(self.filepath)
 
     @property
     def file(self):
-        if os.path.exists(self._filepath):
+        if os.path.exists(self.filepath):
             return True
         return False
 
@@ -109,10 +113,10 @@ class CDXfile(File):
 
     def request_snapshots(self, query: CDXquery):
         try:
-            if not self.new:
+            if not self._new:
                 return True
             else:
-                with open(self._filepath, "w", encoding="utf-8") as cdxfile_io:
+                with open(self.filepath, "w", encoding="utf-8") as cdxfile_io:
                     with requests.get(query.query_url, stream=True, timeout=60) as r:
                         r.raise_for_status()
                         progress = Progressbar(unit="B", unit_scale=True, desc="download cdx".ljust(15))
@@ -125,11 +129,11 @@ class CDXfile(File):
 
         except requests.exceptions.ConnectionError:
             vb.write(content="\nCONNECTION REFUSED -> could not query cdx server (max retries exceeded)")
-            os.remove(self._filepath)
+            os.remove(self.filepath)
             return False
         except Exception as e:
             ex.exception(message="\nUnknown error while querying cdx server", e=e)
-            os.remove(self._filepath)
+            os.remove(self.filepath)
             return False
 
     def count_rows(self) -> str:
@@ -166,13 +170,21 @@ class CSVfile(File):
         Store all processed snapshots from the database to the CSV file.
         """
         db = Database()
-        db.cursor.execute("SELECT * FROM csv_view WHERE response IS NOT NULL")
-        headers = [description[0] for description in db.cursor.description]
+        stmt = select(
+            waybackup_snapshots.timestamp,
+            waybackup_snapshots.url_archive,
+            waybackup_snapshots.url_origin,
+            waybackup_snapshots.redirect_url,
+            waybackup_snapshots.redirect_timestamp,
+            waybackup_snapshots.response,
+            waybackup_snapshots.file,
+        ).where(waybackup_snapshots.response.is_not(None))
+        result = db.session.execute(statement=stmt)
         row_batchsize = 2500
         with self as f:
-            f.write_rows(headers)
+            f.write_rows(list(result.keys()))
             while True:
-                rows = db.cursor.fetchmany(row_batchsize)
+                rows = result.fetchmany(row_batchsize)
                 if not rows:
                     break
                 f.write_rows(rows)

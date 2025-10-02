@@ -6,6 +6,7 @@ from importlib.metadata import version
 from pywaybackup.helper import url_get_timestamp
 from pywaybackup.Verbosity import Verbosity as vb
 
+
 # playwright ?
 # GET: store page to wayback machine and response with redirect to snapshot
 # POST: store page to wayback machine and response with wayback machine status-page
@@ -14,7 +15,7 @@ from pywaybackup.Verbosity import Verbosity as vb
 # tag_result_success = ' A snapshot was captured. Visit page: <a href="%s">%s</a>'
 def save_page(url: str):
     """
-    Saves a webpage to the Wayback Machine. 
+    Saves a webpage to the Wayback Machine.
 
     Args:
         url (str): The URL of the webpage to be saved.
@@ -33,9 +34,11 @@ def save_page(url: str):
 
         if response_status == 302:
             location = response.getheader("Location")
-            snapshot_timestamp = datetime.strptime(url_get_timestamp(location), '%Y%m%d%H%M%S').strftime('%Y-%m-%d %H:%M:%S')
-            current_timestamp = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
-            timestamp_difference = (datetime.strptime(current_timestamp, '%Y-%m-%d %H:%M:%S') - datetime.strptime(snapshot_timestamp, '%Y-%m-%d %H:%M:%S')).seconds / 60
+            snapshot_timestamp = datetime.strptime(url_get_timestamp(location), "%Y%m%d%H%M%S").strftime("%Y-%m-%d %H:%M:%S")
+            current_timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+            timestamp_difference = (
+                datetime.strptime(current_timestamp, "%Y-%m-%d %H:%M:%S") - datetime.strptime(snapshot_timestamp, "%Y-%m-%d %H:%M:%S")
+            ).seconds / 60
             timestamp_difference = int(round(timestamp_difference, 0))
 
             if timestamp_difference < 1:
@@ -61,4 +64,3 @@ def save_page(url: str):
         connection.close()
     except ConnectionRefusedError:
         vb.write(verbose=None, content="\nCONNECTION REFUSED -> could not connect to wayback machine")
-

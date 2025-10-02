@@ -1,9 +1,8 @@
 import http.client
 
 from pywaybackup.db import Database
-from pywaybackup.Verbosity import Verbosity as vb
-
 from pywaybackup.Snapshot import Snapshot
+from pywaybackup.Verbosity import Verbosity as vb
 
 
 class Worker:

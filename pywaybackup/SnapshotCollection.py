@@ -1,10 +1,11 @@
 import json
 
-from pywaybackup.db import Database
+from pywaybackup.db import Database, Index, and_, delete, func, or_, select, tuple_, update, waybackup_snapshots
 from pywaybackup.files import CDXfile, CSVfile
 from pywaybackup.Verbosity import Progressbar
 from pywaybackup.Verbosity import Verbosity as vb
-from pywaybackup.Exception import Exception as ex
+
+func: callable
 
 
 class SnapshotCollection:
@@ -49,13 +50,13 @@ class SnapshotCollection:
 
     def _reset_locked_snapshots(self):
         """Reset locked snapshots to unprocessed in the database."""
-        self.db.cursor.execute("UPDATE snapshot_tbl SET response = NULL WHERE response = 'LOCK'")
+        self.db.session.execute(update(waybackup_snapshots).where(waybackup_snapshots.response == "LOCK").values(response=None))
+        self.db.session.commit()
 
     def _finalize_db(self):
         """Commit and close the database connection, and write progress."""
-        self.db.conn.commit()
         self.db.write_progress(self._snapshot_handled, self._snapshot_total)
-        self.db.conn.close()
+        self.db.session.close()
 
     def load(self, mode: str, cdxfile: CDXfile, csvfile: CSVfile):
         """
@@ -91,7 +92,6 @@ class SnapshotCollection:
 
         self._skip_set()  # set response to NULL or read csv file and write values into db
 
-        self._filter_duplicates = self.count_duplicates()  # duplicates are in CDX but not written to DB again (skipped)
         self._snapshot_unhandled = self.count_unhandled()  # count all unhandled in db
         self._snapshot_handled = self.count_handled()  # count all handled in db
         self._snapshot_total = self.count_total()  # count all in db
@@ -114,7 +114,42 @@ class SnapshotCollection:
             }
             url_archive = f"https://web.archive.org/web/{line['timestamp']}id_/{line['origin']}"
             statuscode = line["statuscode"] if line["statuscode"] in ("301", "404") else None
-            return (line["timestamp"], url_archive, line["origin"], statuscode)
+            return {
+                "timestamp": line["timestamp"],
+                "url_archive": url_archive,
+                "url_origin": line["origin"],
+                "response": statuscode,
+            }
+
+        def _insert_batch_safe(line_batch):
+            # removes duplicates within the line_batch itself
+            seen_keys = set()
+            unique_batch = []
+            for row in line_batch:
+                key = (row["timestamp"], row["url_origin"], row["url_archive"])
+                if key not in seen_keys:
+                    seen_keys.add(key)
+                    unique_batch.append(row)
+
+            # removes duplicates from the line_batch if they are already in the database
+            # get existing entries by tuple, remove existing rows from the unique_batch
+            keys = [(row["timestamp"], row["url_origin"], row["url_archive"]) for row in unique_batch]
+            existing = (
+                self.db.session.query(
+                    waybackup_snapshots.timestamp,
+                    waybackup_snapshots.url_origin,
+                    waybackup_snapshots.url_archive,
+                )
+                .filter(tuple_(waybackup_snapshots.timestamp, waybackup_snapshots.url_origin, waybackup_snapshots.url_archive).in_(keys))
+                .all()
+            )
+            existing_rows = set(existing)
+            new_rows = [row for row in unique_batch if (row["timestamp"], row["url_origin"], row["url_archive"]) not in existing_rows]
+            if new_rows:
+                self.db.session.bulk_insert_mappings(waybackup_snapshots, new_rows)
+                self.db.session.commit()
+            self._filter_duplicates += len(line_batch) - len(new_rows)
+            return len(new_rows)
 
         vb.write(verbose=None, content="\nInserting CDX data into database...")
 
@@ -128,7 +163,6 @@ class SnapshotCollection:
         line_batchsize = 2500
         line_batch = []
         total_inserted = 0
-        query_duplicates = """INSERT OR IGNORE INTO snapshot_tbl (timestamp, url_archive, url_origin, response) VALUES (?, ?, ?, ?)"""
         first_line = True
 
         with self.cdxfile as f:
@@ -149,17 +183,15 @@ class SnapshotCollection:
                     continue
 
                 if len(line_batch) >= line_batchsize:
-                    total_inserted += len(line_batch)
-                    self.db.cursor.executemany(query_duplicates, line_batch)
+                    total_inserted += _insert_batch_safe(line_batch=line_batch)
                     line_batch = []
                     progressbar.update(line_batchsize)
 
             if line_batch:
-                total_inserted += len(line_batch)
-                self.db.cursor.executemany(query_duplicates, line_batch)
+                total_inserted += _insert_batch_safe(line_batch=line_batch)
                 progressbar.update(len(line_batch))
 
-        self.db.conn.commit()
+        self.db.session.commit()
 
     def _index_snapshots(self):
         """
@@ -167,130 +199,123 @@ class SnapshotCollection:
         """
         # index for filtering last snapshots
         if self._mode_last:
-            self.db.cursor.execute(
-                "CREATE INDEX IF NOT EXISTS idx_snapshot_tbl_url_origin_timestamp_desc ON snapshot_tbl(url_origin, timestamp DESC);"
+            idx1 = Index(
+                "idx_waybackup_snapshots_url_origin_timestamp_desc", waybackup_snapshots.url_origin, waybackup_snapshots.timestamp.desc()
             )
+            idx1.create(self.db.session.bind, checkfirst=True)
         # index for filtering first snapshots
         if self._mode_first:
-            self.db.cursor.execute(
-                "CREATE INDEX IF NOT EXISTS idx_snapshot_tbl_url_origin_timestamp_asc ON snapshot_tbl(url_origin, timestamp ASC);"
+            idx2 = Index(
+                "idx_waybackup_snapshots_url_origin_timestamp_asc", waybackup_snapshots.url_origin, waybackup_snapshots.timestamp.asc()
             )
+            idx2.create(self.db.session.bind, checkfirst=True)
         # index for skippable snapshots
-        self.db.cursor.execute(
-            "CREATE INDEX IF NOT EXISTS idx_snapshot_tbl_timestamp_url_origin_response ON snapshot_tbl(timestamp, url_origin);"
-        )
+        idx3 = Index("idx_waybackup_snapshots_timestamp_url_origin_response", waybackup_snapshots.timestamp, waybackup_snapshots.url_origin)
+        idx3.create(self.db.session.bind, checkfirst=True)
 
     def _filter_snapshots(self):
         """
         Filter the snapshot table.
 
-        - When mode is `MODE_LAST`, keep only the latest snapshot (highest timestamp) for each file.
-        - When mode is `MODE_FIRST`, keep only the earliest snapshot (lowest timestamp) for each file.
+        - MODE_LAST → keep only the latest snapshot (highest timestamp) per url_origin.
+        - MODE_FIRST → keep only the earliest snapshot (lowest timestamp) per url_origin.
         """
-        # rows get a row number based on the timestamp per url_origin and are deleted if the row number is greater / lower than 1
-        if self._mode_last or self._mode_first:
-            ordering = ""
-            if self._mode_last:
-                ordering = "DESC"
-            if self._mode_first:
-                ordering = "ASC"
-            self.db.cursor.execute(
-                f"""
-                DELETE FROM snapshot_tbl
-                WHERE rowid IN (
-                    SELECT rowid FROM (
-                        SELECT rowid,
-                            ROW_NUMBER() OVER (PARTITION BY url_origin ORDER BY timestamp {ordering}) AS ranking
-                        FROM snapshot_tbl
-                    ) tmp
-                    WHERE ranking > 1
-                );
-                """
-            )
-            self._filter_mode = self.db.cursor.rowcount
 
-        self.db.cursor.execute(
-            """
-        SELECT COUNT(*) FROM snapshot_tbl WHERE response IN ('404', '301')
-        """
-        )
-        self._filter_response = self.db.cursor.fetchone()[0]
+        def _filter_mode():
+            self._filter_mode = 0
+            if self._mode_last or self._mode_first:
+                ordering = waybackup_snapshots.timestamp.desc() if self._mode_last else waybackup_snapshots.timestamp.asc()
+                # assign row numbers per url_origin
+                rownum = (
+                    func.row_number()
+                    .over(
+                        partition_by=waybackup_snapshots.url_origin,
+                        order_by=ordering,
+                    )
+                    .label("rn")
+                )
+                subq = select(waybackup_snapshots.scid, rownum).subquery()
+                # keep rn == 1, delete all others
+                keepers = select(subq.c.scid).where(subq.c.rn == 1)
+                stmt = delete(waybackup_snapshots).where(~waybackup_snapshots.scid.in_(keepers))
+                result = self.db.session.execute(stmt)
+                self.db.session.commit()
+                self._filter_mode = result.rowcount
 
-        self.db.cursor.execute(
-            """
-            WITH numbered AS (
-                SELECT rowid, ROW_NUMBER() OVER (ORDER BY rowid) AS rn
-                FROM snapshot_tbl
-            )
-            UPDATE snapshot_tbl
-            SET counter = (
-                SELECT rn FROM numbered WHERE numbered.rowid = snapshot_tbl.rowid
-            );
-            """
-        )
+        def _enumerate_counter():
+            # this sets the counter (snapshot number x / y) to 1 ... n
+            offset = 1
+            batch_size = 5000
+            while True:
+                rows = (
+                    self.db.session.execute(
+                        select(waybackup_snapshots.scid)
+                        .where(waybackup_snapshots.counter.is_(None))
+                        .order_by(waybackup_snapshots.scid)
+                        .limit(batch_size)
+                    )
+                    .scalars()
+                    .all()
+                )
+                if not rows:
+                    break
+                mappings = [{"scid": scid, "counter": i} for i, scid in enumerate(rows, start=offset)]
+                self.db.session.bulk_update_mappings(waybackup_snapshots, mappings)
+                self.db.session.commit()
+                offset += len(rows)
 
-        self.db.conn.commit()
+        _filter_mode()
+        _enumerate_counter()
+        self._filter_response = self.db.session.query(waybackup_snapshots).where(waybackup_snapshots.response.in_(["404", "301"])).count()
+        self.db.session.commit()
 
     def _skip_set(self):
         """
-        If an existing csv-file for the job exists, the responses will be overwritten by the csv-content.
+        If an existing csv-file for the job was found, the responses will be overwritten by the csv-content.
         """
-        if not self.csvfile.file:
-            return
-        else:
-            with self.csvfile as f:
-                row_batchsize = 2500
-                row_batch = []
-                total_skipped = 0
-                query = """
-                        UPDATE snapshot_tbl SET
-                        url_archive = ?,
-                        redirect_url = ?,
-                        redirect_timestamp = ?,
-                        response = ?,
-                        file = ?
-                        WHERE timestamp = ? AND url_origin = ?
-                        """
-                for row in f:
-                    row_batch.append(
-                        (
-                            row["url_archive"],
-                            row["redirect_url"],
-                            row["redirect_timestamp"],
-                            row["response"],
-                            row["file"],
-                            row["timestamp"],
-                            row["url_origin"],
-                        )
+
+        # ? for now per row / no bulk for compatibility
+        with self.csvfile as f:
+            total_skipped = 0
+            for row in f:
+                self.db.session.execute(
+                    update(waybackup_snapshots)
+                    .where(and_(waybackup_snapshots.timestamp == row["timestamp"], waybackup_snapshots.url_origin == row["url_origin"]))
+                    .values(
+                        url_archive=row["url_archive"],
+                        redirect_url=row["redirect_url"],
+                        redirect_timestamp=row["redirect_timestamp"],
+                        response=row["response"],
+                        file=row["file"],
                     )
-                    if len(row_batch) >= row_batchsize:
-                        total_skipped += len(row_batch)
-                        self.db.cursor.executemany(query, row_batch)
-                        row_batch = []
-                if row_batch:
-                    total_skipped += len(row_batch)
-                    self.db.cursor.executemany(query, row_batch)
-                self.db.conn.commit()
-                self._filter_skip = total_skipped
+                )
+                total_skipped += 1
+
+        self.db.session.commit()
+        self._filter_skip = total_skipped
 
     def count_total(self) -> int:
-        return self.db.count("SELECT COUNT(rowid) FROM snapshot_tbl")
+        return self.db.session.query(waybackup_snapshots.scid).count()
 
     def count_handled(self) -> int:
-        return self.db.count("SELECT COUNT(rowid) FROM snapshot_tbl WHERE response IS NOT NULL")
+        return self.db.session.query(waybackup_snapshots.scid).where(waybackup_snapshots.response.is_not(None)).count()
 
     def count_unhandled(self) -> int:
-        return self.db.count("SELECT COUNT(rowid) FROM snapshot_tbl WHERE response IS NULL")
+        return self.db.session.query(waybackup_snapshots.scid).where(waybackup_snapshots.response.is_(None)).count()
 
     def count_success(self) -> int:
-        return self.db.count("SELECT COUNT(rowid) FROM snapshot_tbl WHERE file IS NOT NULL AND file != ''")
+        return (
+            self.db.session.query(waybackup_snapshots.scid)
+            .where(and_(waybackup_snapshots.file.is_not(None), waybackup_snapshots.file != ""))
+            .count()
+        )
 
     def count_fail(self) -> int:
-        return self.db.count("SELECT COUNT(rowid) FROM snapshot_tbl WHERE file IS NULL OR file = ''")
-
-    def count_duplicates(self) -> int:
-        """duplicates = total CDX records - total in db"""
-        return self._cdx_total - self.count_total()
+        return (
+            self.db.session.query(waybackup_snapshots.scid)
+            .where(or_(waybackup_snapshots.file.is_(None), waybackup_snapshots.file == ""))
+            .count()
+        )
 
     def print_calculation(self):
         vb.write(content="\nSnapshot calculation:")
