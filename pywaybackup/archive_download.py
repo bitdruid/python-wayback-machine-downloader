@@ -4,6 +4,7 @@ import os
 import threading
 import time
 import urllib.parse
+from gzip import BadGzipFile
 from http import HTTPStatus
 from importlib.metadata import version
 from socket import timeout
@@ -174,16 +175,20 @@ class DownloadArchive:
                                     download_attempt += 1  # try again 2x with same connection
                                     vb.write(
                                         verbose=True,
-                                        content=f"\n-----> Worker: {worker.id} \
-                                            - Attempt: [{worker.attempt}/{retry_max_attempt}] \
-                                            Snapshot ID: [{worker.snapshot.counter}/{self.sc._snapshot_total}] \
-                                            - {e.__class__.__name__} - requesting again in 50 seconds...",
+                                        content=(
+                                            f"\n-----> Worker: {worker.id}"
+                                            f" - Attempt: [{worker.attempt}/{retry_max_attempt}]"
+                                            f" Snapshot ID: [{worker.snapshot.counter}/{self.sc._snapshot_total}]"
+                                            f" - {e.__class__.__name__} - requesting again in 50 seconds..."
+                                        ),
                                     )
                                     vb.write(
                                         verbose=False,
-                                        content=f"Worker: {worker.id} \
-                                            - Snapshot {worker.snapshot.counter}/{self.sc._snapshot_total} \
-                                            - requesting again in 50 seconds...",
+                                        content=(
+                                            f"Worker: {worker.id}"
+                                            f" - Snapshot {worker.snapshot.counter}/{self.sc._snapshot_total}"
+                                            f" - requesting again in 50 seconds..."
+                                        ),
                                     )
                                     time.sleep(50)
                                     continue
@@ -193,26 +198,32 @@ class DownloadArchive:
                                     download_attempt = download_max_attempt  # try again 1x with new connection
                                     vb.write(
                                         verbose=True,
-                                        content=f"\n-----> Worker: {worker.id} \
-                                            - Attempt: [{worker.attempt}/{retry_max_attempt}] \
-                                            Snapshot ID: [{worker.snapshot.counter}/{self.sc._snapshot_total}] \
-                                            - {e.__class__.__name__} - renewing connection in 15 seconds...",
+                                        content=(
+                                            f"\n-----> Worker: {worker.id}"
+                                            f" - Attempt: [{worker.attempt}/{retry_max_attempt}]"
+                                            f" Snapshot ID: [{worker.snapshot.counter}/{self.sc._snapshot_total}]"
+                                            f" - {e.__class__.__name__} - renewing connection in 15 seconds..."
+                                        ),
                                     )
                                     vb.write(
                                         verbose=False,
-                                        content=f"Worker: {worker.id} \
-                                            - Snapshot {worker.snapshot.counter}/{self.sc._snapshot_total} \
-                                            - renewing connection in 15 seconds...",
+                                        content=(
+                                            f"Worker: {worker.id}"
+                                            f" - Snapshot {worker.snapshot.counter}/{self.sc._snapshot_total}"
+                                            f" - renewing connection in 15 seconds..."
+                                        ),
                                     )
                                     time.sleep(15)
                                     worker.refresh_connection()
                                     continue
                             else:
                                 ex.exception(
-                                    message=f"\n-----> Worker: {worker.id} \
-                                        - Attempt: [{worker.attempt}/{retry_max_attempt}] \
-                                        Snapshot ID: [{worker.snapshot.counter}/{self.sc._snapshot_total}] \
-                                        - EXCEPTION - {e}",
+                                    message=(
+                                        f"\n-----> Worker: {worker.id}"
+                                        f" - Attempt: [{worker.attempt}/{retry_max_attempt}]"
+                                        f" Snapshot ID: [{worker.snapshot.counter}/{self.sc._snapshot_total}]"
+                                        f" - EXCEPTION - {e}"
+                                    ),
                                     e=e,
                                 )
                                 worker.attempt = retry_max_attempt
@@ -279,7 +290,11 @@ class DownloadArchive:
             if not os.path.isfile(context.output_file):
                 with open(context.output_file, "wb") as file:
                     if context.response.getheader("Content-Encoding") == "gzip":
-                        context.response_data = gzip.decompress(context.response_data)
+                        try:
+                            context.response_data = gzip.decompress(context.response_data)
+                        except BadGzipFile:
+                            vb.write(verbose=None, content=f"Worker: {worker.id} - GZIP DECOMPRESS SKIPPED - {context.snapshot_url}")
+                            pass
                     file.write(context.response_data)
 
                 # check if file is downloaded

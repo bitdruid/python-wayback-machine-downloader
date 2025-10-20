@@ -17,6 +17,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
+from typing import Optional # python 3.8
 
 Base = declarative_base()
 
@@ -143,7 +144,7 @@ class Database:
         )
         self.session.commit()
 
-    def get_progress(self) -> str | None:
+    def get_progress(self) -> Optional[str]:
         """
         str or None: Progress string (e.g., '5 / 10') or None if not found.
         """
@@ -151,7 +152,7 @@ class Database:
             select(waybackup_job.query_progress).where(waybackup_job.query_identifier == self.query_identifier)
         ).scalar_one_or_none()
 
-    def get_insert_complete(self) -> int | None:
+    def get_insert_complete(self) -> Optional[int]:
         """
         int or None: 1 if complete, 0 if not, or None if not found.
         """
@@ -159,7 +160,7 @@ class Database:
             select(waybackup_job.insert_complete).where(waybackup_job.query_identifier == self.query_identifier)
         ).scalar_one_or_none()
 
-    def get_index_complete(self) -> int | None:
+    def get_index_complete(self) -> Optional[int]:
         """
         int or None: 1 if complete, 0 if not, or None if not found.
         """
@@ -167,7 +168,7 @@ class Database:
             select(waybackup_job.index_complete).where(waybackup_job.query_identifier == self.query_identifier)
         ).scalar_one_or_none()
 
-    def get_filter_complete(self) -> int | None:
+    def get_filter_complete(self) -> Optional[int]:
         """
         int or None: 1 if complete, 0 if not, or None if not found.
         """
