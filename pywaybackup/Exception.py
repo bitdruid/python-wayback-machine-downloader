@@ -36,10 +36,7 @@ class Exception:
             codeline = linecache.getline(filename, tb_line).strip()
             local_vars = tb_frame.f_locals
             exception_message += (
-                f"!-- File: {filename}\n"
-                f"!-- Function: {func_name}\n"
-                f"!-- Line: {tb_line}\n"
-                f"!-- Segment: {codeline}\n"
+                f"!-- File: {filename}\n!-- Function: {func_name}\n!-- Line: {tb_line}\n!-- Segment: {codeline}\n"
             )
         else:
             exception_message += "!-- Traceback is None\n"
@@ -96,4 +93,4 @@ class Exception:
         if issubclass(exception_type, KeyboardInterrupt):
             sys.__excepthook__(exception_type, exception, traceback)
             return
-        Exception.exception('UNCAUGHT EXCEPTION', exception, traceback)  # uncaught exceptions also with custom scheme
+        Exception.exception("UNCAUGHT EXCEPTION", exception, traceback)  # uncaught exceptions also with custom scheme

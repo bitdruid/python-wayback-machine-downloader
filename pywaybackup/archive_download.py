@@ -169,7 +169,13 @@ class DownloadArchive:
                         try:
                             download_status = self._download(worker=worker)
 
-                        except (timeout, ConnectionRefusedError, ConnectionResetError, http.client.HTTPException, Exception) as e:
+                        except (
+                            timeout,
+                            ConnectionRefusedError,
+                            ConnectionResetError,
+                            http.client.HTTPException,
+                            Exception,
+                        ) as e:
                             if isinstance(e, (timeout, ConnectionRefusedError, ConnectionResetError)):
                                 if download_attempt < download_max_attempt:
                                     download_attempt += 1  # try again 2x with same connection
@@ -293,7 +299,10 @@ class DownloadArchive:
                         try:
                             context.response_data = gzip.decompress(context.response_data)
                         except BadGzipFile:
-                            vb.write(verbose=None, content=f"Worker: {worker.id} - GZIP DECOMPRESS SKIPPED - {context.snapshot_url}")
+                            vb.write(
+                                verbose=None,
+                                content=f"Worker: {worker.id} - GZIP DECOMPRESS SKIPPED - {context.snapshot_url}",
+                            )
                             pass
                     file.write(context.response_data)
 
@@ -313,7 +322,9 @@ class DownloadArchive:
             context (DownloadContext): The download context.
             worker (Worker): The worker instance.
         """
-        worker.message.store(verbose=True, result="REDIRECT", content=f"{context.response_status} {context.response_status_message}")
+        worker.message.store(
+            verbose=True, result="REDIRECT", content=f"{context.response_status} {context.response_status_message}"
+        )
         worker.message.store(verbose=True, result="", info="FROM", content=context.snapshot_url)
         for _ in range(5):
             self.__download_response(context=context, worker=worker)
@@ -369,7 +380,9 @@ class DownloadArchive:
         Returns:
             bool: Always True (indicates result was processed).
         """
-        worker.message.store(verbose=True, result=result, content=f"{context.response_status} {context.response_status_message}")
+        worker.message.store(
+            verbose=True, result=result, content=f"{context.response_status} {context.response_status_message}"
+        )
         worker.message.store(verbose=False, result=result)
         worker.message.store(verbose=True, result="", info="URL", content=context.snapshot_url)
         worker.message.store(verbose=True, result="", info="FILE", content=context.output_file)
@@ -386,7 +399,9 @@ class DownloadArchive:
         Returns:
             bool: Always False (indicates failure was processed).
         """
-        worker.message.store(verbose=None, result="UNKNOWN", content=f"{context.response_status} {context.response_status_message}")
+        worker.message.store(
+            verbose=None, result="UNKNOWN", content=f"{context.response_status} {context.response_status_message}"
+        )
         worker.message.store(verbose=True, result="", info="URL", content=context.snapshot_url)
         return False
 

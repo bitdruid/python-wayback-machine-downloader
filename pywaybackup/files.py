@@ -54,7 +54,9 @@ class CDXquery:
 
         limit = f"&limit={self.limit}" if self.limit else ""
 
-        filter_statuscode = f"&filter=statuscode:({'|'.join(self.filter_statuscode)})$" if self.filter_statuscode else ""
+        filter_statuscode = (
+            f"&filter=statuscode:({'|'.join(self.filter_statuscode)})$" if self.filter_statuscode else ""
+        )
         filter_filetype = f"&filter=original:.*\\.({'|'.join(self.filter_filetype)})$" if self.filter_filetype else ""
 
         return f"https://web.archive.org/cdx/search/cdx?output=json&url={cdx_url}{period}&fl=timestamp,digest,mimetype,statuscode,original{limit}{filter_filetype}{filter_statuscode}"

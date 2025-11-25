@@ -68,9 +68,10 @@ class Verbosity:
                     cls.pbar = Progressbar(
                         unit=" snapshot",
                         desc="download file".ljust(15),
-                        total=maxval, ascii="░▒█",
-                        bar_format="{l_bar}{bar:50}{r_bar}{bar:-10b}"
-                        )
+                        total=maxval,
+                        ascii="░▒█",
+                        bar_format="{l_bar}{bar:50}{r_bar}{bar:-10b}",
+                    )
                 if cls.pbar is not None and progress is not None and progress > 0:
                     cls.pbar.update(progress)
 
@@ -93,7 +94,15 @@ class Verbosity:
 
 
 class Progressbar(Verbosity):
-    def __init__(self, unit: str, desc: str, unit_scale: bool = False, total: int = None, ascii: str = None, bar_format: str = None):
+    def __init__(
+        self,
+        unit: str,
+        desc: str,
+        unit_scale: bool = False,
+        total: int = None,
+        ascii: str = None,
+        bar_format: str = None,
+    ):
         if not super().silent:
             self.unit = unit
             self.desc = desc
@@ -101,7 +110,14 @@ class Progressbar(Verbosity):
             self.total = total
             self.ascii = ascii
             self.bar_format = bar_format
-            self.pbar = tqdm(unit=self.unit, desc=self.desc, unit_scale=self.unit_scale, total=self.total, ascii=self.ascii, bar_format=self.bar_format)
+            self.pbar = tqdm(
+                unit=self.unit,
+                desc=self.desc,
+                unit_scale=self.unit_scale,
+                total=self.total,
+                ascii=self.ascii,
+                bar_format=self.bar_format,
+            )
 
     def update(self, progress: int):
         """

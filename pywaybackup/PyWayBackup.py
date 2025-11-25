@@ -407,7 +407,11 @@ class PyWayBackup:
             "log": self._log,
             "debug": self._debug,
         }
-        return {key: (os.path.relpath(path) if rel else path) for key, path in files.items() if path and os.path.exists(path)}
+        return {
+            key: (os.path.relpath(path) if rel else path)
+            for key, path in files.items()
+            if path and os.path.exists(path)
+        }
 
     def status(self) -> dict:
         """

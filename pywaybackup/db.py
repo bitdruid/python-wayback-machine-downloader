@@ -17,7 +17,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from typing import Optional # python 3.8
+from typing import Optional  # python 3.8
 
 Base = declarative_base()
 
@@ -113,7 +113,9 @@ class Database:
         Base.metadata.create_all(engine)
 
         db = Database()
-        if db.session.execute(select(waybackup_job.query_identifier).where(query_identifier == query_identifier)).fetchone():
+        if db.session.execute(
+            select(waybackup_job.query_identifier).where(query_identifier == query_identifier)
+        ).fetchone():
             cls.query_exist = True
             cls.query_progress = db.get_progress()
         else:
@@ -140,7 +142,9 @@ class Database:
         """
         progress = f"{(done):,} / {(total):,}"
         self.session.execute(
-            update(waybackup_job).where(waybackup_job.query_identifier == self.query_identifier).values(query_progress=progress)
+            update(waybackup_job)
+            .where(waybackup_job.query_identifier == self.query_identifier)
+            .values(query_progress=progress)
         )
         self.session.commit()
 
@@ -180,19 +184,31 @@ class Database:
         """
         Mark the job's insertion phase as complete in the database.
         """
-        self.session.execute(update(waybackup_job).where(waybackup_job.query_identifier == self.query_identifier).values(insert_complete=1))
+        self.session.execute(
+            update(waybackup_job)
+            .where(waybackup_job.query_identifier == self.query_identifier)
+            .values(insert_complete=1)
+        )
         self.session.commit()
 
     def set_index_complete(self):
         """
         Mark the job's indexing phase as complete in the database.
         """
-        self.session.execute(update(waybackup_job).where(waybackup_job.query_identifier == self.query_identifier).values(index_complete=1))
+        self.session.execute(
+            update(waybackup_job)
+            .where(waybackup_job.query_identifier == self.query_identifier)
+            .values(index_complete=1)
+        )
         self.session.commit()
 
     def set_filter_complete(self):
         """
         Mark the job's filtering phase as complete in the database.
         """
-        self.session.execute(update(waybackup_job).where(waybackup_job.query_identifier == self.query_identifier).values(filter_complete=1))
+        self.session.execute(
+            update(waybackup_job)
+            .where(waybackup_job.query_identifier == self.query_identifier)
+            .values(filter_complete=1)
+        )
         self.session.commit()

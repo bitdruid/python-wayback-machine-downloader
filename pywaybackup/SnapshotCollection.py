@@ -50,7 +50,9 @@ class SnapshotCollection:
 
     def _reset_locked_snapshots(self):
         """Reset locked snapshots to unprocessed in the database."""
-        self.db.session.execute(update(waybackup_snapshots).where(waybackup_snapshots.response == "LOCK").values(response=None))
+        self.db.session.execute(
+            update(waybackup_snapshots).where(waybackup_snapshots.response == "LOCK").values(response=None)
+        )
         self.db.session.commit()
 
     def _finalize_db(self):
@@ -140,11 +142,19 @@ class SnapshotCollection:
                     waybackup_snapshots.url_origin,
                     waybackup_snapshots.url_archive,
                 )
-                .filter(tuple_(waybackup_snapshots.timestamp, waybackup_snapshots.url_origin, waybackup_snapshots.url_archive).in_(keys))
+                .filter(
+                    tuple_(
+                        waybackup_snapshots.timestamp, waybackup_snapshots.url_origin, waybackup_snapshots.url_archive
+                    ).in_(keys)
+                )
                 .all()
             )
             existing_rows = set(existing)
-            new_rows = [row for row in unique_batch if (row["timestamp"], row["url_origin"], row["url_archive"]) not in existing_rows]
+            new_rows = [
+                row
+                for row in unique_batch
+                if (row["timestamp"], row["url_origin"], row["url_archive"]) not in existing_rows
+            ]
             if new_rows:
                 self.db.session.bulk_insert_mappings(waybackup_snapshots, new_rows)
                 self.db.session.commit()
@@ -200,17 +210,25 @@ class SnapshotCollection:
         # index for filtering last snapshots
         if self._mode_last:
             idx1 = Index(
-                "idx_waybackup_snapshots_url_origin_timestamp_desc", waybackup_snapshots.url_origin, waybackup_snapshots.timestamp.desc()
+                "idx_waybackup_snapshots_url_origin_timestamp_desc",
+                waybackup_snapshots.url_origin,
+                waybackup_snapshots.timestamp.desc(),
             )
             idx1.create(self.db.session.bind, checkfirst=True)
         # index for filtering first snapshots
         if self._mode_first:
             idx2 = Index(
-                "idx_waybackup_snapshots_url_origin_timestamp_asc", waybackup_snapshots.url_origin, waybackup_snapshots.timestamp.asc()
+                "idx_waybackup_snapshots_url_origin_timestamp_asc",
+                waybackup_snapshots.url_origin,
+                waybackup_snapshots.timestamp.asc(),
             )
             idx2.create(self.db.session.bind, checkfirst=True)
         # index for skippable snapshots
-        idx3 = Index("idx_waybackup_snapshots_timestamp_url_origin_response", waybackup_snapshots.timestamp, waybackup_snapshots.url_origin)
+        idx3 = Index(
+            "idx_waybackup_snapshots_timestamp_url_origin_response",
+            waybackup_snapshots.timestamp,
+            waybackup_snapshots.url_origin,
+        )
         idx3.create(self.db.session.bind, checkfirst=True)
 
     def _filter_snapshots(self):
@@ -224,7 +242,9 @@ class SnapshotCollection:
         def _filter_mode():
             self._filter_mode = 0
             if self._mode_last or self._mode_first:
-                ordering = waybackup_snapshots.timestamp.desc() if self._mode_last else waybackup_snapshots.timestamp.asc()
+                ordering = (
+                    waybackup_snapshots.timestamp.desc() if self._mode_last else waybackup_snapshots.timestamp.asc()
+                )
                 # assign row numbers per url_origin
                 rownum = (
                     func.row_number()
@@ -266,7 +286,9 @@ class SnapshotCollection:
 
         _filter_mode()
         _enumerate_counter()
-        self._filter_response = self.db.session.query(waybackup_snapshots).where(waybackup_snapshots.response.in_(["404", "301"])).count()
+        self._filter_response = (
+            self.db.session.query(waybackup_snapshots).where(waybackup_snapshots.response.in_(["404", "301"])).count()
+        )
         self.db.session.commit()
 
     def _skip_set(self):
@@ -280,7 +302,12 @@ class SnapshotCollection:
             for row in f:
                 self.db.session.execute(
                     update(waybackup_snapshots)
-                    .where(and_(waybackup_snapshots.timestamp == row["timestamp"], waybackup_snapshots.url_origin == row["url_origin"]))
+                    .where(
+                        and_(
+                            waybackup_snapshots.timestamp == row["timestamp"],
+                            waybackup_snapshots.url_origin == row["url_origin"],
+                        )
+                    )
                     .values(
                         url_archive=row["url_archive"],
                         redirect_url=row["redirect_url"],

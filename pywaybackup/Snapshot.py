@@ -101,7 +101,9 @@ class Snapshot:
             value: New value to set for the column.
         """
         column = getattr(waybackup_snapshots, column)
-        self._db.session.execute(update(waybackup_snapshots).where(waybackup_snapshots.scid == self.scid).values({column: value}))
+        self._db.session.execute(
+            update(waybackup_snapshots).where(waybackup_snapshots.scid == self.scid).values({column: value})
+        )
         self._db.session.commit()
 
     def create_output(self):

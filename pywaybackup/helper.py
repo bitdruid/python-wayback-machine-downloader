@@ -1,5 +1,6 @@
 import os
 import shutil
+import pylibmagic
 import magic
 
 
@@ -88,18 +89,14 @@ def move_index(existpath: str = None, existfile: str = None, filebuffer: bytes =
         shutil.move(existpath, existpath + "_exist")
         os.makedirs(existpath, exist_ok=True)
         if not check_index_mime(existpath):
-            new_file = os.path.join(
-                existpath, os.path.basename(os.path.normpath(existpath))
-            )
+            new_file = os.path.join(existpath, os.path.basename(os.path.normpath(existpath)))
         else:
             new_file = os.path.join(existpath, "index.html")
         shutil.move(existpath + "_exist", new_file)
     elif existfile:
         if filebuffer:
             if not check_index_mime(filebuffer):
-                return os.path.join(
-                    existfile, os.path.basename(os.path.normpath(existfile))
-                )
+                return os.path.join(existfile, os.path.basename(os.path.normpath(existfile)))
             else:
                 return os.path.join(existfile, "index.html")
 

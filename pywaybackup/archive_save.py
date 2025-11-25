@@ -34,10 +34,13 @@ def save_page(url: str):
 
         if response_status == 302:
             location = response.getheader("Location")
-            snapshot_timestamp = datetime.strptime(url_get_timestamp(location), "%Y%m%d%H%M%S").strftime("%Y-%m-%d %H:%M:%S")
+            snapshot_timestamp = datetime.strptime(url_get_timestamp(location), "%Y%m%d%H%M%S").strftime(
+                "%Y-%m-%d %H:%M:%S"
+            )
             current_timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
             timestamp_difference = (
-                datetime.strptime(current_timestamp, "%Y-%m-%d %H:%M:%S") - datetime.strptime(snapshot_timestamp, "%Y-%m-%d %H:%M:%S")
+                datetime.strptime(current_timestamp, "%Y-%m-%d %H:%M:%S")
+                - datetime.strptime(snapshot_timestamp, "%Y-%m-%d %H:%M:%S")
             ).seconds / 60
             timestamp_difference = int(round(timestamp_difference, 0))
 
@@ -45,7 +48,10 @@ def save_page(url: str):
                 vb.write(verbose=None, content="\n-----> Response: 302 (new snapshot)")
                 vb.write(verbose=None, content=f"SNAPSHOT URL: {location}")
             elif timestamp_difference >= 1:
-                vb.write(verbose=None, content=f"\n-----> Response: 302 (existing snapshot - wait for {60 - timestamp_difference} minutes)")
+                vb.write(
+                    verbose=None,
+                    content=f"\n-----> Response: 302 (existing snapshot - wait for {60 - timestamp_difference} minutes)",
+                )
                 vb.write(verbose=None, content=f"SNAPSHOT URL: {location}")
                 vb.write(verbose=None, content=f"WAYBACK TIME: {snapshot_timestamp}")
                 vb.write(verbose=None, content=f"REQUEST TIME: {current_timestamp}")
