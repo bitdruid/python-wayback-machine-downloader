@@ -132,6 +132,7 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+copilot-instructions.md
 
 # Spyder project settings
 .spyderproject
@@ -167,3 +168,5 @@ cython_debug/
 
 # custom
 test.py
+waybackup_snapshots/
+output/

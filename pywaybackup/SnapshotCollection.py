@@ -4,6 +4,7 @@ from pywaybackup.db import Database, Index, and_, delete, func, or_, select, tup
 from pywaybackup.files import CDXfile, CSVfile
 from pywaybackup.Verbosity import Progressbar
 from pywaybackup.Verbosity import Verbosity as vb
+from pywaybackup.helper import url_split
 
 func: callable
 
@@ -19,7 +20,9 @@ class SnapshotCollection:
         self.csvfile = None
         self._mode_first = False
         self._mode_last = False
-
+        self._max_snapshots_per_url = None
+        self._path_depth = None
+      
         self._cdx_total = 0  # absolute amount of snapshots in cdx file
         self._snapshot_total = 0  # absolute amount of snapshots in db
 
@@ -60,7 +63,7 @@ class SnapshotCollection:
         self.db.write_progress(self._snapshot_handled, self._snapshot_total)
         self.db.session.close()
 
-    def load(self, mode: str, cdxfile: CDXfile, csvfile: CSVfile):
+    def load(self, mode: str, cdxfile: CDXfile, csvfile: CSVfile, max_snapshots_per_url: int = None, path_depth: int = None):
         """
         Insert the content of the cdx and csv file into the snapshot table.
         """
@@ -87,6 +90,9 @@ class SnapshotCollection:
             vb.write(verbose=True, content="\nAlready indexed snapshots")
         if not self.db.get_filter_complete():
             vb.write(content="\nFiltering snapshots (last or first version)...")
+            # set per-url limit (if provided) and then filter
+            self._max_snapshots_per_url = max_snapshots_per_url
+            self._path_depth = path_depth
             self._filter_snapshots()  # filter: keep newest or oldest based on MODE
             self.db.set_filter_complete()
         else:
@@ -285,6 +291,94 @@ class SnapshotCollection:
                 offset += len(rows)
 
         _filter_mode()
+
+        # Apply path-depth pruning if requested: remove snapshots whose URL path depth
+        # exceeds `self._path_depth`. Root path has depth 0; immediate children depth 1.
+        self._filter_path_depth_deleted = 0
+        if self._path_depth is not None:
+            try:
+                depth_limit = int(self._path_depth)
+            except Exception:
+                depth_limit = None
+            if depth_limit is not None:
+                # iterate distinct origins and delete those exceeding depth
+                origins = (
+                    self.db.session.execute(select(waybackup_snapshots.url_origin).distinct())
+                    .scalars()
+                    .all()
+                )
+                total_deleted = 0
+                for origin in origins:
+                    if not origin:
+                        continue
+                    domain, subdir, filename = url_split(origin)
+                    subdir = subdir or ""
+                    path_segments = [p for p in subdir.strip("/").split("/") if p]
+                    depth = len(path_segments)
+                    if depth > depth_limit:
+                        result = self.db.session.execute(
+                            delete(waybackup_snapshots).where(waybackup_snapshots.url_origin == origin)
+                        )
+                        total_deleted += result.rowcount
+                    self.db.session.commit()
+                    self._filter_path_depth_deleted += total_deleted
+
+        # Apply per-URL snapshot limiting distributed across the date range
+        # This keeps up to `self._max_snapshots_per_url` snapshots per `url_origin`.
+        # Selection is distributed across the available timestamps so the whole
+        # date range is represented (first and last snapshots preserved when limit>1).
+        self._filter_snapshot_deleted = 0
+        limit = None
+        if self._max_snapshots_per_url:
+            try:
+                limit = int(self._max_snapshots_per_url)
+            except (TypeError, ValueError):
+                limit = None
+        if limit and limit > 0:
+            # find origins that exceed the limit
+            origins = (
+                self.db.session.execute(
+                    select(waybackup_snapshots.url_origin, func.count().label("cnt"))
+                    .group_by(waybackup_snapshots.url_origin)
+                    .having(func.count() > limit)
+                )
+                .all()
+            )
+            for origin_row in origins:
+                origin = origin_row[0]
+                # fetch ordered scids for this origin (ascending timestamps)
+                scid_rows = (
+                    self.db.session.execute(
+                        select(waybackup_snapshots.scid)
+                        .where(waybackup_snapshots.url_origin == origin)
+                        .order_by(waybackup_snapshots.timestamp.asc())
+                    )
+                    .scalars()
+                    .all()
+                )
+                total = len(scid_rows)
+                if total <= limit:
+                    continue
+                # compute indices to keep (distributed across range)
+                indices = []
+                if limit == 1:
+                    # pick middle snapshot as representative
+                    indices = [total // 2]
+                else:
+                    for i in range(limit):
+                        idx = round(i * (total - 1) / (limit - 1))
+                        indices.append(int(idx))
+                # ensure unique and valid indices
+                indices = sorted(set(max(0, min(total - 1, i)) for i in indices))
+                keep_scids = [scid_rows[i] for i in indices]
+                # delete non-kept snapshots for this origin
+                stmt = delete(waybackup_snapshots).where(
+                    and_(waybackup_snapshots.url_origin == origin, ~waybackup_snapshots.scid.in_(keep_scids))
+                )
+                result = self.db.session.execute(stmt)
+                self.db.session.commit()
+                self._filter_snapshot_deleted += result.rowcount
+
         _enumerate_counter()
         self._filter_response = (
             self.db.session.query(waybackup_snapshots).where(waybackup_snapshots.response.in_(["404", "301"])).count()

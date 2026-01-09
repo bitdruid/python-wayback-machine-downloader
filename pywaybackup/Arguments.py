@@ -40,6 +40,18 @@ class Arguments:
         behavior.add_argument("--retry", type=int, default=0, metavar="", help="retry failed downloads (opt tries as int, else infinite)")
         behavior.add_argument("--workers", type=int, default=1, metavar="", help="number of workers (simultaneous downloads)")
         behavior.add_argument("--delay", type=int, default=0, metavar="", help="delay between each download in seconds")
+        behavior.add_argument(
+            "--max-snapshots-per-url",
+            type=int,
+            metavar="",
+            help="limit number of snapshots to keep per unique URL (distributed across date range)",
+        )
+        behavior.add_argument(
+            "--path-depth",
+            type=int,
+            metavar="",
+            help="limit harvested URLs by path depth: 0=root only, 1=include immediate children, etc.",
+        )
 
         special = parser.add_argument_group("special")
         special.add_argument("--reset", action="store_true", help="reset the job and ignore existing cdx/db/csv files")

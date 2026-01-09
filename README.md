@@ -145,6 +145,12 @@ Parameters for archive.org CDX query. No effect on snapshot download itself.
 - **`--limit`** `<count>`:<br>
   Limits the snapshots fetched from archive.org CDX. (Will have no effect on existing CDX files)
 
+- **`--max-snapshots-per-url`** `<count>`:<br>
+  Limits the number of snapshots kept per unique URL after CDX insertion and filtering. Selection is distributed across the requested date range so retained snapshots represent the whole timespan. Useful to cap harvest depth for large sites. Example: `--limit 10000 --max-snapshots-per-url 100` queries up to 10k snapshots then keeps up to 100 per unique URL.
+
+- **`--path-depth`** `<N>`:<br>
+  Limit harvested URLs by path depth. `0` = only `example.com/` (root), `1` = root + immediate children (e.g. `example.com/foo/`), `2` = two levels, etc. Applied after CDX insertion and mode filtering. Combine with `--max-snapshots-per-url` to cap snapshots per kept URL.
+
 - **Range Selection:**<br>
   Set the query range in years (`range`) or a timestamp (`start` and/or `end`). If `range` then ignores `start` and `end`. Format for timestamps: YYYYMMDDhhmmss. Timestamp can as specific as needed (year 2019, year+month+day 20190101, ...).
 
