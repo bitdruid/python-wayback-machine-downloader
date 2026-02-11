@@ -33,14 +33,27 @@ class Arguments:
         behavior = parser.add_argument_group("manipulate behavior")
         behavior.add_argument("-o", "--output", type=str, metavar="", help="output for all files - defaults to current directory")
         behavior.add_argument("-m", "--metadata", type=str, metavar="", help="change directory for db/cdx/csv/log files")
-        behavior.add_argument("-v", "--verbose", action="store_true", help="overwritten by progress - gives detailed output")
+        behavior.add_argument(
+            "-v", "--verbose",
+            type=str,
+            nargs="?",
+            const="default",
+            metavar="",
+            help="verbosity level: low, default, high (default if flag set without value)",
+        )
         behavior.add_argument("--log", action="store_true", help="save a log file into the output folder")
         behavior.add_argument("--progress", action="store_true", help="show a progress bar")
         behavior.add_argument("--no-redirect", action="store_true", help="do not follow redirects by archive.org")
         behavior.add_argument("--retry", type=int, default=0, metavar="", help="retry failed downloads (opt tries as int, else infinite)")
         behavior.add_argument("--workers", type=int, default=1, metavar="", help="number of workers (simultaneous downloads)")
         behavior.add_argument("--delay", type=int, default=0, metavar="", help="delay between each download in seconds")
-        behavior.add_argument("--wait", type=int, default=15, metavar="", help="seconds to wait before renewing connection after HTTP errors or snapshot download errors (default: 15)",)
+        behavior.add_argument(
+            "--wait",
+            type=int,
+            default=15,
+            metavar="",
+            help="seconds to wait before renewing connection after HTTP errors or snapshot download errors (default: 15)",
+        )
 
         special = parser.add_argument_group("special")
         special.add_argument("--reset", action="store_true", help="reset the job and ignore existing cdx/db/csv files")

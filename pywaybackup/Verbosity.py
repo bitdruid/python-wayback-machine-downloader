@@ -1,13 +1,89 @@
+from enum import IntEnum
 from tqdm import tqdm
 from typing import Union
+
+
+# outside enum to avoid cls membership
+_VERBOSITY_ALIASES = {
+    "NORMAL": "DEFAULT",
+    "VERBOSE": "DEFAULT",
+    "DETAIL": "HIGH",
+    "DETAILED": "HIGH",
+    "MAX": "HIGH",
+    "QUIET": "LOW",
+    "MINIMAL": "LOW",
+    "MIN": "LOW",
+}
+
+
+class VerbosityLevel(IntEnum):
+    """
+    Verbosity levels for output control.
+
+    - LOW: Essential output only (no verbose flag)
+    - DEFAULT: Standard verbose output (--verbose or --verbose default)
+    - HIGH: Detailed verbose output (--verbose high)
+    """
+
+    LOW = 0
+    DEFAULT = 1
+    HIGH = 2
+
+    @classmethod
+    def from_value(cls, value) -> "VerbosityLevel":
+        """
+        Convert various input types to VerbosityLevel.
+
+        Args:
+            value: Can be:
+                - None/False: LOW
+                - True: DEFAULT
+                - str: "low", "default", "high" (+ aliases: normal, info, debug, quiet, etc.)
+                - int: 0, 1, 2
+                - VerbosityLevel: returned as-is
+
+        Returns:
+            VerbosityLevel enum value
+
+        Raises:
+            ValueError: If string value is not a valid level or alias
+        """
+        if value is None or value is False:
+            return cls.LOW
+        if value is True:
+            return cls.DEFAULT
+        if isinstance(value, cls):
+            return value
+        if isinstance(value, int):
+            try:
+                return cls(value)
+            except ValueError:
+                raise ValueError(f"Invalid verbosity level: {value}. Valid levels: 0 (low), 1 (default), 2 (high)")
+        if isinstance(value, str):
+            upper_value = value.upper()
+            # check for aliases first
+            if upper_value in _VERBOSITY_ALIASES:
+                upper_value = _VERBOSITY_ALIASES[upper_value]
+            # try to get the enum member
+            try:
+                return cls[upper_value]
+            except KeyError:
+                valid = ", ".join([m.name.lower() for m in cls] + list(set(a.lower() for a in _VERBOSITY_ALIASES)))
+                raise ValueError(f"Invalid verbosity level: '{value}'. Valid levels: {valid}")
+        return cls.LOW
 
 
 class Verbosity:
     """
     A class to manage verbosity levels, logging, progress and output.
+
+    Verbosity tiers:
+    - LOW (0): Essential output only - no verbose flag set
+    - DEFAULT (1): Standard verbose - --verbose or --verbose default
+    - HIGH (2): Detailed verbose - --verbose high
     """
 
-    verbose = False
+    level = VerbosityLevel.LOW
 
     PROGRESS = None
     pbar = None
@@ -15,9 +91,9 @@ class Verbosity:
     log = None
 
     @classmethod
-    def init(cls, logfile=None, silent: bool = False, verbose: bool = False, progress=None):
+    def init(cls, logfile=None, silent: bool = False, verbose: Union[bool, str, int] = False, progress=None):
         cls.silent = silent
-        cls.verbose = verbose
+        cls.level = VerbosityLevel.from_value(verbose)
         cls.logfile = open(logfile, "w", encoding="utf-8") if logfile else None
         cls.PROGRESS = progress
 
@@ -30,17 +106,19 @@ class Verbosity:
             cls.logfile.close()
 
     @classmethod
-    def write(cls, verbose: bool = None, content: Union[str, list] = None):
+    def write(cls, verbose: Union[bool, str, int, None] = None, content: Union[str, list] = None):
         """
         Writes log entries to stdout or logfile based on verbosity level and progress-bar status.
 
         Determines if the message should be printed based on verbosity level.
-        - If None, the message is always printed.
 
-        Content is a list and is filtered and concatenated to a single block of loglines.
-        It should contain dictionaries with keys:
-        - 'verbose': The verbosity level of the message (True/False).
-        - 'content': The actual message to be logged.
+        Args:
+            verbose: The required verbosity level for this message:
+                - None: Always printed (essential output)
+                - False/0/"low": Printed at LOW level and above
+                - True/1/"default": Printed at DEFAULT level and above
+                - 2/"high": Printed at HIGH level only
+            content: The message string or list of message dicts to log.
         """
         if not cls.silent:
             if isinstance(content, str):
@@ -80,16 +158,23 @@ class Verbosity:
         """
         Removes messages from the list that do not match the verbosity level.
 
-        - True if message is verbose None (print always)
-        - True if message has same verbosity as configured
+        Messages are printed if:
+        - verbose is None (always print - essential output)
+        - The message's required level <= configured level
 
         Returns a string containing the filtered messages, joined by newlines.
         """
         filtered_message = []
         for msg in message:
-            verbose = msg.get("verbose", None)
-            if verbose is None or verbose == cls.verbose:
+            msg_verbose = msg.get("verbose", None)
+            if msg_verbose is None:
+                # NONE is always printed
                 filtered_message.append(msg["content"])
+            else:
+                # convert message verbosity and compare
+                msg_level = VerbosityLevel.from_value(msg_verbose)
+                if msg_level <= cls.level:
+                    filtered_message.append(msg["content"])
         return "\n".join(filtered_message)
 
 

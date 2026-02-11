@@ -4,6 +4,7 @@ import signal
 import sys
 import time
 from importlib.metadata import version
+from typing import Union
 
 import pywaybackup.archive_save as archive_save
 from pywaybackup.archive_download import DownloadArchive
@@ -122,7 +123,7 @@ class PyWayBackup:
         statuscode: str = None,
         output: str = None,
         metadata: str = None,
-        verbose: bool = False,
+        verbose: Union[bool, str, int] = None,
         log: bool = False,
         progress: bool = False,
         no_redirect: bool = False,

@@ -178,8 +178,13 @@ Parameters will change the download behavior for snapshots.
 - **`-m`**, **`--metadata`**<br>
   Folder where metadata will be saved (`cdx`/`db`/`csv`/`log`). If you are downloading into a network share, you SHOULD set this to a local path because sqlite locking mechanism may cause issues with network shares.
 
-- **`--verbose`**:<br>
-  Increase output verbosity.
+- **`-v`**, **`--verbose`** `[level]`:<br>
+  Set verbosity level. Available levels:
+  - `low` (or `quiet`, `minimal`, `min`): Essential output only (same as no flag)
+  - `default` (or `normal`, `verbose`): Standard verbose output (default when flag is set)
+  - `high` (or `debug`, `detailed`, `max`): Detailed verbose output
+  
+  Examples: `--verbose`, `--verbose default`, `--verbose high`, `-v high`
 
 - **`--log`** <!-- `<path>` -->:<br>
   Saves a log file into the output-dir. `waybackup_<sanitized_url>.log`.
@@ -198,6 +203,9 @@ Parameters will change the download behavior for snapshots.
 
 - **`--delay`** `<seconds>`:<br>
   Delay between download requests in seconds. Default is no delay (0).
+
+- **`--wait`** `<seconds>`:<br>
+  Seconds to wait before renewing connection after HTTP errors or snapshot download errors. Default is 15 seconds.
 
 #### Job Handling:
 

@@ -156,9 +156,11 @@ class DownloadArchive:
                 while worker.attempt <= retry_max_attempt:  # retry as given by user
                     worker.message.store(
                         verbose=True,
-                        content=f"\n-----> Worker: {worker.id} \
-                            - Attempt: [{worker.attempt}/{retry_max_attempt}] \
-                            Snapshot ID: [{worker.snapshot.counter}/{self.sc._snapshot_total}]",
+                        content=(
+                            f"\n-----> Worker: {worker.id}"
+                            f" - Attempt: [{worker.attempt}/{retry_max_attempt}]"
+                            f" Snapshot ID: [{worker.snapshot.counter}/{self.sc._snapshot_total}]"
+                        ),
                     )
                     download_attempt = 1
                     download_max_attempt = 3
