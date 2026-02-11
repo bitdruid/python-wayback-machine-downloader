@@ -78,7 +78,7 @@ class Snapshot:
             session = self._db.session
 
             # get next available SnapshotId
-            vb.write(verbose=True, content=f"[Snapshot.fetch] selecting next scid")
+            vb.write(verbose="high", content=f"[Snapshot.fetch] selecting next scid")
             scid = (
                 session.execute(
                     select(waybackup_snapshots.scid)
@@ -90,7 +90,7 @@ class Snapshot:
             )
 
             if scid is None:
-                vb.write(verbose=True, content=f"[Snapshot.fetch] no unprocessed scid found")
+                vb.write(verbose="high", content=f"[Snapshot.fetch] no unprocessed scid found")
                 return None
 
             # try to atomically claim the row by updating only if still unclaimed
@@ -101,13 +101,13 @@ class Snapshot:
             )
 
             # if another worker claimed it first, rowcount will be 0 and cannot be claimed by this worker.
-            vb.write(verbose=True, content=f"[Snapshot.fetch] attempted to claim scid={scid}, rowcount={result.rowcount}")
+            vb.write(verbose="high", content=f"[Snapshot.fetch] attempted to claim scid={scid}, rowcount={result.rowcount}")
             if result.rowcount == 0:
                 try:
                     session.commit()
                 except Exception:
                     pass
-                vb.write(verbose=True, content=f"[Snapshot.fetch] scid={scid} already claimed by another worker")
+                vb.write(verbose="high", content=f"[Snapshot.fetch] scid={scid} already claimed by another worker")
                 return None
 
             # The row has been claimed by the worker and can now be fetched.
@@ -119,7 +119,7 @@ class Snapshot:
                     session.rollback()
                 except Exception:
                     pass
-            vb.write(verbose=True, content=f"[Snapshot.fetch] claimed scid={scid} and fetched row")
+            vb.write(verbose="high", content=f"[Snapshot.fetch] claimed scid={scid} and fetched row")
             return row
 
         if __on_sqlite():
@@ -138,14 +138,14 @@ class Snapshot:
         """
         column = getattr(waybackup_snapshots, column)
         try:
-            vb.write(verbose=True, content=f"[Snapshot.modify] updating scid={self.scid} column={column.key}")
+            vb.write(verbose="high", content=f"[Snapshot.modify] updating scid={self.scid} column={column.key}")
             self._db.session.execute(
                 update(waybackup_snapshots).where(waybackup_snapshots.scid == self.scid).values({column: value})
             )
             self._db.session.commit()
-            vb.write(verbose=True, content=f"[Snapshot.modify] update committed scid={self.scid} column={column.key}")
+            vb.write(verbose="high", content=f"[Snapshot.modify] update committed scid={self.scid} column={column.key}")
         except Exception as e:
-            vb.write(verbose=True, content=f"[Snapshot.modify] update failed scid={self.scid} error={e}; rolling back")
+            vb.write(verbose="high", content=f"[Snapshot.modify] update failed scid={self.scid} error={e}; rolling back")
             try:
                 self._db.session.rollback()
             except Exception:
