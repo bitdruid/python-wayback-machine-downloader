@@ -18,6 +18,7 @@ from sqlalchemy import (
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from typing import Optional  # python 3.8
+from pywaybackup.Verbosity import Verbosity as vb
 
 Base = declarative_base()
 
@@ -129,8 +130,28 @@ class Database:
         self.session = self.sessman()
 
     def close(self):
-        self.session.commit()
-        self.session.close()
+        """
+        Try to commit any pending work; if that fails, rollback to avoid leaving open transactions
+        """
+        try:
+            if self.session.in_transaction():
+                vb.write(verbose=True, content=f"[Database.close] session in transaction: committing")
+                try:
+                    self.session.commit()
+                    vb.write(verbose=True, content=f"[Database.close] commit successful")
+                except Exception as e:
+                    vb.write(verbose=True, content=f"[Database.close] commit failed: {e}; rolling back")
+                    try:
+                        self.session.rollback()
+                        vb.write(verbose=True, content=f"[Database.close] rollback successful")
+                    except Exception:
+                        vb.write(verbose=True, content=f"[Database.close] rollback failed")
+        finally:
+            try:
+                self.session.close()
+                vb.write(verbose=True, content=f"[Database.close] session closed")
+            except Exception as e:
+                vb.write(verbose=True, content=f"[Database.close] session close failed: {e}")
 
     def write_progress(self, done: int, total: int):
         """

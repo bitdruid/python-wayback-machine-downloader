@@ -21,6 +21,27 @@ class Worker:
         self.db = Database()
         self.connection = http.client.HTTPSConnection("web.archive.org")
 
+    def close(self):
+        """
+        Try to close the database and connection.
+        """
+        try:
+            if hasattr(self, "db") and self.db:
+                try:
+                    vb.write(verbose=True, content=f"[Worker.close] closing DB for worker {self.id}")
+                    self.db.close()
+                    vb.write(verbose=True, content=f"[Worker.close] DB closed for worker {self.id}")
+                except Exception:
+                    pass
+        finally:
+            try:
+                if hasattr(self, "connection") and self.connection:
+                    vb.write(verbose=True, content=f"[Worker.close] closing connection for worker {self.id}")
+                    self.connection.close()
+                    vb.write(verbose=True, content=f"[Worker.close] connection closed for worker {self.id}")
+            except Exception:
+                pass
+
     def assign_snapshot(self, total_amount: int):
         self.snapshot = Snapshot(self.db, output=self.output, mode=self.mode)
         self.total_amount = total_amount
