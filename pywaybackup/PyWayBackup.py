@@ -409,8 +409,8 @@ class PyWayBackup:
             "cdxfile": self._cdxfile.filepath,
             "dbfile": self._dbfile,
             "csvfile": self._csvfile.filepath,
-            "log": self._log,
-            "debug": self._debug,
+            "log": self._logfile,
+            "debug": self._debugfile,
         }
         return {
             key: (os.path.relpath(path) if rel else path)
