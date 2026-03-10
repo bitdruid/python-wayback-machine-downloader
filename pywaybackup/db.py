@@ -135,23 +135,23 @@ class Database:
         """
         try:
             if self.session.in_transaction():
-                vb.write(verbose=True, content=f"[Database.close] session in transaction: committing")
+                vb.write(verbose="high", content=f"[Database.close] session in transaction: committing")
                 try:
                     self.session.commit()
-                    vb.write(verbose=True, content=f"[Database.close] commit successful")
+                    vb.write(verbose="high", content=f"[Database.close] commit successful")
                 except Exception as e:
-                    vb.write(verbose=True, content=f"[Database.close] commit failed: {e}; rolling back")
+                    vb.write(verbose="high", content=f"[Database.close] commit failed: {e}; rolling back")
                     try:
                         self.session.rollback()
-                        vb.write(verbose=True, content=f"[Database.close] rollback successful")
+                        vb.write(verbose="high", content=f"[Database.close] rollback successful")
                     except Exception:
-                        vb.write(verbose=True, content=f"[Database.close] rollback failed")
+                        vb.write(verbose="high", content=f"[Database.close] rollback failed")
         finally:
             try:
                 self.session.close()
-                vb.write(verbose=True, content=f"[Database.close] session closed")
+                vb.write(verbose="high", content=f"[Database.close] session closed")
             except Exception as e:
-                vb.write(verbose=True, content=f"[Database.close] session close failed: {e}")
+                vb.write(verbose="high", content=f"[Database.close] session close failed: {e}")
 
     def write_progress(self, done: int, total: int):
         """

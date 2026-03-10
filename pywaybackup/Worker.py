@@ -28,17 +28,17 @@ class Worker:
         try:
             if hasattr(self, "db") and self.db:
                 try:
-                    vb.write(verbose=True, content=f"[Worker.close] closing DB for worker {self.id}")
+                    vb.write(verbose="high", content=f"[Worker.close] closing DB for worker {self.id}")
                     self.db.close()
-                    vb.write(verbose=True, content=f"[Worker.close] DB closed for worker {self.id}")
+                    vb.write(verbose="high", content=f"[Worker.close] DB closed for worker {self.id}")
                 except Exception:
                     pass
         finally:
             try:
                 if hasattr(self, "connection") and self.connection:
-                    vb.write(verbose=True, content=f"[Worker.close] closing connection for worker {self.id}")
+                    vb.write(verbose="high", content=f"[Worker.close] closing connection for worker {self.id}")
                     self.connection.close()
-                    vb.write(verbose=True, content=f"[Worker.close] connection closed for worker {self.id}")
+                    vb.write(verbose="high", content=f"[Worker.close] connection closed for worker {self.id}")
             except Exception:
                 pass
 

@@ -267,6 +267,8 @@ class DownloadArchive:
 
         except Exception as e:
             ex.exception(f"\nWorker: {worker.id} - Exception", e)
+        finally:
+            worker.close()  
 
     def _download(self, worker: Worker):
         """
