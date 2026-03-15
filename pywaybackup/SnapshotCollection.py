@@ -166,11 +166,11 @@ class SnapshotCollection:
         try:
             vb.write(verbose=True, content="[SnapshotCollection._insert_cdx] starting insert_cdx operation")
             progressbar = Progressbar(
-            unit=" lines",
-            total=self._cdx_total,
-            desc="process cdx".ljust(15),
-            ascii="░▒█",
-            bar_format="{l_bar}{bar:50}{r_bar}{bar:-10b}",
+                unit=" lines",
+                total=self._cdx_total,
+                desc="process cdx".ljust(15),
+                ascii="░▒█",
+                bar_format="{l_bar}{bar:50}{r_bar}{bar:-10b}",
             )
             line_batchsize = 2500
             line_batch = []
@@ -333,7 +333,9 @@ class SnapshotCollection:
 
             self.db.session.commit()
             self._filter_skip = total_skipped
-            vb.write(verbose=True, content=f"[SnapshotCollection._skip_set] commit successful, total_skipped={total_skipped}")
+            vb.write(
+                verbose=True, content=f"[SnapshotCollection._skip_set] commit successful, total_skipped={total_skipped}"
+            )
         except Exception as e:
             vb.write(verbose=True, content=f"[SnapshotCollection._skip_set] exception: {e}; rolling back")
             try:
