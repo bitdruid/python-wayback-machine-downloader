@@ -53,7 +53,7 @@ def url_split(url, index=False):
     if "://" in url:
         url = url.split("://")[1]
     domain = url.split("/")[0]
-    path = url[len(domain) :]
+    path = url[len(domain):]  # fmt: skip
     domain = domain.split("@")[-1].split(":")[0]  # remove mailto and port
     path_parts = path.split("/")
     path_end = path_parts[-1]
@@ -62,7 +62,7 @@ def url_split(url, index=False):
     else:
         filename = "index.html" if index else ""
     subdir = "/".join(path_parts).strip("/")
-    
+
     # Sanitize special characters that are problematic in file- and foldernames
     special_chars = [":", "*", "?", "&", "=", "<", ">", "\\", "|", "#", "!", "~"]
     for char in special_chars:
