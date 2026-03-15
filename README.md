@@ -2,7 +2,7 @@
 
 [![PyPI](https://img.shields.io/pypi/v/pywaybackup)](https://pypi.org/project/pywaybackup/)
 [![PyPI - Downloads](https://img.shields.io/pypi/dm/pywaybackup)](https://pypi.org/project/pywaybackup/)
-![Python Version](https://img.shields.io/badge/Python-3.8-blue)
+![Python Version](https://img.shields.io/badge/Python-3.8--3.13-blue)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 Downloading archived web pages from the [Wayback Machine](https://archive.org/web/).
@@ -118,8 +118,7 @@ output:
 
 ## cli
 
-- `-h`, `--help`: Show the help message and exit.
-- `-v`, `--version`: Show information about the tool and exit.
+- `-h`, `--help`: Show the help message and exit. Version info is shown in the help header.
 
 #### Required
 
@@ -182,7 +181,7 @@ Parameters will change the download behavior for snapshots.
   Set verbosity level. Available levels:
   - `low` (or `quiet`, `minimal`, `min`): Essential output only (same as no flag)
   - `default` (or `normal`, `verbose`): Standard verbose output (default when flag is set)
-  - `high` (or `debug`, `detailed`, `max`): Detailed verbose output
+  - `high` (or `detailed`, `max`): Detailed verbose output
   
   Examples: `--verbose`, `--verbose default`, `--verbose high`, `-v high`
 
