@@ -105,7 +105,11 @@ class Message(Worker):
             content = content + " - " if content else ""
             self.message = {
                 "verbose": False,
-                "content": f"{self.worker.snapshot.counter}/{self.worker.total_amount} - W:{self.worker.id} - {result}{content}{self.worker.snapshot.timestamp} - {self.worker.snapshot.url_origin}",
+                "content": (
+                    f"{self.worker.snapshot.counter}/{self.worker.total_amount}"
+                    f" - W:{self.worker.id} - {result}{content}"
+                    f"{self.worker.snapshot.timestamp} - {self.worker.snapshot.url_origin}"
+                ),
             }
             self.buffer.append(self.message)
 

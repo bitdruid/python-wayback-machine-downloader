@@ -78,19 +78,16 @@ class Snapshot:
             session = self._db.session
 
             # get next available SnapshotId
-            vb.write(verbose="high", content=f"[Snapshot.fetch] selecting next scid")
-            scid = (
-                session.execute(
-                    select(waybackup_snapshots.scid)
-                    .where(waybackup_snapshots.response.is_(None))
-                    .order_by(waybackup_snapshots.scid)
-                    .limit(1)
-                )
-                .scalar_one_or_none()
-            )
+            vb.write(verbose="high", content="[Snapshot.fetch] selecting next scid")
+            scid = session.execute(
+                select(waybackup_snapshots.scid)
+                .where(waybackup_snapshots.response.is_(None))
+                .order_by(waybackup_snapshots.scid)
+                .limit(1)
+            ).scalar_one_or_none()
 
             if scid is None:
-                vb.write(verbose="high", content=f"[Snapshot.fetch] no unprocessed scid found")
+                vb.write(verbose="high", content="[Snapshot.fetch] no unprocessed scid found")
                 return None
 
             # try to atomically claim the row by updating only if still unclaimed
@@ -100,18 +97,24 @@ class Snapshot:
                 .values(response="LOCK")
             )
 
-            # if another worker claimed it first, rowcount will be 0 and cannot be claimed by this worker.
-            vb.write(verbose="high", content=f"[Snapshot.fetch] attempted to claim scid={scid}, rowcount={result.rowcount}")
+            # if another worker claimed it first, rowcount will be 0 — retry to get next available row
+            vb.write(
+                verbose="high", content=f"[Snapshot.fetch] attempted to claim scid={scid}, rowcount={result.rowcount}"
+            )
             if result.rowcount == 0:
+                # TOCTOU: __get_row(): another worker claimed this row between our SELECT and UPDATE.
+                # Retry instead of returning None to avoid premature worker termination.
                 try:
                     session.commit()
                 except Exception:
                     pass
-                vb.write(verbose="high", content=f"[Snapshot.fetch] scid={scid} already claimed by another worker")
-                return None
+                vb.write(verbose="high", content=f"[Snapshot.fetch] scid={scid} already claimed, retrying")
+                return __get_row()
 
             # The row has been claimed by the worker and can now be fetched.
-            row = session.execute(select(waybackup_snapshots).where(waybackup_snapshots.scid == scid)).scalar_one_or_none()
+            row = session.execute(
+                select(waybackup_snapshots).where(waybackup_snapshots.scid == scid)
+            ).scalar_one_or_none()
             try:
                 session.commit()
             except Exception:
@@ -145,7 +148,9 @@ class Snapshot:
             self._db.session.commit()
             vb.write(verbose="high", content=f"[Snapshot.modify] update committed scid={self.scid} column={column.key}")
         except Exception as e:
-            vb.write(verbose="high", content=f"[Snapshot.modify] update failed scid={self.scid} error={e}; rolling back")
+            vb.write(
+                verbose="high", content=f"[Snapshot.modify] update failed scid={self.scid} error={e}; rolling back"
+            )
             try:
                 self._db.session.rollback()
             except Exception:
