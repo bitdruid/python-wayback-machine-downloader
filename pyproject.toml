@@ -16,7 +16,7 @@ dependencies = [
     "python-magic-standalone==0.4.28",
 ]
 name = "pywaybackup"
-version = "4.1.5"
+version = "4.1.6"
 description = "Query and download archive.org as simple as possible."
 authors = [{ name = "bitdruid", email = "bitdruid@outlook.com" }]
 license = { file = "LICENSE" }
