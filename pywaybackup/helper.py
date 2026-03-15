@@ -14,7 +14,7 @@ def sanitize_filename(filename: str) -> str:
     """
     Sanitize a string to be used as (part of) a filename.
     """
-    disallowed = ["<", ">", ":", '"', "/", "\\", "|", "?", "*"]
+    disallowed = ["<", ">", ":", '"', "/", "\\", "|", "?", "*", "=", "#", "!", "~"]
     for char in disallowed:
         filename = filename.replace(char, ".")
     filename = ".".join(filter(None, filename.split(".")))
@@ -62,12 +62,12 @@ def url_split(url, index=False):
     else:
         filename = "index.html" if index else ""
     subdir = "/".join(path_parts).strip("/")
-    # sanitize subdir and filename for windows
-    if check_nt():
-        special_chars = [":", "*", "?", "&", "=", "<", ">", "\\", "|"]
-        for char in special_chars:
-            subdir = subdir.replace(char, f"%{ord(char):02x}")
-            filename = filename.replace(char, f"%{ord(char):02x}")
+    
+    # Sanitize special characters that are problematic in file- and foldernames
+    special_chars = [":", "*", "?", "&", "=", "<", ">", "\\", "|", "#", "!", "~"]
+    for char in special_chars:
+        subdir = subdir.replace(char, f"%{ord(char):02x}")
+        filename = filename.replace(char, f"%{ord(char):02x}")
     filename = filename.replace("%20", " ")
     return domain, subdir, filename
 

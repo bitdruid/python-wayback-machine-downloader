@@ -163,45 +163,56 @@ class SnapshotCollection:
 
         vb.write(verbose=None, content="\nInserting CDX data into database...")
 
-        progressbar = Progressbar(
+        try:
+            vb.write(verbose=True, content="[SnapshotCollection._insert_cdx] starting insert_cdx operation")
+            progressbar = Progressbar(
             unit=" lines",
             total=self._cdx_total,
             desc="process cdx".ljust(15),
             ascii="░▒█",
             bar_format="{l_bar}{bar:50}{r_bar}{bar:-10b}",
-        )
-        line_batchsize = 2500
-        line_batch = []
-        total_inserted = 0
-        first_line = True
+            )
+            line_batchsize = 2500
+            line_batch = []
+            total_inserted = 0
+            first_line = True
 
-        with self.cdxfile as f:
-            for line in f:
-                if first_line:
-                    first_line = False
-                    continue
-                line = line.strip()
-                if line.endswith("]]"):
-                    line = line.rsplit("]", 1)[0]
-                if line.endswith(","):
-                    line = line.rsplit(",", 1)[0]
+            with self.cdxfile as f:
+                for line in f:
+                    if first_line:
+                        first_line = False
+                        continue
+                    line = line.strip()
+                    if line.endswith("]]"):
+                        line = line.rsplit("]", 1)[0]
+                    if line.endswith(","):
+                        line = line.rsplit(",", 1)[0]
 
-                try:
-                    line_batch.append(__parse_line(line))
-                except json.decoder.JSONDecodeError:
-                    self._snapshot_faulty += 1
-                    continue
+                    try:
+                        line_batch.append(__parse_line(line))
+                    except json.decoder.JSONDecodeError:
+                        self._snapshot_faulty += 1
+                        continue
 
-                if len(line_batch) >= line_batchsize:
+                    if len(line_batch) >= line_batchsize:
+                        total_inserted += _insert_batch_safe(line_batch=line_batch)
+                        line_batch = []
+                        progressbar.update(line_batchsize)
+
+                if line_batch:
                     total_inserted += _insert_batch_safe(line_batch=line_batch)
-                    line_batch = []
-                    progressbar.update(line_batchsize)
+                    progressbar.update(len(line_batch))
 
-            if line_batch:
-                total_inserted += _insert_batch_safe(line_batch=line_batch)
-                progressbar.update(len(line_batch))
-
-        self.db.session.commit()
+            self.db.session.commit()
+            vb.write(verbose=True, content="[SnapshotCollection._insert_cdx] insert_cdx commit successful")
+        except Exception as e:
+            vb.write(verbose=True, content=f"[SnapshotCollection._insert_cdx] exception: {e}; rolling back")
+            try:
+                self.db.session.rollback()
+                vb.write(verbose=True, content="[SnapshotCollection._insert_cdx] rollback successful")
+            except Exception:
+                vb.write(verbose=True, content="[SnapshotCollection._insert_cdx] rollback failed")
+            raise
 
     def _index_snapshots(self):
         """
@@ -297,29 +308,40 @@ class SnapshotCollection:
         """
 
         # ? for now per row / no bulk for compatibility
-        with self.csvfile as f:
-            total_skipped = 0
-            for row in f:
-                self.db.session.execute(
-                    update(waybackup_snapshots)
-                    .where(
-                        and_(
-                            waybackup_snapshots.timestamp == row["timestamp"],
-                            waybackup_snapshots.url_origin == row["url_origin"],
+        try:
+            vb.write(verbose=True, content="[SnapshotCollection._skip_set] applying CSV skips to DB")
+            with self.csvfile as f:
+                total_skipped = 0
+                for row in f:
+                    self.db.session.execute(
+                        update(waybackup_snapshots)
+                        .where(
+                            and_(
+                                waybackup_snapshots.timestamp == row["timestamp"],
+                                waybackup_snapshots.url_origin == row["url_origin"],
+                            )
+                        )
+                        .values(
+                            url_archive=row["url_archive"],
+                            redirect_url=row["redirect_url"],
+                            redirect_timestamp=row["redirect_timestamp"],
+                            response=row["response"],
+                            file=row["file"],
                         )
                     )
-                    .values(
-                        url_archive=row["url_archive"],
-                        redirect_url=row["redirect_url"],
-                        redirect_timestamp=row["redirect_timestamp"],
-                        response=row["response"],
-                        file=row["file"],
-                    )
-                )
-                total_skipped += 1
+                    total_skipped += 1
 
-        self.db.session.commit()
-        self._filter_skip = total_skipped
+            self.db.session.commit()
+            self._filter_skip = total_skipped
+            vb.write(verbose=True, content=f"[SnapshotCollection._skip_set] commit successful, total_skipped={total_skipped}")
+        except Exception as e:
+            vb.write(verbose=True, content=f"[SnapshotCollection._skip_set] exception: {e}; rolling back")
+            try:
+                self.db.session.rollback()
+                vb.write(verbose=True, content="[SnapshotCollection._skip_set] rollback successful")
+            except Exception:
+                vb.write(verbose=True, content="[SnapshotCollection._skip_set] rollback failed")
+            raise
 
     def count_total(self) -> int:
         return self.db.session.query(waybackup_snapshots.scid).count()
