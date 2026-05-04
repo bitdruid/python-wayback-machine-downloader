@@ -510,6 +510,7 @@ class PyWayBackup:
         collection = SnapshotCollection()
         collection.close()
         self._csvfile.store_result()
+        db.close_engine()
         self._f_keep()
         vb.fini()
         signal.signal(signal.SIGINT, signal.SIG_IGN)

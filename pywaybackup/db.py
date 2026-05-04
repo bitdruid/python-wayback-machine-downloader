@@ -95,6 +95,7 @@ class Database:
     dbfile = None
     query_identifier = None
     query_exist = False
+    engine = None
     sessman = sessionmaker()
     query_progress = "0 / 0"
 
@@ -109,9 +110,9 @@ class Database:
         """
         cls.dbfile = dbfile
         cls.query_identifier = query_identifier
-        engine = create_engine(f"sqlite:///{dbfile}")
-        cls.sessman = sessionmaker(bind=engine)
-        Base.metadata.create_all(engine)
+        cls.engine = create_engine(f"sqlite:///{dbfile}")
+        cls.sessman = sessionmaker(bind=cls.engine)
+        Base.metadata.create_all(cls.engine)
 
         db = Database()
         if db.session.execute(
@@ -122,6 +123,19 @@ class Database:
         else:
             db.session.execute(insert(waybackup_job).values(query_identifier=query_identifier))
         db.close()
+
+    @classmethod
+    def close_engine(cls):
+        """
+        Dispose of the SQLAlchemy engine and release SQLite file handles.
+
+        Required on Windows before the .db file can be deleted, since the OS
+        holds an exclusive lock on open files. No-op on platforms where this
+        isn't required, and idempotent if called more than once.
+        """
+        if cls.engine is not None:
+            cls.engine.dispose()
+            cls.engine = None
 
     def __init__(self):
         """
