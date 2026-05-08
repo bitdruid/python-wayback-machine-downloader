@@ -1,0 +1,61 @@
+name: Build executables
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            suffix: linux
+            ext: ""
+          - os: windows-latest
+            suffix: windows
+            ext: ".exe"
+          - os: macos-latest
+            suffix: macos
+            ext: ""
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install . pyinstaller
+
+      - name: Build executable
+        run: pyinstaller --onefile --name waybackup --additional-hooks-dir=hooks pywaybackup/main.py
+
+      - name: Rename artifact
+        shell: bash
+        run: mv "dist/waybackup${{ matrix.ext }}" "dist/waybackup-${{ matrix.suffix }}${{ matrix.ext }}"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: waybackup-${{ matrix.suffix }}
+          path: dist/waybackup-${{ matrix.suffix }}${{ matrix.ext }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Attach binaries to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
