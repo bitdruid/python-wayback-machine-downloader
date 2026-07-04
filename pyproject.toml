@@ -10,18 +10,18 @@ packages = ["pywaybackup"]
 [project]
 dependencies = [
     "ruff",
-    "SQLAlchemy==2.0.43",
+    "SQLAlchemy==2.0.51",
     "requests==2.32.3",
     "tqdm==4.67.1",
     "python-magic-standalone==0.4.28",
 ]
 name = "pywaybackup"
-version = "4.1.7"
+version = "4.2.0"
 description = "Query and download archive.org as simple as possible."
 authors = [{ name = "bitdruid", email = "bitdruid@outlook.com" }]
 license = { file = "LICENSE" }
 readme = "README.md"
-requires-python = ">=3.8,<3.14"
+requires-python = ">=3.8"
 
 
 [project.scripts]

@@ -2,7 +2,7 @@
 
 [![PyPI](https://img.shields.io/pypi/v/pywaybackup)](https://pypi.org/project/pywaybackup/)
 [![PyPI - Downloads](https://img.shields.io/pypi/dm/pywaybackup)](https://pypi.org/project/pywaybackup/)
-![Python Version](https://img.shields.io/badge/Python-3.8--3.13-blue)
+![Python Version](https://img.shields.io/badge/Python-3.8%2B-blue)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 Downloading archived web pages from the [Wayback Machine](https://archive.org/web/).
@@ -30,6 +30,13 @@ This tool allows you to download content from the Wayback Machine (archive.org).
    `pip install pywaybackup`
 2. Run the tool <br>
    `waybackup -h`
+
+### Standalone binary
+
+Prebuilt executables for Windows, Linux and macOS are attached to each [release](https://github.com/bitdruid/python-wayback-machine-downloader/releases). No Python required.
+
+- Run from a terminal with arguments like the pip version: `waybackup -h`
+- Or start it without arguments (e.g. double-click on Windows) to enter **interactive mode** — the tool will prompt you for URL, mode and optional settings.
 
 ### Manual
 
@@ -120,6 +127,8 @@ output:
 
 - `-h`, `--help`: Show the help message and exit. Version info is shown in the help header.
 
+> **Interactive mode:** running `waybackup` without any arguments in a terminal starts a guided prompt for URL, mode and optional settings. Without a terminal (scripts/cron), the help is printed instead.
+
 #### Required
 
 - **`-u`**, **`--url`**:<br>
@@ -133,6 +142,8 @@ output:
   Last Version. Gives one folder containing the last version of each file of specified `--range`.
 - **`-f`**, **`--first`**:<br>
   First Version. Gives one folder containing the first version of each file of specified `--range`.
+- **`-s`**, **`--save`**:<br>
+  Save a page to the wayback machine (no download).
 
 #### Optional query parameters
 
