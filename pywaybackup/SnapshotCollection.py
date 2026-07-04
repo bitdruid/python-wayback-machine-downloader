@@ -1,6 +1,6 @@
 import json
 
-from pywaybackup.db import Database, Index, and_, delete, func, or_, select, tuple_, update, waybackup_snapshots
+from pywaybackup.db import Database, and_, delete, func, or_, select, text, tuple_, update, waybackup_snapshots
 from pywaybackup.files import CDXfile, CSVfile
 from pywaybackup.Verbosity import Progressbar
 from pywaybackup.Verbosity import Verbosity as vb
@@ -217,30 +217,35 @@ class SnapshotCollection:
     def _index_snapshots(self):
         """
         Create indexes for the snapshot table.
+
+        Raw DDL instead of sqlalchemy Index objects: Index(...) attaches to the
+        module-global table metadata, which accumulates duplicates when the
+        package is reused in-process (library usage) and breaks create_all().
         """
         # index for filtering last snapshots
         if self._mode_last:
-            idx1 = Index(
-                "idx_waybackup_snapshots_url_origin_timestamp_desc",
-                waybackup_snapshots.url_origin,
-                waybackup_snapshots.timestamp.desc(),
+            self.db.session.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS idx_waybackup_snapshots_url_origin_timestamp_desc "
+                    "ON waybackup_snapshots (url_origin, timestamp DESC)"
+                )
             )
-            idx1.create(self.db.session.bind, checkfirst=True)
         # index for filtering first snapshots
         if self._mode_first:
-            idx2 = Index(
-                "idx_waybackup_snapshots_url_origin_timestamp_asc",
-                waybackup_snapshots.url_origin,
-                waybackup_snapshots.timestamp.asc(),
+            self.db.session.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS idx_waybackup_snapshots_url_origin_timestamp_asc "
+                    "ON waybackup_snapshots (url_origin, timestamp ASC)"
+                )
             )
-            idx2.create(self.db.session.bind, checkfirst=True)
         # index for skippable snapshots
-        idx3 = Index(
-            "idx_waybackup_snapshots_timestamp_url_origin_response",
-            waybackup_snapshots.timestamp,
-            waybackup_snapshots.url_origin,
+        self.db.session.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS idx_waybackup_snapshots_timestamp_url_origin_response "
+                "ON waybackup_snapshots (timestamp, url_origin)"
+            )
         )
-        idx3.create(self.db.session.bind, checkfirst=True)
+        self.db.session.commit()
 
     def _filter_snapshots(self):
         """
