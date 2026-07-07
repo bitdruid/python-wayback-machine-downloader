@@ -338,9 +338,10 @@ class DownloadArchive:
             self.__download_response(context=context, worker=worker)
             location = context.response.getheader("Location")
             if location:
-                context.encoded_download_url = context.encode_url(urljoin(context.snapshot_url, location))
+                resolved_location = urljoin(context.snapshot_url, location)
+                context.encoded_download_url = context.encode_url(resolved_location)
                 worker.message.store(verbose=True, result="", info="TO", content=location)
-                worker.snapshot.redirect_timestamp = url_get_timestamp(location)
+                worker.snapshot.redirect_timestamp = url_get_timestamp(resolved_location)
                 worker.snapshot.redirect_url = context.snapshot_url
             else:
                 break

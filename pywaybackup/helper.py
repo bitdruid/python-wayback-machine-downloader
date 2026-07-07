@@ -34,8 +34,14 @@ def sanitize_url(url: str) -> str:
 def url_get_timestamp(url):
     """
     Extract the timestamp from a wayback machine URL.
+
+    Returns an empty string if the URL does not contain a `web/<timestamp>` segment
+    (e.g. relative or external redirect targets).
     """
-    timestamp = url.split("web/")[1].split("/")[0]
+    parts = url.split("web/")
+    if len(parts) < 2:
+        return ""
+    timestamp = parts[1].split("/")[0]
     if "id_" in url:
         timestamp = timestamp.split("id_")[0]
     return timestamp
