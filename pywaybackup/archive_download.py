@@ -11,7 +11,7 @@ from socket import timeout
 from urllib.parse import urljoin
 
 from pywaybackup.Exception import Exception as ex
-from pywaybackup.helper import check_nt, move_index, url_get_timestamp
+from pywaybackup.helper import add_html_extension, check_nt, move_index, url_get_timestamp
 from pywaybackup.SnapshotCollection import SnapshotCollection
 from pywaybackup.Verbosity import Verbosity as vb
 from pywaybackup.Worker import Worker
@@ -81,7 +81,17 @@ class DownloadArchive:
         sc (SnapshotCollection): The snapshot collection being processed.
     """
 
-    def __init__(self, mode: str, output: str, retry: int, no_redirect: bool, delay: int, wait: int, workers: int, merge_www: bool = True):
+    def __init__(
+        self,
+        mode: str,
+        output: str,
+        retry: int,
+        no_redirect: bool,
+        delay: int,
+        wait: int,
+        workers: int,
+        merge_www: bool = True,
+    ):
         """
         Initialize the download manager with configuration options.
 
@@ -270,7 +280,7 @@ class DownloadArchive:
         except Exception as e:
             ex.exception(f"\nWorker: {worker.id} - Exception", e)
         finally:
-            worker.close()  
+            worker.close()
 
     def _download(self, worker: Worker):
         """
@@ -291,6 +301,7 @@ class DownloadArchive:
 
         if context.response_status == 200:
             context.output_file = worker.snapshot.create_output()
+            context.output_file = add_html_extension(context.output_file, context.response_data)
             context.output_path = os.path.dirname(context.output_file)
 
             # if output_file is too long for windows, skip download
@@ -305,15 +316,6 @@ class DownloadArchive:
             # download file if not existing
             if not os.path.isfile(context.output_file):
                 with open(context.output_file, "wb") as file:
-                    if context.response.getheader("Content-Encoding") == "gzip":
-                        try:
-                            context.response_data = gzip.decompress(context.response_data)
-                        except BadGzipFile:
-                            vb.write(
-                                verbose=None,
-                                content=f"Worker: {worker.id} - GZIP DECOMPRESS SKIPPED - {context.snapshot_url}",
-                            )
-                            pass
                     file.write(context.response_data)
 
                 # check if file is downloaded
@@ -428,3 +430,13 @@ class DownloadArchive:
         context.response = worker.connection.getresponse()
         context.response_data = context.response.read()
         context.response_status = context.response.status
+
+        # decompress before sniff
+        if context.response.getheader("Content-Encoding") == "gzip":
+            try:
+                context.response_data = gzip.decompress(context.response_data)
+            except BadGzipFile:
+                vb.write(
+                    verbose=None,
+                    content=f"Worker: {worker.id} - GZIP DECOMPRESS SKIPPED - {context.snapshot_url}",
+                )

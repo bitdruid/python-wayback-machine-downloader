@@ -2,6 +2,12 @@ import os
 import shutil
 import magic
 
+# one instance for the run to keep resource usage low
+_mime = magic.Magic(mime=True)
+
+# only keep the header for libmagic
+_MIME_SNIFF_BYTES = 2048
+
 
 def check_nt():
     """
@@ -128,8 +134,23 @@ def move_index(existpath: str = None, existfile: str = None, filebuffer: bytes =
 
 
 def check_index_mime(filebuffer: bytes) -> bool:
-    mime = magic.Magic(mime=True)
-    mime_type = mime.from_buffer(filebuffer)
+    mime_type = _mime.from_buffer(filebuffer[:_MIME_SNIFF_BYTES])
     if mime_type != "text/html":
         return False
     return True
+
+
+def add_html_extension(filepath: str, filebuffer: bytes) -> str:
+    """
+    Append `.html` to a file without extension if its content is html.
+
+    Urls like `/about` or `/docs/guide` carry no extension, so the snapshot is
+    written as an extensionless file that no browser or file manager opens.
+    The content type is sniffed from the buffer instead of the cdx mimetype
+    column, which is often `warc/revisit` or `unk` rather than a real type.
+    """
+    if os.path.splitext(filepath)[1]:
+        return filepath
+    if not check_index_mime(filebuffer):
+        return filepath
+    return filepath + ".html"
