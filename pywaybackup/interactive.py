@@ -3,13 +3,14 @@ Interactive mode: prompt the user for arguments instead of parsing sys.argv.
 
 Used when waybackup is launched without CLI arguments (e.g. double-clicking
 the Windows .exe). Produces the same dict shape as Arguments.get_args() so
-PyWayBackup(**args) works either way. Argument metadata is read from
-arg_specs.ARG_SPECS so flags only have to be declared in one place.
+PyWayBackup(**args) works either way. The arguments and their grouping are read
+from the argparse parser, so a new argument is offered here automatically - it
+only has to be added in arguments.py.
 """
 
 from importlib.metadata import version
 
-from pywaybackup.arg_specs import ARG_SPECS, EXCLUSIVE_GROUPS, default_args
+from pywaybackup.arguments import build_parser
 
 
 class Interactive:
@@ -17,28 +18,35 @@ class Interactive:
         print(f"<<< python-wayback-machine-downloader v{version('pywaybackup')} >>>")
         print("Interactive mode - press Ctrl+C to abort.\n")
 
-        args = default_args()
+        parser = build_parser()
+        actions = [action for action in parser._actions if action.dest != "help"]
+        args = {action.dest: action.default for action in actions}
 
-        # 1. Required URL
-        url_spec = _spec_by_name("url")
-        args["url"] = self._prompt_required(url_spec.prompt or url_spec.help)
+        # 1. Required url
+        url = _action_by_dest(actions, "url")
+        args["url"] = self._prompt_required(url.help)
 
-        # 2. Required exclusive group(s) — pick exactly one member
-        for ex_name in EXCLUSIVE_GROUPS:
-            members = [s for s in ARG_SPECS if s.exclusive_group == ex_name]
-            choice = self._prompt_choice(
-                ex_name.capitalize(),
-                [(s.name, s.help) for s in members],
-            )
-            for s in members:
-                args[s.name] = s.name == choice
+        # 2. Required exclusive group(s) - pick exactly one member
+        exclusive = set()
+        for group in parser._mutually_exclusive_groups:
+            members = group._group_actions
+            exclusive.update(action.dest for action in members)
+            if not group.required:
+                continue
+            choice = self._prompt_choice("Mode", [(a.dest, a.help) for a in members])
+            for action in members:
+                args[action.dest] = action.dest == choice
 
-        # 3. Advanced options
-        if self._prompt_yes_no("Configure advanced options?", default=False):
-            for spec in ARG_SPECS:
-                if not spec.advanced:
-                    continue
-                args[spec.name] = self._prompt_for(spec, args[spec.name])
+        # 3. Every other argument, offered group by group as defined in the parser
+        handled = exclusive | {"url"}
+        for group in parser._action_groups:
+            members = [a for a in group._group_actions if a.dest not in handled and a.dest != "help"]
+            if not members:
+                continue
+            if not self._prompt_yes_no(f"\nConfigure {group.title}?", default=False):
+                continue
+            for action in members:
+                args[action.dest] = self._prompt_for(action, args[action.dest])
 
         # internal flags (parity with Arguments.py)
         args["silent"] = False
@@ -50,11 +58,11 @@ class Interactive:
     def get_args(self) -> dict:
         return self.args
 
-    def _prompt_for(self, spec, current):
-        label = spec.prompt or spec.help
-        if spec.action == "store_true":
-            return self._prompt_yes_no(f"{label}", default=bool(current))
-        if spec.type is int:
+    def _prompt_for(self, action, current):
+        label = action.help
+        if action.nargs == 0:  # store_true
+            return self._prompt_yes_no(label, default=bool(current))
+        if action.type is int:
             if current is None:
                 return self._prompt_optional_int(label)
             return self._prompt_int(label, default=current)
@@ -137,8 +145,8 @@ class Interactive:
             print(f"  (please enter one of: {', '.join(sorted(valid))})")
 
 
-def _spec_by_name(name):
-    for s in ARG_SPECS:
-        if s.name == name:
-            return s
-    raise KeyError(name)
+def _action_by_dest(actions, dest):
+    for action in actions:
+        if action.dest == dest:
+            return action
+    raise KeyError(dest)

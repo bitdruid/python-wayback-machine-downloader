@@ -2,7 +2,7 @@ import os
 import threading
 
 from pywaybackup.db import Database, select, update, waybackup_snapshots, and_
-from pywaybackup.helper import url_split
+from pywaybackup.helper import normalize_domain, url_split
 from pywaybackup.Verbosity import Verbosity as vb
 
 
@@ -22,7 +22,7 @@ class Snapshot:
 
     __sqlite_lock = threading.Lock()
 
-    def __init__(self, db: Database, output: str, mode: str):
+    def __init__(self, db: Database, output: str, mode: str, merge_www: bool = True):
         """
         Initialize a Snapshot instance and fetch its database row if available.
 
@@ -30,10 +30,12 @@ class Snapshot:
             db (Database): Database connection/session manager.
             output (str): Output directory for downloaded files.
             mode (str): Download mode ('first', 'last', or default).
+            merge_www (bool): Write www and non-www snapshots into the same folder.
         """
         self._db = db
         self.output = output
         self.mode = mode
+        self.merge_www = merge_www
 
         self._redirect_url = None
         self._redirect_timestamp = None
@@ -164,10 +166,14 @@ class Snapshot:
         If mode is 'first' or 'last', the path does not include the timestamp.
         Otherwise, the timestamp is included in the path.
 
+        The domain is normalized so that the www and non-www variants of a site
+        end up in the same folder instead of two separate ones.
+
         Returns:
             str: Absolute path to the output file for the snapshot.
         """
         domain, subdir, filename = url_split(self.url_archive.split("id_/")[1], index=True)
+        domain = normalize_domain(domain, merge_www=self.merge_www)
 
         if self.mode == "last" or self.mode == "first":
             download_dir = os.path.join(self.output, domain, subdir)

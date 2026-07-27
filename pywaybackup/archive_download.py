@@ -81,7 +81,7 @@ class DownloadArchive:
         sc (SnapshotCollection): The snapshot collection being processed.
     """
 
-    def __init__(self, mode: str, output: str, retry: int, no_redirect: bool, delay: int, wait: int, workers: int):
+    def __init__(self, mode: str, output: str, retry: int, no_redirect: bool, delay: int, wait: int, workers: int, merge_www: bool = True):
         """
         Initialize the download manager with configuration options.
 
@@ -92,9 +92,11 @@ class DownloadArchive:
             no_redirect (bool): Disable redirect handling if True.
             delay (int): Delay between downloads in seconds.
             workers (int): Number of worker threads.
+            merge_www (bool): Write www and non-www snapshots into the same folder.
         """
         self.mode = mode
         self.output = output
+        self.merge_www = merge_www
         self.retry = retry
         self.no_redirect = no_redirect
         self.delay = delay
@@ -127,7 +129,7 @@ class DownloadArchive:
 
         threads = []
         for i in range(self.workers):
-            worker = Worker(id=i + 1, output=self.output, mode=self.mode)
+            worker = Worker(id=i + 1, output=self.output, mode=self.mode, merge_www=self.merge_www)
             vb.write(verbose=True, content=f"\n-----> Starting Worker: {worker.id}")
             thread = threading.Thread(target=self._download_loop, args=(worker,), daemon=True)
             threads.append(thread)

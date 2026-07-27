@@ -28,6 +28,9 @@ class SnapshotCollection:
 
         self._snapshot_faulty = 0  # error while parsing cdx line
 
+        self._merge_www = True  # treat www and non-www as the same url
+
+        self._filter_mailto = 0  # mailto: links in the cdx results
         self._filter_duplicates = 0  # with identical url_archive
         self._filter_mode = 0  # all snapshots filtered by the MODE (last or first)
         self._filter_skip = 0  # content of the csv file
@@ -60,12 +63,13 @@ class SnapshotCollection:
         self.db.write_progress(self._snapshot_handled, self._snapshot_total)
         self.db.session.close()
 
-    def load(self, mode: str, cdxfile: CDXfile, csvfile: CSVfile):
+    def load(self, mode: str, cdxfile: CDXfile, csvfile: CSVfile, merge_www: bool = True):
         """
         Insert the content of the cdx and csv file into the snapshot table.
         """
         self.cdxfile = cdxfile
         self.csvfile = csvfile
+        self._merge_www = merge_www
         if mode == "first":
             self._mode_first = True
         if mode == "last":
@@ -114,6 +118,9 @@ class SnapshotCollection:
                 "statuscode": line[3],
                 "origin": line[4],
             }
+            # cdx results contain mailto: links, which are no downloadable resources
+            if line["origin"].lower().startswith("mailto"):
+                return None
             url_archive = f"https://web.archive.org/web/{line['timestamp']}id_/{line['origin']}"
             statuscode = line["statuscode"] if line["statuscode"] in ("301", "404") else None
             return {
@@ -189,10 +196,14 @@ class SnapshotCollection:
                         line = line.rsplit(",", 1)[0]
 
                     try:
-                        line_batch.append(__parse_line(line))
+                        parsed = __parse_line(line)
                     except json.decoder.JSONDecodeError:
                         self._snapshot_faulty += 1
                         continue
+                    if parsed is None:
+                        self._filter_mailto += 1
+                        continue
+                    line_batch.append(parsed)
 
                     if len(line_batch) >= line_batchsize:
                         total_inserted += _insert_batch_safe(line_batch=line_batch)
@@ -253,6 +264,11 @@ class SnapshotCollection:
 
         - MODE_LAST → keep only the latest snapshot (highest timestamp) per url_origin.
         - MODE_FIRST → keep only the earliest snapshot (lowest timestamp) per url_origin.
+
+        Grouped by the url as it maps to disk, not by the raw url_origin: the output
+        path drops the scheme and normalizes the domain, so `http://www.example.com/`
+        and `https://example.com/` are one and the same file. Grouping by the raw value
+        would download both and let the second silently overwrite the first.
         """
 
         def _filter_mode():
@@ -261,11 +277,15 @@ class SnapshotCollection:
                 ordering = (
                     waybackup_snapshots.timestamp.desc() if self._mode_last else waybackup_snapshots.timestamp.asc()
                 )
-                # assign row numbers per url_origin
+                # same url as far as the output path is concerned (see helper.normalize_domain)
+                url_key = func.replace(func.lower(waybackup_snapshots.url_origin), "https://", "http://")
+                if self._merge_www:
+                    url_key = func.replace(url_key, "http://www.", "http://")
+                # assign row numbers per url
                 rownum = (
                     func.row_number()
                     .over(
-                        partition_by=waybackup_snapshots.url_origin,
+                        partition_by=url_key,
                         order_by=ordering,
                     )
                     .label("rn")
@@ -377,6 +397,8 @@ class SnapshotCollection:
         vb.write(content="\nSnapshot calculation:")
         vb.write(content=f"-----> {'in CDX file'.ljust(18)}: {self._cdx_total:,}")
 
+        if self._filter_mailto > 0:
+            vb.write(content=f"-----> {'removed mailto'.ljust(18)}: {self._filter_mailto:,}")
         if self._filter_duplicates > 0:
             vb.write(content=f"-----> {'removed duplicates'.ljust(18)}: {self._filter_duplicates:,}")
         if self._filter_mode > 0:

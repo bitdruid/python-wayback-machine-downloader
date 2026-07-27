@@ -11,10 +11,11 @@ class Worker:
     Worker buffers its messages in a Message object. Output has to be done with write() method.
     """
 
-    def __init__(self, id: int, output: str, mode: str):
+    def __init__(self, id: int, output: str, mode: str, merge_www: bool = True):
         self.id = id
         self.output = output
         self.mode = mode
+        self.merge_www = merge_www
         self.message = Message(self)
 
     def init(self):
@@ -43,7 +44,7 @@ class Worker:
                 pass
 
     def assign_snapshot(self, total_amount: int):
-        self.snapshot = Snapshot(self.db, output=self.output, mode=self.mode)
+        self.snapshot = Snapshot(self.db, output=self.output, mode=self.mode, merge_www=self.merge_www)
         self.total_amount = total_amount
         if not self.snapshot.counter:  # counter only if a row was fetched
             self.snapshot = None

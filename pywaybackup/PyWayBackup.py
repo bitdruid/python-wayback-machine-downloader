@@ -2,16 +2,17 @@ import multiprocessing
 import os
 import signal
 import sys
+import threading
 import time
 from importlib.metadata import version
-from typing import Union
+from typing import Callable, Optional, Union
 
 import pywaybackup.archive_save as archive_save
 from pywaybackup.archive_download import DownloadArchive
 from pywaybackup.db import Database as db
 from pywaybackup.Exception import Exception as ex
 from pywaybackup.files import CDXfile, CDXquery, CSVfile
-from pywaybackup.helper import sanitize_filename, url_split
+from pywaybackup.helper import normalize_domain, sanitize_filename, url_split
 from pywaybackup.SnapshotCollection import SnapshotCollection
 from pywaybackup.Verbosity import Verbosity as vb
 
@@ -89,6 +90,7 @@ class PyWayBackup:
         log (bool): Enable writing logs to a file.
         progress (bool): Show a progress bar.
         no_redirect (bool): Disable handling redirects.
+        no_merge_www (bool): Keep www and non-www snapshots in separate folders instead of merging them.
         retry (int): Retry attempts for failed downloads.
         workers (int): Number of download workers (default: 1).
         delay (int): Delay between download requests in seconds.
@@ -96,6 +98,9 @@ class PyWayBackup:
         keep (bool): Retain all job metadata after completion.
         silent (bool): Suppress all output (for programmatic use).
         debug (bool): Enable debug mode.
+        progress_callback (callable): Called with the status() dict on every task change and, during the
+            download phase, every `progress_interval` seconds. Fires independently of `silent`/`progress`.
+        progress_interval (float): Seconds between callback ticks while downloading snapshots (default: 5).
         **kwargs: Catch-all for future expansion or external integration.
 
     Methods:
@@ -127,6 +132,7 @@ class PyWayBackup:
         log: bool = False,
         progress: bool = False,
         no_redirect: bool = False,
+        no_merge_www: bool = False,
         retry: int = 0,
         workers: int = 1,
         delay: int = 0,
@@ -135,6 +141,8 @@ class PyWayBackup:
         keep: bool = False,
         silent: bool = True,
         debug: bool = False,
+        progress_callback: Optional[Callable[[dict], None]] = None,
+        progress_interval: float = 5.0,
         **kwargs: dict,
     ):
         self._url = url
@@ -155,6 +163,7 @@ class PyWayBackup:
         self._log = log
         self._progress = progress
         self._no_redirect = no_redirect
+        self._merge_www = not no_merge_www
         self._retry = retry
         self._workers = workers
         self._delay = delay
@@ -166,6 +175,8 @@ class PyWayBackup:
         # module exclusive
         self._silent = silent
         self._debug = debug
+        self._progress_callback = progress_callback
+        self._progress_interval = progress_interval
 
         # internal
         self._status = _Status()
@@ -328,7 +339,7 @@ class PyWayBackup:
             SnapshotCollection: The initialized and loaded snapshot collection.
         """
         collection = SnapshotCollection()
-        collection.load(mode=self._mode, cdxfile=self._cdxfile, csvfile=self._csvfile)
+        collection.load(mode=self._mode, cdxfile=self._cdxfile, csvfile=self._csvfile, merge_www=self._merge_www)
         collection.print_calculation()
         return collection
 
@@ -350,8 +361,42 @@ class PyWayBackup:
             delay=self._delay,
             wait=self._wait,
             workers=self._workers,
+            merge_www=self._merge_www,
         )
         downloader.run(SnapshotCollection=collection)
+
+    def _notify(self, task: str = None):
+        """
+        Set the current task (if given) and push the status to the progress callback.
+
+        Never gated by `silent`/`progress` - those only control the tqdm bar, while
+        embedders using the callback are exactly the ones running without one. A
+        failing callback is logged and swallowed, it must not abort a running job.
+
+        Args:
+            task (str, optional): New task name to set before notifying.
+        """
+        if task is not None:
+            self._status.task = task
+        if not self._progress_callback:
+            return
+        try:
+            self._progress_callback(self._status.status)
+        except Exception as e:
+            ex.exception(message="\nprogress_callback raised", e=e)
+
+    def _notify_loop(self, stop: threading.Event):
+        """
+        Push a status update every `progress_interval` seconds until stopped.
+
+        Runs in a daemon thread during the download phase, which can last hours
+        without any task change to notify on.
+
+        Args:
+            stop (threading.Event): Set by the workflow to end the loop.
+        """
+        while not stop.wait(self._progress_interval):
+            self._notify()
 
     def _workflow(self):
         """
@@ -365,18 +410,23 @@ class PyWayBackup:
 
         """
         collection = None
+        ticker = None
+        ticker_stop = threading.Event()
         try:
             self._startup()
 
-            self._status.task = "downloading cdx"
+            self._notify(task="downloading cdx")
             cdx = self._prep_cdx()
 
             if cdx:
-                self._status.task = "preparing snapshots"
+                self._notify(task="preparing snapshots")
                 collection = self._prep_collection()
 
                 if collection:
-                    self._status.task = "downloading snapshots"
+                    self._notify(task="downloading snapshots")
+                    if self._progress_callback:
+                        ticker = threading.Thread(target=self._notify_loop, args=(ticker_stop,), daemon=True)
+                        ticker.start()
                     self._dl_download(collection=collection)
 
         except KeyboardInterrupt:
@@ -386,6 +436,10 @@ class PyWayBackup:
             self._keep = True
             ex.exception(message="", e=e)
         finally:
+            ticker_stop.set()  # stop ticking before the db teardown below
+            if ticker:
+                ticker.join()
+            self._notify()  # last frame before "done" freezes the counts
             # if a collection was created during the workflow, close its DB session cleanly
             try:
                 if collection:
@@ -412,7 +466,7 @@ class PyWayBackup:
         ... }
         """
         files = {
-            "snapshots": os.path.join(self._output, self._domain),
+            "snapshots": os.path.join(self._output, normalize_domain(self._domain, merge_www=self._merge_www)),
             "cdxfile": self._cdxfile.filepath,
             "dbfile": self._dbfile,
             "csvfile": self._csvfile.filepath,
@@ -492,7 +546,7 @@ class PyWayBackup:
 
     def _startup(self):
         if db.query_exist:
-            self._status.task = "resuming"
+            self._notify(task="resuming")
             vb.write(
                 content=f"\nDOWNLOAD job exist - processed: {db.query_progress}\nResuming download... (to reset the job use '--reset')"
             )
@@ -506,7 +560,7 @@ class PyWayBackup:
                     time.sleep(1)
 
     def _shutdown(self):
-        self._status.task = "done"
+        self._notify(task="done")  # counts stay frozen at the last live update
         collection = SnapshotCollection()
         collection.close()
         self._csvfile.store_result()

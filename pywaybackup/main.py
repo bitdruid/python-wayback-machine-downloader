@@ -2,7 +2,7 @@ import signal
 import sys
 
 from pywaybackup import PyWayBackup
-from pywaybackup.arg_parser import Arguments
+from pywaybackup.arguments import Arguments
 from pywaybackup.interactive import Interactive
 
 

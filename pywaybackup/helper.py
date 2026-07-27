@@ -47,6 +47,27 @@ def url_get_timestamp(url):
     return timestamp
 
 
+def normalize_domain(domain: str, merge_www: bool = True) -> str:
+    """
+    Normalize a domain for use as a folder name.
+
+    The cdx api canonicalizes hosts, so a single query returns `example.com`,
+    `www.example.com`, `www.example.com.` and `www.EXAMPLE.com` mixed together.
+    Without normalizing these all become separate output folders for the same site.
+
+    The `www.` prefix is only stripped if a dot remains, so `www.com` stays intact.
+    Real subdomains (`blog.example.com`) are left alone.
+
+    Args:
+        domain (str): The domain to normalize.
+        merge_www (bool): If False, keeps the `www.` prefix (--no-merge-www).
+    """
+    domain = domain.lower().rstrip(".")
+    if merge_www and domain.startswith("www.") and "." in domain[4:]:
+        domain = domain[4:]
+    return domain
+
+
 def url_split(url, index=False):
     """
     Split a URL into domain, subdir, and filename.
