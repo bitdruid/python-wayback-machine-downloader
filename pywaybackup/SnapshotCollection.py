@@ -2,6 +2,7 @@ import json
 
 from pywaybackup.db import Database, and_, delete, func, or_, select, text, tuple_, update, waybackup_snapshots
 from pywaybackup.files import CDXfile, CSVfile
+from pywaybackup.Url import Url
 from pywaybackup.Verbosity import Progressbar
 from pywaybackup.Verbosity import Verbosity as vb
 
@@ -127,6 +128,8 @@ class SnapshotCollection:
                 "timestamp": line["timestamp"],
                 "url_archive": url_archive,
                 "url_origin": line["origin"],
+                # identity of the file on disk - the mode filter groups by this
+                "url_key": Url(line["origin"], merge_www=self._merge_www).key,
                 "response": statuscode,
             }
 
@@ -237,16 +240,16 @@ class SnapshotCollection:
         if self._mode_last:
             self.db.session.execute(
                 text(
-                    "CREATE INDEX IF NOT EXISTS idx_waybackup_snapshots_url_origin_timestamp_desc "
-                    "ON waybackup_snapshots (url_origin, timestamp DESC)"
+                    "CREATE INDEX IF NOT EXISTS idx_waybackup_snapshots_url_key_timestamp_desc "
+                    "ON waybackup_snapshots (url_key, timestamp DESC)"
                 )
             )
         # index for filtering first snapshots
         if self._mode_first:
             self.db.session.execute(
                 text(
-                    "CREATE INDEX IF NOT EXISTS idx_waybackup_snapshots_url_origin_timestamp_asc "
-                    "ON waybackup_snapshots (url_origin, timestamp ASC)"
+                    "CREATE INDEX IF NOT EXISTS idx_waybackup_snapshots_url_key_timestamp_asc "
+                    "ON waybackup_snapshots (url_key, timestamp ASC)"
                 )
             )
         # index for skippable snapshots
@@ -262,13 +265,13 @@ class SnapshotCollection:
         """
         Filter the snapshot table.
 
-        - MODE_LAST → keep only the latest snapshot (highest timestamp) per url_origin.
-        - MODE_FIRST → keep only the earliest snapshot (lowest timestamp) per url_origin.
+        - MODE_LAST → keep only the latest snapshot (highest timestamp) per url_key.
+        - MODE_FIRST → keep only the earliest snapshot (lowest timestamp) per url_key.
 
-        Grouped by the url as it maps to disk, not by the raw url_origin: the output
-        path drops the scheme and normalizes the domain, so `http://www.example.com/`
-        and `https://example.com/` are one and the same file. Grouping by the raw value
-        would download both and let the second silently overwrite the first.
+        Grouped by url_key, not by the raw url_origin: the key is the output path
+        itself, so `http://www.example.com/`, `https://example.com:80/` and
+        `https://example.com./` are one and the same file. Grouping by the raw value
+        would download all of them and let the last one silently overwrite the rest.
         """
 
         def _filter_mode():
@@ -277,15 +280,11 @@ class SnapshotCollection:
                 ordering = (
                     waybackup_snapshots.timestamp.desc() if self._mode_last else waybackup_snapshots.timestamp.asc()
                 )
-                # same url as far as the output path is concerned (see helper.normalize_domain)
-                url_key = func.replace(func.lower(waybackup_snapshots.url_origin), "https://", "http://")
-                if self._merge_www:
-                    url_key = func.replace(url_key, "http://www.", "http://")
-                # assign row numbers per url
+                # assign row numbers per file on disk
                 rownum = (
                     func.row_number()
                     .over(
-                        partition_by=url_key,
+                        partition_by=waybackup_snapshots.url_key,
                         order_by=ordering,
                     )
                     .label("rn")

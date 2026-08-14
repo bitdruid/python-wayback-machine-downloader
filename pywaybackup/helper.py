@@ -53,58 +53,6 @@ def url_get_timestamp(url):
     return timestamp
 
 
-def normalize_domain(domain: str, merge_www: bool = True) -> str:
-    """
-    Normalize a domain for use as a folder name.
-
-    The cdx api canonicalizes hosts, so a single query returns `example.com`,
-    `www.example.com`, `www.example.com.` and `www.EXAMPLE.com` mixed together.
-    Without normalizing these all become separate output folders for the same site.
-
-    The `www.` prefix is only stripped if a dot remains, so `www.com` stays intact.
-    Real subdomains (`blog.example.com`) are left alone.
-
-    Args:
-        domain (str): The domain to normalize.
-        merge_www (bool): If False, keeps the `www.` prefix (--no-merge-www).
-    """
-    domain = domain.lower().rstrip(".")
-    if merge_www and domain.startswith("www.") and "." in domain[4:]:
-        domain = domain[4:]
-    return domain
-
-
-def url_split(url, index=False):
-    """
-    Split a URL into domain, subdir, and filename.
-
-    Index:
-    - [0] = domain
-    - [1] = subdir
-    - [2] = filename
-    """
-    if "://" in url:
-        url = url.split("://")[1]
-    domain = url.split("/")[0]
-    path = url[len(domain):]  # fmt: skip
-    domain = domain.split("@")[-1].split(":")[0]  # remove mailto and port
-    path_parts = path.split("/")
-    path_end = path_parts[-1]
-    if not url.endswith("/") or "." in path_end:
-        filename = path_parts.pop()
-    else:
-        filename = "index.html" if index else ""
-    subdir = "/".join(path_parts).strip("/")
-
-    # Sanitize special characters that are problematic in file- and foldernames
-    special_chars = [":", "*", "?", "&", "=", "<", ">", "\\", "|", "#", "!", "~"]
-    for char in special_chars:
-        subdir = subdir.replace(char, f"%{ord(char):02x}")
-        filename = filename.replace(char, f"%{ord(char):02x}")
-    filename = filename.replace("%20", " ")
-    return domain, subdir, filename
-
-
 def move_index(existpath: str = None, existfile: str = None, filebuffer: bytes = None):
     """
     1. If existpath is given but can't be created because a file exists with the same name
