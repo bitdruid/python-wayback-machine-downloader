@@ -57,6 +57,7 @@ class waybackup_snapshots(Base):
         timestamp (str): Timestamp of the snapshot.
         url_archive (str): Unique URL of the archived snapshot.
         url_origin (str): Original URL before archiving.
+        url_key (str): Output path the url maps to, relative to the output dir (see Url.key).
         redirect_url (str): URL to which the original was redirected, if any.
         redirect_timestamp (str): Timestamp of the redirect, if applicable.
         response (str): HTTP response or status for the snapshot.
@@ -70,6 +71,7 @@ class waybackup_snapshots(Base):
     timestamp = Column(String)
     url_archive = Column(String, unique=True)
     url_origin = Column(String)
+    url_key = Column(String)
     redirect_url = Column(String)
     redirect_timestamp = Column(String)
     response = Column(String)
@@ -115,7 +117,7 @@ class Database:
 
         db = Database()
         if db.session.execute(
-            select(waybackup_job.query_identifier).where(query_identifier == query_identifier)
+            select(waybackup_job.query_identifier).where(waybackup_job.query_identifier == query_identifier)
         ).fetchone():
             cls.query_exist = True
             cls.query_progress = db.get_progress()

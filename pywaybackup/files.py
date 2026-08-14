@@ -5,7 +5,7 @@ import os
 import csv
 import requests
 from datetime import datetime
-from pywaybackup.helper import url_split
+from pywaybackup.Url import Url
 from pywaybackup.db import Database, waybackup_snapshots, select
 from pywaybackup.Verbosity import Verbosity as vb, Progressbar
 from pywaybackup.Exception import Exception as ex
@@ -30,7 +30,8 @@ class CDXquery:
     # filter_statuscode: List[str] = None # 3.9+
 
     def __post_init__(self):
-        self.domain, self.subdir, self.filename = url_split(self.url)
+        url = Url(self.url)
+        self.domain, self.subdir, self.filename = url.domain_raw, url.subdir, url.filename_raw
         self.query_url = self._build_query()
 
     def _build_query(self):

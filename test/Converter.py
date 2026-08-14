@@ -1,7 +1,7 @@
 import os
 import errno
 import magic
-from pywaybackup.helper import url_split
+from pywaybackup.Url import Url
 
 from pywaybackup.Arguments import Configuration as config
 import re
@@ -62,7 +62,7 @@ class Converter:
             """
             Convert a given url to a local path.
             """
-            original_url_domain = url_split(original_url)[0]
+            original_url_domain = Url(original_url).domain_raw
 
             # check if the url is external or internal (external is returned as is because no need to convert)
             external = False
@@ -113,8 +113,8 @@ class Converter:
                 pass
             if url.startswith("//"):
                 url = "/" + url.split("//")[1]
-            parsed_url = url_split(url)
-            return f"{parsed_url[1]}/{parsed_url[2]}"
+            parsed_url = Url(url)
+            return f"{parsed_url.subdir}/{parsed_url.filename_raw}"
 
 
         def is_pathname_valid(pathname: str) -> bool:

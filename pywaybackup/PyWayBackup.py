@@ -12,7 +12,8 @@ from pywaybackup.archive_download import DownloadArchive
 from pywaybackup.db import Database as db
 from pywaybackup.Exception import Exception as ex
 from pywaybackup.files import CDXfile, CDXquery, CSVfile
-from pywaybackup.helper import normalize_domain, sanitize_filename, url_split
+from pywaybackup.helper import sanitize_filename
+from pywaybackup.Url import Url
 from pywaybackup.SnapshotCollection import SnapshotCollection
 from pywaybackup.Verbosity import Verbosity as vb
 
@@ -233,7 +234,10 @@ class PyWayBackup:
         Initializes output and metadata directories and prepares file paths for
         CDX, DB, and CSV files used for tracking snapshots and metadata.
         """
-        self._domain, self._subdir, self._filename = url_split(self._url)
+        self._url_parsed = Url(self._url, merge_www=self._merge_www)
+        self._domain = self._url_parsed.domain_raw
+        self._subdir = self._url_parsed.subdir
+        self._filename = self._url_parsed.filename_raw
 
         self._output = os.path.join(os.getcwd(), "waybackup_snapshots") if not self._output else self._output
         self._metadata = self._metadata if self._metadata else self._output
@@ -466,7 +470,7 @@ class PyWayBackup:
         ... }
         """
         files = {
-            "snapshots": os.path.join(self._output, normalize_domain(self._domain, merge_www=self._merge_www)),
+            "snapshots": os.path.join(self._output, self._url_parsed.domain),
             "cdxfile": self._cdxfile.filepath,
             "dbfile": self._dbfile,
             "csvfile": self._csvfile.filepath,
