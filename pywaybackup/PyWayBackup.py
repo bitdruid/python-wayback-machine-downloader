@@ -366,6 +366,7 @@ class PyWayBackup:
             wait=self._wait,
             workers=self._workers,
             merge_www=self._merge_www,
+            job_id=db.job_id,
         )
         downloader.run(SnapshotCollection=collection)
 

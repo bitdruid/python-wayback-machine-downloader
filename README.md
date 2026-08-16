@@ -11,8 +11,27 @@ Internet-archive is a nice source for several OSINT-information. This tool is a 
 
 This tool allows you to download content from the Wayback Machine (archive.org). You can use it to download either the latest version or all versions of web page snapshots within a specified range.
 
+## Fair use of archive.org
+
+As i stumbled across projects which also reuse code from this repo...
+
+The Wayback Machine is a free service run by a non-profit and funded by donations. Every request this tool makes is paid for by someone else.
+
+There are projects out there tuned for maximum extraction — as many workers as the server will tolerate, no delay, whole domains pulled for the sake of it. I don't agree with that approach. The predictable end of it is rate limits, API tokens or IP blocks, and then nobody gets the open access we have today.
+
+If you download here, please be a decent guest:
+
+- Keep `--workers` low. The default is 1, and about 10 is the upper end of reasonable.
+- Use `--delay` on larger jobs.
+- Narrow the query with `--range`/`--start`/`--end`, `--filetype` and `--explicit` instead of pulling a whole domain and sorting it out afterwards.
+- Prefer `--last` or `--first` over `--all` unless you genuinely need every version.
+- Don't delete a finished job's metadata just to run it again — resume is there for that.
+
+If archive.org is useful to you, [consider donating](https://archive.org/donate).
+
 # Content
 
+➡️ [Fair use of archive.org](#fair-use-of-archiveorg) <br>
 ➡️ [Installation](#installation) <br>
 ➡️ [notes / issues / hints](#notes--issues--hints) <br>
 ➡️ [import](#import) <br>

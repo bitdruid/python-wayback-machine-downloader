@@ -91,6 +91,7 @@ class DownloadArchive:
         wait: int,
         workers: int,
         merge_www: bool = True,
+        job_id=None,
     ):
         """
         Initialize the download manager with configuration options.
@@ -103,10 +104,12 @@ class DownloadArchive:
             delay (int): Delay between downloads in seconds.
             workers (int): Number of worker threads.
             merge_www (bool): Write www and non-www snapshots into the same folder.
+            job_id (int, optional): Job the workers claim snapshots from.
         """
         self.mode = mode
         self.output = output
         self.merge_www = merge_www
+        self.job_id = job_id
         self.retry = retry
         self.no_redirect = no_redirect
         self.delay = delay
@@ -139,7 +142,9 @@ class DownloadArchive:
 
         threads = []
         for i in range(self.workers):
-            worker = Worker(id=i + 1, output=self.output, mode=self.mode, merge_www=self.merge_www)
+            worker = Worker(
+                id=i + 1, output=self.output, mode=self.mode, merge_www=self.merge_www, job_id=self.job_id
+            )
             vb.write(verbose=True, content=f"\n-----> Starting Worker: {worker.id}")
             thread = threading.Thread(target=self._download_loop, args=(worker,), daemon=True)
             threads.append(thread)

@@ -83,7 +83,12 @@ class Snapshot:
             vb.write(verbose="high", content="[Snapshot.fetch] selecting next scid")
             scid = session.execute(
                 select(waybackup_snapshots.scid)
-                .where(waybackup_snapshots.response.is_(None))
+                .where(
+                    and_(
+                        waybackup_snapshots.job_id == self._db.job_id,
+                        waybackup_snapshots.response.is_(None),
+                    )
+                )
                 .order_by(waybackup_snapshots.scid)
                 .limit(1)
             ).scalar_one_or_none()
