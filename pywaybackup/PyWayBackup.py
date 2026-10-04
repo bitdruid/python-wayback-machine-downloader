@@ -276,7 +276,9 @@ class PyWayBackup:
         self._f_reset()
         ex.init(debugfile=self._debugfile, output=self._output, command=self._command)
         vb.init(logfile=self._logfile, silent=self._silent, verbose=self._verbose, progress=self._progress)
-        db.init(dbfile=self._dbfile, query_identifier=self._query_identifier)
+        db.init(
+            dbfile=self._dbfile, query_identifier=self._query_identifier, merge_www=self._merge_www, reset=self._reset
+        )
 
         vb.write(content=f"\n<<< python-wayback-machine-downloader v{version('pywaybackup')} >>>")
 
@@ -287,23 +289,27 @@ class PyWayBackup:
         """
         Reset metadata files if the `reset` flag is set.
 
-        Deletes the existing `.cdx`, `.db`, and `.csv` files if they exist,
-        ensuring a fresh start for the backup job.
+        Deletes the existing `.cdx` and `.csv` files if they exist. The job's
+        database rows are reset by `Database.init`, which drops only this job -
+        the database may hold other jobs on the same url.
         """
         if self._reset:
             self._cdxfile.remove()
             self._csvfile.remove()
-            os.remove(self._dbfile) if os.path.exists(self._dbfile) else None
 
     def _f_keep(self):
         """
-        Retain or delete metadata files based on the `keep` flag.
+        Retain or delete metadata based on the `keep` flag.
 
-        If `keep` is False, deletes the `.cdx`, `.db`, and `.csv` files after
-        processing is complete.
+        If `keep` is False, drops this job from the database and deletes the
+        `.cdx` file after processing is complete. The `.db` file itself is only
+        removed once no job is left in it.
         """
         if not self._keep:
-            os.remove(self._dbfile) if os.path.exists(self._dbfile) else None
+            jobs_left = db.drop_job()
+            db.close_engine()  # Windows can't remove a file the engine still holds open
+            if jobs_left == 0 and os.path.exists(self._dbfile):
+                os.remove(self._dbfile)
             self._cdxfile.remove()
 
     def _prep_cdx(self) -> bool:
@@ -366,6 +372,7 @@ class PyWayBackup:
             wait=self._wait,
             workers=self._workers,
             merge_www=self._merge_www,
+            job_id=db.job_id,
         )
         downloader.run(SnapshotCollection=collection)
 
@@ -568,7 +575,7 @@ class PyWayBackup:
         collection = SnapshotCollection()
         collection.close()
         self._csvfile.store_result()
-        db.close_engine()
         self._f_keep()
+        db.close_engine()
         vb.fini()
         signal.signal(signal.SIGINT, signal.SIG_IGN)

@@ -14,8 +14,13 @@ class SnapshotCollection:
     Represents the interaction with the snapshot-collection contained in the snapshot database.
     """
 
-    def __init__(self):
-        self.db = Database()
+    def __init__(self, job_id=None):
+        """
+        Args:
+            job_id (int, optional): Job to scope every query to. Defaults to the job
+                resolved by `Database.init()`.
+        """
+        self.db = Database(job_id)
         self.cdxfile = None
         self.csvfile = None
         self._mode_first = False
@@ -55,7 +60,14 @@ class SnapshotCollection:
     def _reset_locked_snapshots(self):
         """Reset locked snapshots to unprocessed in the database."""
         self.db.session.execute(
-            update(waybackup_snapshots).where(waybackup_snapshots.response == "LOCK").values(response=None)
+            update(waybackup_snapshots)
+            .where(
+                and_(
+                    waybackup_snapshots.job_id == self.db.job_id,
+                    waybackup_snapshots.response == "LOCK",
+                )
+            )
+            .values(response=None)
         )
         self.db.session.commit()
 
@@ -125,6 +137,7 @@ class SnapshotCollection:
             url_archive = f"https://web.archive.org/web/{line['timestamp']}id_/{line['origin']}"
             statuscode = line["statuscode"] if line["statuscode"] in ("301", "404") else None
             return {
+                "job_id": self.db.job_id,
                 "timestamp": line["timestamp"],
                 "url_archive": url_archive,
                 "url_origin": line["origin"],
@@ -152,6 +165,7 @@ class SnapshotCollection:
                     waybackup_snapshots.url_origin,
                     waybackup_snapshots.url_archive,
                 )
+                .filter(waybackup_snapshots.job_id == self.db.job_id)
                 .filter(
                     tuple_(
                         waybackup_snapshots.timestamp, waybackup_snapshots.url_origin, waybackup_snapshots.url_archive
@@ -236,27 +250,29 @@ class SnapshotCollection:
         module-global table metadata, which accumulates duplicates when the
         package is reused in-process (library usage) and breaks create_all().
         """
+        # job_id leads every index: all queries are scoped by it, so it has to be the
+        # first column for the index to be usable at all
         # index for filtering last snapshots
         if self._mode_last:
             self.db.session.execute(
                 text(
-                    "CREATE INDEX IF NOT EXISTS idx_waybackup_snapshots_url_key_timestamp_desc "
-                    "ON waybackup_snapshots (url_key, timestamp DESC)"
+                    "CREATE INDEX IF NOT EXISTS idx_waybackup_snapshots_job_url_key_timestamp_desc "
+                    "ON waybackup_snapshots (job_id, url_key, timestamp DESC)"
                 )
             )
         # index for filtering first snapshots
         if self._mode_first:
             self.db.session.execute(
                 text(
-                    "CREATE INDEX IF NOT EXISTS idx_waybackup_snapshots_url_key_timestamp_asc "
-                    "ON waybackup_snapshots (url_key, timestamp ASC)"
+                    "CREATE INDEX IF NOT EXISTS idx_waybackup_snapshots_job_url_key_timestamp_asc "
+                    "ON waybackup_snapshots (job_id, url_key, timestamp ASC)"
                 )
             )
         # index for skippable snapshots
         self.db.session.execute(
             text(
-                "CREATE INDEX IF NOT EXISTS idx_waybackup_snapshots_timestamp_url_origin_response "
-                "ON waybackup_snapshots (timestamp, url_origin)"
+                "CREATE INDEX IF NOT EXISTS idx_waybackup_snapshots_job_timestamp_url_origin_response "
+                "ON waybackup_snapshots (job_id, timestamp, url_origin)"
             )
         )
         self.db.session.commit()
@@ -289,10 +305,21 @@ class SnapshotCollection:
                     )
                     .label("rn")
                 )
-                subq = select(waybackup_snapshots.scid, rownum).subquery()
+                # restricted to this job before partitioning: another job's rows would
+                # otherwise share a partition and silently knock this job's rows out
+                subq = (
+                    select(waybackup_snapshots.scid, rownum)
+                    .where(waybackup_snapshots.job_id == self.db.job_id)
+                    .subquery()
+                )
                 # keep rn == 1, delete all others
                 keepers = select(subq.c.scid).where(subq.c.rn == 1)
-                stmt = delete(waybackup_snapshots).where(~waybackup_snapshots.scid.in_(keepers))
+                stmt = delete(waybackup_snapshots).where(
+                    and_(
+                        waybackup_snapshots.job_id == self.db.job_id,
+                        ~waybackup_snapshots.scid.in_(keepers),
+                    )
+                )
                 result = self.db.session.execute(stmt)
                 self.db.session.commit()
                 self._filter_mode = result.rowcount
@@ -305,7 +332,12 @@ class SnapshotCollection:
                 rows = (
                     self.db.session.execute(
                         select(waybackup_snapshots.scid)
-                        .where(waybackup_snapshots.counter.is_(None))
+                        .where(
+                            and_(
+                                waybackup_snapshots.job_id == self.db.job_id,
+                                waybackup_snapshots.counter.is_(None),
+                            )
+                        )
                         .order_by(waybackup_snapshots.scid)
                         .limit(batch_size)
                     )
@@ -322,7 +354,14 @@ class SnapshotCollection:
         _filter_mode()
         _enumerate_counter()
         self._filter_response = (
-            self.db.session.query(waybackup_snapshots).where(waybackup_snapshots.response.in_(["404", "301"])).count()
+            self.db.session.query(waybackup_snapshots)
+            .where(
+                and_(
+                    waybackup_snapshots.job_id == self.db.job_id,
+                    waybackup_snapshots.response.in_(["404", "301"]),
+                )
+            )
+            .count()
         )
         self.db.session.commit()
 
@@ -341,6 +380,7 @@ class SnapshotCollection:
                         update(waybackup_snapshots)
                         .where(
                             and_(
+                                waybackup_snapshots.job_id == self.db.job_id,
                                 waybackup_snapshots.timestamp == row["timestamp"],
                                 waybackup_snapshots.url_origin == row["url_origin"],
                             )
@@ -369,28 +409,29 @@ class SnapshotCollection:
                 vb.write(verbose=True, content="[SnapshotCollection._skip_set] rollback failed")
             raise
 
+    def _count(self, *criteria) -> int:
+        """
+        Count snapshot rows of this job matching the given criteria.
+        """
+        query = self.db.session.query(waybackup_snapshots.scid).where(
+            waybackup_snapshots.job_id == self.db.job_id
+        )
+        return query.where(*criteria).count() if criteria else query.count()
+
     def count_total(self) -> int:
-        return self.db.session.query(waybackup_snapshots.scid).count()
+        return self._count()
 
     def count_handled(self) -> int:
-        return self.db.session.query(waybackup_snapshots.scid).where(waybackup_snapshots.response.is_not(None)).count()
+        return self._count(waybackup_snapshots.response.is_not(None))
 
     def count_unhandled(self) -> int:
-        return self.db.session.query(waybackup_snapshots.scid).where(waybackup_snapshots.response.is_(None)).count()
+        return self._count(waybackup_snapshots.response.is_(None))
 
     def count_success(self) -> int:
-        return (
-            self.db.session.query(waybackup_snapshots.scid)
-            .where(and_(waybackup_snapshots.file.is_not(None), waybackup_snapshots.file != ""))
-            .count()
-        )
+        return self._count(and_(waybackup_snapshots.file.is_not(None), waybackup_snapshots.file != ""))
 
     def count_fail(self) -> int:
-        return (
-            self.db.session.query(waybackup_snapshots.scid)
-            .where(or_(waybackup_snapshots.file.is_(None), waybackup_snapshots.file == ""))
-            .count()
-        )
+        return self._count(or_(waybackup_snapshots.file.is_(None), waybackup_snapshots.file == ""))
 
     def print_calculation(self):
         vb.write(content="\nSnapshot calculation:")

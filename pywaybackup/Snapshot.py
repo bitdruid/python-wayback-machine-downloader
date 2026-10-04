@@ -1,6 +1,6 @@
 import threading
 
-from pywaybackup.db import Database, select, update, waybackup_snapshots, and_
+from pywaybackup.db import Database, and_, func, select, update, waybackup_snapshots
 from pywaybackup.Url import Url
 from pywaybackup.Verbosity import Verbosity as vb
 
@@ -83,7 +83,12 @@ class Snapshot:
             vb.write(verbose="high", content="[Snapshot.fetch] selecting next scid")
             scid = session.execute(
                 select(waybackup_snapshots.scid)
-                .where(waybackup_snapshots.response.is_(None))
+                .where(
+                    and_(
+                        waybackup_snapshots.job_id == self._db.job_id,
+                        waybackup_snapshots.response.is_(None),
+                    )
+                )
                 .order_by(waybackup_snapshots.scid)
                 .limit(1)
             ).scalar_one_or_none()
@@ -158,6 +163,31 @@ class Snapshot:
             except Exception:
                 pass
             raise
+
+    def written_by(self, path: str):
+        """
+        Timestamp of the snapshot of this job whose content is at `path`, if any.
+
+        Two rows can end on the same file although the mode filter kept both:
+        `/page` is only known to be html after its download, and then gets the
+        `.html` of `/page.html` appended. The writer that is kept on disk is
+        always the best one for the mode so far, so it is the newest writer in
+        mode `last` and the oldest in mode `first`.
+
+        Returns:
+            str or None: The timestamp, or None if no other row of this job wrote
+                the file (e.g. it is left from an earlier run or another job).
+        """
+        best = func.max if self.mode == "last" else func.min
+        return self._db.session.execute(
+            select(best(waybackup_snapshots.timestamp)).where(
+                and_(
+                    waybackup_snapshots.job_id == self._db.job_id,
+                    waybackup_snapshots.file == path,
+                    waybackup_snapshots.scid != self.scid,
+                )
+            )
+        ).scalar_one_or_none()
 
     def create_output(self):
         """

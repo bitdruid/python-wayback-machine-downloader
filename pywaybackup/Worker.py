@@ -11,15 +11,16 @@ class Worker:
     Worker buffers its messages in a Message object. Output has to be done with write() method.
     """
 
-    def __init__(self, id: int, output: str, mode: str, merge_www: bool = True):
+    def __init__(self, id: int, output: str, mode: str, merge_www: bool = True, job_id=None):
         self.id = id
         self.output = output
         self.mode = mode
         self.merge_www = merge_www
+        self.job_id = job_id
         self.message = Message(self)
 
     def init(self):
-        self.db = Database()
+        self.db = Database(self.job_id)
         self.connection = http.client.HTTPSConnection("web.archive.org")
 
     def close(self):

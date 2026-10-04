@@ -6,7 +6,7 @@ import csv
 import requests
 from datetime import datetime
 from pywaybackup.Url import Url
-from pywaybackup.db import Database, waybackup_snapshots, select
+from pywaybackup.db import Database, and_, waybackup_snapshots, select
 from pywaybackup.Verbosity import Verbosity as vb, Progressbar
 from pywaybackup.Exception import Exception as ex
 
@@ -176,11 +176,15 @@ class CSVfile(File):
         else:
             self._file_writer.writerows(rows)
 
-    def store_result(self):
+    def store_result(self, job_id=None):
         """
-        Store all processed snapshots from the database to the CSV file.
+        Store this job's processed snapshots from the database to the CSV file.
+
+        Args:
+            job_id (int, optional): Job to export. Defaults to the job resolved by
+                `Database.init()`.
         """
-        db = Database()
+        db = Database(job_id)
         stmt = select(
             waybackup_snapshots.timestamp,
             waybackup_snapshots.url_archive,
@@ -189,7 +193,12 @@ class CSVfile(File):
             waybackup_snapshots.redirect_timestamp,
             waybackup_snapshots.response,
             waybackup_snapshots.file,
-        ).where(waybackup_snapshots.response.is_not(None))
+        ).where(
+            and_(
+                waybackup_snapshots.job_id == db.job_id,
+                waybackup_snapshots.response.is_not(None),
+            )
+        )
         result = db.session.execute(statement=stmt)
         row_batchsize = 2500
         with self as f:

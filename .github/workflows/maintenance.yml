@@ -1,0 +1,39 @@
+name: 'Maintenance'
+on:
+  schedule:
+    - cron: "00 00 * * 0"
+  workflow_dispatch:
+
+jobs:
+  close-issues:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/stale@v9.0.0
+        with:
+          days-before-issue-stale: 30
+          days-before-issue-close: 14
+          stale-issue-label: "stale"
+          exempt-all-assignees: true
+          stale-issue-message: "This issue is marked as stale because there was no activity for 30 days."
+          close-issue-message: "This issue has been closed because there has been no activity for 14 days while it was marked as stale."
+
+  cleanup-runs:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Delete workflow runs older than 6 months
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          cutoff=$(date -u -d '6 months ago' +%Y-%m-%d)
+          # collect first: deleting while paginating shifts the pages and skips runs
+          ids=$(gh api -X GET "repos/$REPO/actions/runs" -f created="<$cutoff" -f per_page=100 --paginate --jq '.workflow_runs[].id')
+          echo "deleting $(echo "$ids" | grep -c . ) runs created before $cutoff"
+          for id in $ids; do
+            gh api -X DELETE "repos/$REPO/actions/runs/$id" --silent
+          done

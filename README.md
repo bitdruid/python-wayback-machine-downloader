@@ -11,8 +11,27 @@ Internet-archive is a nice source for several OSINT-information. This tool is a 
 
 This tool allows you to download content from the Wayback Machine (archive.org). You can use it to download either the latest version or all versions of web page snapshots within a specified range.
 
+## Fair use of archive.org
+
+As i stumbled across projects which also reuse code from this repo...
+
+The Wayback Machine is a free service run by a non-profit and funded by donations. Every request this tool makes is paid for by someone else.
+
+There are projects out there tuned for maximum extraction — as many workers as the server will tolerate, no delay, whole domains pulled for the sake of it. I don't agree with that approach. The predictable end of it is rate limits, API tokens or IP blocks, and then nobody gets the open access we have today.
+
+If you download here, please be a decent guest:
+
+- Keep `--workers` low. The default is 1, and about 10 is the upper end of reasonable.
+- Use `--delay` on larger jobs.
+- Narrow the query with `--range`/`--start`/`--end`, `--filetype` and `--explicit` instead of pulling a whole domain and sorting it out afterwards.
+- Prefer `--last` or `--first` over `--all` unless you genuinely need every version.
+- Don't delete a finished job's metadata just to run it again — resume is there for that.
+
+If archive.org is useful to you, [consider donating](https://archive.org/donate).
+
 # Content
 
+➡️ [Fair use of archive.org](#fair-use-of-archiveorg) <br>
 ➡️ [Installation](#installation) <br>
 ➡️ [notes / issues / hints](#notes--issues--hints) <br>
 ➡️ [import](#import) <br>
@@ -59,7 +78,7 @@ Move it to a directory in your `PATH` (e.g. `~/.local/bin`) to call it as `wayba
 ## notes / issues / hints
 
 - Linux recommended: On Windows machines, the path length is limited. Files that exceed the path length will not be downloaded.
-- The tool uses a sqlite database to handle snapshots. The database will only persist while the download is running.
+- The tool uses a sqlite database to handle snapshots. All jobs on the same URL share one database file, each with its own rows. A job's rows are removed when it finishes (unless `--keep`), the file itself once no job is left in it.
 - If you query an explicit file (e.g. a query-string `?query=this` or `login.html`), the `--explicit`-argument is recommended as a wildcard query may lead to an empty result.
 - Downloading directly into a network share is not recommended. The sqlite locking mechanism may cause issues. If you need to download into a network share, set the `--metadata` argument to a local path.
 
@@ -268,10 +287,10 @@ Parameters will change the download behavior for snapshots.
 #### Job Handling:
 
 - **`--reset`**:  
-  If set, the job will be reset, and `cdx`, `db`, `csv` files will be **deleted**. This allows you to start the job from scratch.
+  If set, the job will be reset: its rows in the `db` are dropped and the `cdx` and `csv` files are **deleted**. This allows you to start the job from scratch. Other jobs on the same URL keep their rows in the `db`.
 
 - **`--keep`**:  
-  If set, `cdx` and `db` files will be kept after the job is finished. Otherwise they will be deleted.
+  If set, the `cdx` file and the job's rows in the `db` will be kept after the job is finished. Otherwise they will be deleted (the `db` file only once no other job is left in it).
 
 <br>
 <br>
@@ -286,6 +305,10 @@ Only resumes queries if:
 - existing `.cdx` and `.db` files in an `output dir`
 - command is identical by `URL`, `mode`, and `optional query parameters`
   > **Note:** Changing URL, mode selection, query parameters or output prevents automatic resumption.
+
+Several jobs on the same URL (e.g. `--last` and `--first`) live side by side in one database and are resumed independently.
+
+A database left by an older version is migrated automatically on the next run, so interrupted jobs can still be resumed after an update.
 
 <br>
 <br>

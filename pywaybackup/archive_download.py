@@ -81,6 +81,8 @@ class DownloadArchive:
         sc (SnapshotCollection): The snapshot collection being processed.
     """
 
+    _write_lock = threading.Lock()
+
     def __init__(
         self,
         mode: str,
@@ -91,6 +93,7 @@ class DownloadArchive:
         wait: int,
         workers: int,
         merge_www: bool = True,
+        job_id=None,
     ):
         """
         Initialize the download manager with configuration options.
@@ -103,10 +106,12 @@ class DownloadArchive:
             delay (int): Delay between downloads in seconds.
             workers (int): Number of worker threads.
             merge_www (bool): Write www and non-www snapshots into the same folder.
+            job_id (int, optional): Job the workers claim snapshots from.
         """
         self.mode = mode
         self.output = output
         self.merge_www = merge_www
+        self.job_id = job_id
         self.retry = retry
         self.no_redirect = no_redirect
         self.delay = delay
@@ -139,7 +144,7 @@ class DownloadArchive:
 
         threads = []
         for i in range(self.workers):
-            worker = Worker(id=i + 1, output=self.output, mode=self.mode, merge_www=self.merge_www)
+            worker = Worker(id=i + 1, output=self.output, mode=self.mode, merge_www=self.merge_www, job_id=self.job_id)
             vb.write(verbose=True, content=f"\n-----> Starting Worker: {worker.id}")
             thread = threading.Thread(target=self._download_loop, args=(worker,), daemon=True)
             threads.append(thread)
@@ -313,18 +318,45 @@ class DownloadArchive:
             # create path or move file if path exists as file or file exists as directory
             self.__dl_move_path_or_file(context)
 
-            # download file if not existing
-            if not os.path.isfile(context.output_file):
-                with open(context.output_file, "wb") as file:
-                    file.write(context.response_data)
+            # check, write and record the file under one lock because two snapshots can
+            # target the same file and the decision depends on which one is recorded
+            with self._write_lock:
+                # download file if not existing, or replace a worse snapshot of this job (#62)
+                if not os.path.isfile(context.output_file) or self.__dl_supersedes(context, worker):
+                    with open(context.output_file, "wb") as file:
+                        file.write(context.response_data)
 
-                # check if file is downloaded
-                if os.path.isfile(context.output_file):
-                    return self.__dl_result(context, worker, "SUCCESS")
-            else:
-                return self.__dl_result(context, worker, "EXISTING")
+                    # check if file is downloaded
+                    if os.path.isfile(context.output_file):
+                        return self.__dl_result(context, worker, "SUCCESS")
+                else:
+                    return self.__dl_result(context, worker, "EXISTING")
         else:
             return self.__dl_fail(context, worker)
+
+    def __dl_supersedes(self, context: DownloadContext, worker: Worker) -> bool:
+        """
+        Check if the snapshot should replace the existing file written by another snapshot of this job.
+
+        `/page` and `/page.html` pass the mode filter as different urls, but once
+        `/page` is sniffed as html both write `page.html`. Without this, the
+        snapshot processed first would win instead of the newest (last) or the
+        oldest (first) one.
+
+        Args:
+            context (DownloadContext): The download context.
+            worker (Worker): The worker instance.
+        Returns:
+            bool: True if the existing file has to be overwritten.
+        """
+        if self.mode not in ("last", "first"):
+            return False  # mode all writes into timestamp folders
+        existing = worker.snapshot.written_by(context.output_file)
+        if existing is None:
+            return False  # from an earlier run or another job: keep as before
+        if self.mode == "last":
+            return worker.snapshot.timestamp > existing
+        return worker.snapshot.timestamp < existing
 
     def __handle_redirect(self, context: DownloadContext, worker: Worker) -> None:
         """
